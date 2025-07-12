@@ -1,31 +1,17 @@
 // src/app/api/uploads/reorder/route.ts
 import { NextResponse } from "next/server";
-import admin from "firebase-admin";
 import { db } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
-
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(
-      JSON.parse(process.env.FIREBASE_ADMIN_KEY!)
-    ),
-  });
-}
+import { verifyAuthToken } from "@/lib/firebase-admin";
 
 export async function POST(request: Request) {
-  // authenticate
-  const auth = request.headers.get("Authorization") || "";
-  const idToken = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!idToken) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  let decoded: admin.auth.DecodedIdToken;
+  let uid: string;
   try {
-    decoded = await admin.auth().verifyIdToken(idToken);
-  } catch {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    const decoded = await verifyAuthToken(request.headers.get("Authorization"));
+    uid = decoded.uid;
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 401 });
   }
-  const uid = decoded.uid;
 
   // parse body
   const { orderedIds } = (await request.json()) as {

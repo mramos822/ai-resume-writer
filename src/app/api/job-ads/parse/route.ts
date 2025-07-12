@@ -1,6 +1,6 @@
 // src/app/api/job-ads/parse/route.ts
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { openai, MODEL } from "@/lib/openai";
 
 interface ParseRequest {
   url?: string;
@@ -16,14 +16,6 @@ interface ParsedJob {
   location?: string;
   [key: string]: unknown;
 }
-
-const TOKEN = process.env.GITHUB_TOKEN;
-if (!TOKEN) throw new Error("Missing GITHUB_TOKEN");
-
-const openai = new OpenAI({
-  baseURL: "https://models.github.ai/inference",
-  apiKey: TOKEN,
-});
 
 const SYSTEM_PROMPT = `
 You are an expert recruiter assistant.  Given the full text of a job posting, extract and return EXACTLY the following JSON shape, with no extra keys or commentary:
@@ -59,7 +51,7 @@ export async function POST(request: Request) {
 
   // call OpenAI
   const ai = await openai.chat.completions.create({
-    model: "openai/gpt-4o-mini",
+    model: MODEL,
     temperature: 0,
     messages: [
       { role: "system", content: SYSTEM_PROMPT.trim() },

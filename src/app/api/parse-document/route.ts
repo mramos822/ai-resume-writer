@@ -2,7 +2,7 @@
 
 import fs from "fs";
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { openai, MODEL } from "@/lib/openai";
 import mammoth from "mammoth";
 import type { ProfileData, ContactInfo } from "@/context/profileContext";
 
@@ -28,13 +28,7 @@ fs.readFileSync = stubbedReadFileSync as typeof fs.readFileSync;
 // 4) Turn off Next’s built-in body parser
 export const config = { api: { bodyParser: false } };
 
-// 5) OpenAI client
-const TOKEN = process.env.GITHUB_TOKEN;
-if (!TOKEN) throw new Error("Missing GITHUB_TOKEN");
-const client = new OpenAI({ baseURL: "https://models.github.ai/inference", apiKey: TOKEN });
-const MODEL = "openai/gpt-4o-mini";
-
-// 6) Merge helper
+// 5) Merge helper
 function mergeProfiles(a: Partial<ProfileData>, b: Partial<ProfileData>): Partial<ProfileData> {
   const result: Partial<ProfileData> = {};
 
@@ -112,7 +106,7 @@ Output only the JSON, no explanation.
   `.trim();
 
   // e) call model
-  const ai = await client.chat.completions.create({
+  const ai = await openai.chat.completions.create({
     model: MODEL,
     temperature: 0,
     top_p: 1,
