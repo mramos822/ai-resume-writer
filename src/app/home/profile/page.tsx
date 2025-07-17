@@ -57,6 +57,57 @@ function useHash(): SectionKey {
   return hash;
 }
 
+function ResumeAdviceSection() {
+  const [advice, setAdvice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { activeProfile } = useProfile();
+
+  const handleRequestAdvice = async () => {
+    setLoading(true);
+    setAdvice(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/job-ads/advice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: activeProfile }),
+      });
+      if (!res.ok) throw new Error('Failed to get advice');
+      const data = await res.json();
+      setAdvice(data.advice || data.text || 'No advice returned.');
+    } catch (err: unknown) {
+      let message = 'Unknown error';
+      if (err instanceof Error) {
+        message = err.message;
+      }
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="my-8 p-6 bg-neutral-800 rounded-lg shadow">
+      <h2 className="text-lg font-semibold mb-2 text-neutral-100">Resume Advice</h2>
+      <button
+        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+        onClick={handleRequestAdvice}
+        disabled={loading}
+      >
+        {loading ? 'Requesting Advice…' : 'Get Resume Advice'}
+      </button>
+      {loading && <div className="mt-4 text-blue-400">Loading advice…</div>}
+      {error && <div className="mt-4 text-red-500">{error}</div>}
+      {advice && !loading && (
+        <div className="mt-4 p-4 bg-neutral-900 rounded text-neutral-100 whitespace-pre-line">
+          {advice}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { hasUnsavedChanges, saveChanges } = useProfile();
   const [isReParsing, setIsReParsing] = useState(false);
@@ -180,6 +231,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
         </motion.div>
+        <ResumeAdviceSection />
       </div>
     </div>
   );

@@ -53,7 +53,7 @@ function SortableTile(props: {
   fmt: (iso: string) => string;
   onClick: (r: UploadedRecord) => void;
   onDelete: (id: string) => void;
-  getTypeLabel: (m: string) => string;
+  getTypeLabel: (m: string, f: string) => string;
   viewMode: "list" | "icon";
   token: string;
   onParse: (id: string) => void;
@@ -131,7 +131,7 @@ function SortableTile(props: {
           )}
           <span className="text-neutral-100 truncate">{it.filename}</span>
           <span className="ml-2 text-xs uppercase bg-neutral-700 text-neutral-300 px-1 rounded truncate">
-            {getTypeLabel(it.type)}
+            {getTypeLabel(it.type, it.filename)}
           </span>
         </div>
         <span className="ml-4 text-sm text-neutral-400 whitespace-nowrap flex-shrink-0">
@@ -172,7 +172,7 @@ function SortableTile(props: {
       <div className="mt-2 text-center w-full">
         <span className="block text-sm text-neutral-100 truncate">{it.filename}</span>
         <span className="block text-xs uppercase bg-neutral-700 text-neutral-300 inline-block px-1 rounded truncate">
-          {getTypeLabel(it.type)}
+          {getTypeLabel(it.type, it.filename)}
         </span>
         <span className="block text-xs text-neutral-400 truncate">
           {new Date(it.createdAt).toLocaleDateString()}
@@ -223,10 +223,23 @@ export default function UploadedItems() {
     })
   );
 
-  const getTypeLabel = (mime: string) =>
-    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      ? "docx"
-      : mime.split("/")[1] || mime;
+  const getTypeLabel = (mime: string, filename: string) => {
+    // Label biography/freeform uploads as FREEFORM
+    if (
+      mime === "text/plain" &&
+      (filename.toLowerCase() === "biography.txt" || filename.toLowerCase().includes("biography") || filename.toLowerCase().includes("freeform"))
+    ) {
+      return "FREEFORM";
+    }
+    // Label .txt files as TXT (but not biography)
+    if (mime === "text/plain" && filename.toLowerCase().endsWith(".txt")) {
+      return "TXT";
+    }
+    if (mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+      return "docx";
+    }
+    return mime.split("/")[1] || mime;
+  };
   const fmt = (iso: string) => new Date(iso).toLocaleString();
 
   // Fetch uploads
@@ -264,7 +277,7 @@ export default function UploadedItems() {
     let cmp: (a: UploadedRecord, b: UploadedRecord) => number;
     if (sortBy === "name") cmp = (a, b) => a.filename.localeCompare(b.filename);
     else if (sortBy === "type")
-      cmp = (a, b) => getTypeLabel(a.type).localeCompare(getTypeLabel(b.type));
+      cmp = (a, b) => getTypeLabel(a.type, a.filename).localeCompare(getTypeLabel(b.type, b.filename));
     else cmp = (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     arr.sort((a, b) => (sortDir === "asc" ? cmp(a, b) : -cmp(a, b)));
     return arr;

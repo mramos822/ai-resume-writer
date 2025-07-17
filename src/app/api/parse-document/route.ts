@@ -2,7 +2,8 @@
 
 import fs from "fs";
 import { NextResponse } from "next/server";
-import { openai, MODEL } from "@/lib/openai";
+import { getOpenAIChatCompletion } from "@/lib/openaiClient";
+const MODEL = process.env.AI_MODEL || 'mistral-ai/mistral-medium-2505';
 import mammoth from "mammoth";
 import type { ProfileData, ContactInfo } from "@/context/profileContext";
 
@@ -35,9 +36,10 @@ function mergeProfiles(a: Partial<ProfileData>, b: Partial<ProfileData>): Partia
   if (a.contactInfo || b.contactInfo) {
     const email = b.contactInfo?.email ?? a.contactInfo?.email ?? "";
     const phone = b.contactInfo?.phone ?? a.contactInfo?.phone ?? "";
+    const address = b.contactInfo?.address ?? a.contactInfo?.address ?? "";
     const extraEmails = Array.from(new Set([...(a.contactInfo?.additionalEmails ?? []), ...(b.contactInfo?.additionalEmails ?? [])]));
     const extraPhones = Array.from(new Set([...(a.contactInfo?.additionalPhones ?? []), ...(b.contactInfo?.additionalPhones ?? [])]));
-    const ci: ContactInfo = { email, phone };
+    const ci: ContactInfo = { email, phone, address };
     if (extraEmails.length) ci.additionalEmails = extraEmails;
     if (extraPhones.length) ci.additionalPhones = extraPhones;
     result.contactInfo = ci;
@@ -95,7 +97,7 @@ You are an expert resume parser.
 Respond with NOTHING but a single, valid JSON object matching this interface exactly:
 
 interface ProfileData {
-  contactInfo: { email: string; phone: string; additionalEmails?: string[]; additionalPhones?: string[] };
+  contactInfo: { email: string; phone: string; address: string; additionalEmails?: string[]; additionalPhones?: string[] };
   careerObjective: string;
   skills: string[];
   jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; accomplishments: string[] }[];
@@ -106,7 +108,7 @@ Output only the JSON, no explanation.
   `.trim();
 
   // e) call model
-  const ai = await openai.chat.completions.create({
+  const completion = await getOpenAIChatCompletion({
     model: MODEL,
     temperature: 0,
     top_p: 1,
@@ -118,7 +120,7 @@ Output only the JSON, no explanation.
   });
 
   // f) parse JSON
-  const raw = ai.choices[0].message.content ?? "";
+  const raw = completion.content ?? "";
   const match = raw.match(/\{[\s\S]*\}$/);
   if (!match) {
     return NextResponse.json({ error: "Invalid JSON from parser", raw }, { status: 502 });

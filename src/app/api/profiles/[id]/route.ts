@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/profiles/[id]/route.ts
 import { NextResponse } from "next/server";
 import admin from "firebase-admin";
@@ -15,9 +16,9 @@ if (!admin.apps.length) {
 // GET /api/profiles/:id
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: any
 ) {
-  const { id } = await params;
+  const { id } = context.params;
   const bearer = request.headers.get("Authorization")?.replace(/^Bearer\s+/, "");
   if (!bearer) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -51,9 +52,9 @@ export async function GET(
 // PATCH /api/profiles/:id
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  context: any
 ) {
-  const { id } = await params;
+  const { id } = context.params;
   const bearer = request.headers.get("Authorization")?.replace(/^Bearer\s+/, "");
   if (!bearer) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -89,9 +90,9 @@ export async function PATCH(
 // DELETE /api/profiles/:id
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: any
 ) {
-  const { id } = await params;
+  const { id } = context.params;
   const bearer = request.headers.get("Authorization")?.replace(/^Bearer\s+/, "");
   if (!bearer) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

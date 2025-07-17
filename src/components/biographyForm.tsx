@@ -23,7 +23,15 @@ interface FormValues {
 const BiographyForm: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { user } = useAuth();
-  const { parseAndUpdateProfile } = useProfile();
+  const { 
+    activeProfileId, 
+    updateContactInfo, 
+    updateCareerObjective, 
+    updateSkills, 
+    addJobEntry, 
+    addEducationEntry,
+    saveChanges 
+  } = useProfile();
   const toast = useToast();
 
   const {
@@ -39,39 +47,61 @@ const BiographyForm: React.FC = () => {
       return;
     }
 
+    if (!activeProfileId) {
+      toast.error("No active profile selected");
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      // wrap text in a file so the same /api/uploads route works
-      const first15 = data.biography.slice(0, 15) + "...";
-      const textFile = new File(
-        [data.biography],
-        first15,
-        { type: "text/plain" }
-      );
+      // 1. Upload the freeform text to /api/uploads with a filename based on the first few words
+      const words = data.biography.trim().split(/\s+/).slice(0, 6);
+      const baseName = words.join("_") + (words.length === 6 ? "..." : "");
+      const safeBaseName = baseName.replace(/[^a-zA-Z0-9_\-]/g, "");
+      const biographyFile = new File([data.biography], `${safeBaseName}.txt`, { type: "text/plain" });
       const idToken = await user?.getIdToken();
       const formData = new FormData();
-      formData.append("file", textFile);
-
+      formData.append("file", biographyFile);
       const uploadRes = await fetch("/api/uploads", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },      
-        body:   formData,
+        headers: { Authorization: `Bearer ${idToken}` },
+        body: formData,
       });
       if (!uploadRes.ok) throw new Error("Text upload failed");
       const { fileId, filename, type } = await uploadRes.json();
 
-      // parse via API
+      // 2. Parse the biography text
       const parsedData = await parseBiographyText(data.biography);
-      parseAndUpdateProfile(parsedData);
+      
+      // 3. Update profile with parsed data
+      if (parsedData.contactInfo) {
+        updateContactInfo(parsedData.contactInfo);
+      }
+      if (parsedData.careerObjective) {
+        updateCareerObjective(parsedData.careerObjective);
+      }
+      if (parsedData.skills && parsedData.skills.length > 0) {
+        updateSkills(parsedData.skills);
+      }
+      if (parsedData.jobHistory && parsedData.jobHistory.length > 0) {
+        parsedData.jobHistory.forEach(job => {
+          addJobEntry(job);
+        });
+      }
+      if (parsedData.education && parsedData.education.length > 0) {
+        parsedData.education.forEach(edu => {
+          addEducationEntry(edu);
+        });
+      }
+      // 4. Save changes to backend
+      await saveChanges();
 
-      // save to Firestore
+      // 5. Save to Firestore for record keeping
       if (user) {
         await addDoc(
           collection(db, "users", user.uid, "uploadedFiles"),
           {
-            source:    "biography",
+            source: "biography",
             fileId,
             filename,
             type,
@@ -83,7 +113,8 @@ const BiographyForm: React.FC = () => {
 
       toast.success("Biography processed & saved!");
       reset();
-    } catch {
+    } catch (error) {
+      console.error("Biography processing error:", error);
       toast.error("Failed to process biography");
     } finally {
       setIsProcessing(false);

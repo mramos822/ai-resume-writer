@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import type { ChatCompletionCreateParams, ChatCompletion } from 'openai/resources/chat/completions/completions';
 
 const githubToken = process.env.GITHUB_TOKEN;
 if (!githubToken) {
@@ -10,8 +11,10 @@ const openai = new OpenAI({
   apiKey: githubToken,
 });
 
-export async function getOpenAIChatCompletion(params: any) {
-  const response = await openai.chat.completions.create(params);
+export { openai };
+
+export async function getOpenAIChatCompletion(params: ChatCompletionCreateParams) {
+  const response = await openai.chat.completions.create(params) as ChatCompletion;
   let content = response.choices[0].message.content ?? '';
   // Remove markdown code fences if present
   content = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
