@@ -163,9 +163,10 @@ Output only the JSON, no explanation.
 
   // 8) Save to Mongo
   const update: Record<string, unknown> = { data: parsed, updatedAt: new Date() };
-  if (parsed.name && typeof parsed.name === 'string' && parsed.name.trim() !== '') {
-    update.name = parsed.name.trim();
-  }
+  // Do NOT update the name here; only update via explicit user action
+  // if (parsed.name && typeof parsed.name === 'string' && parsed.name.trim() !== '') {
+  //   update.name = parsed.name.trim();
+  // }
   await db.collection("profiles").updateOne(
     { _id: new ObjectId(profileId), userId: decoded.uid },
     { $set: update }

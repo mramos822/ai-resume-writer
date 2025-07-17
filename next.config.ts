@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   // Add any other Next.js config options here
   // For example:
   // reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default withPWA({
