@@ -13,7 +13,6 @@ import {
 import { useRouter, usePathname } from "next/navigation"; // Import usePathname
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-
 interface TopBannerProps {
     toggleSidePanel: () => void;
 }

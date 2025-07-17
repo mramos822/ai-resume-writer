@@ -1,10 +1,16 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import React, { ReactNode, useState, createContext, useContext } from "react";
 import TopBanner from "@/components/topBanner";
 import SidePanel from "@/components/sidePanel";
 import { ToastProvider } from "@/context/toastContext";
 import { ProfileProvider } from "@/context/profileContext";
+
+export const SidePanelContext = createContext<{ isSidePanelOpen: boolean }>({ isSidePanelOpen: true });
+
+export function useSidePanel() {
+  return useContext(SidePanelContext);
+}
 
 export default function HomeLayout({ children }: { children: ReactNode }) {
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(true);
@@ -14,21 +20,23 @@ export default function HomeLayout({ children }: { children: ReactNode }) {
   return (
     <ToastProvider>
       <ProfileProvider>
-        <div className="flex flex-col min-h-screen">
-          {/* Top Banner */}
-          <TopBanner toggleSidePanel={toggleSidePanel} />
+        <SidePanelContext.Provider value={{ isSidePanelOpen }}>
+          <div className="flex flex-col min-h-screen">
+            {/* Top Banner */}
+            <TopBanner toggleSidePanel={toggleSidePanel} />
 
-          {/* Main Layout */}
-          <div className="flex flex-1">
-            {/* Side Navigation */}
-            <SidePanel isSidePanelOpen={isSidePanelOpen} />
+            {/* Main Layout */}
+            <div className="flex flex-1">
+              {/* Side Navigation */}
+              <SidePanel isSidePanelOpen={isSidePanelOpen} />
 
-            {/* Main Content */}
-            <main className="flex-1 p-4">
-              {children}
-            </main>
+              {/* Main Content */}
+              <main className="flex-1 p-4">
+                {children}
+              </main>
+            </div>
           </div>
-        </div>
+        </SidePanelContext.Provider>
       </ProfileProvider>
     </ToastProvider>
   );

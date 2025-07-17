@@ -1,86 +1,149 @@
-import { NextResponse } from "next/server";
-import admin from "firebase-admin";
-import { db } from "@/lib/mongodb";
-import OpenAI from "openai";
+import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import fs from 'fs';
+import path from 'path';
+import ejs from 'ejs';
+import { getProfile, getJobAd, bucket } from '@/lib/mongodb';
+import { ProfileData } from '@/context/profileContext';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+const execAsync = promisify(exec);
 
-// 1) Initialize Firebase Admin if needed
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(
-      JSON.parse(process.env.FIREBASE_ADMIN_KEY!)
-    ),
-  });
-}
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  console.log('Request body:', body);
+  const { template, format, profileId, jobAdId } = body;
 
-// 2) OpenAI client using your GitHub token
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN!;
-const openai = new OpenAI({
-  baseURL: "https://models.github.ai/inference",
-  apiKey: GITHUB_TOKEN,
-});
-
-export async function POST(request: Request) {
-  // — Authenticate —
-  const authHeader = request.headers.get("Authorization")?.split(" ")[1];
-  if (!authHeader) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!template) {
+    return NextResponse.json({ error: 'Template not provided' }, { status: 400 });
   }
-  let decoded: admin.auth.DecodedIdToken;
+
+  let profileData: ProfileData;
+
   try {
-    decoded = await admin.auth().verifyIdToken(authHeader);
-  } catch {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    console.log('Fetching profile data...');
+    const profile = await getProfile(profileId);
+    if (!profile) {
+      console.error('Profile not found for ID:', profileId);
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+    profileData = { ...profile.data, internships: profile.data.internships || [] };
+    console.log('Profile data fetched successfully.');
+  } catch (error) {
+    console.error('Failed to fetch profile:', error);
+    return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
   }
 
-  // — Parse body —
-  const { profileId, jobAdId } = (await request.json()) as {
-    profileId: string;
-    jobAdId: string;
-  };
-  if (!profileId || !jobAdId) {
-    return NextResponse.json(
-      { error: "Must supply profileId and jobAdId" },
-      { status: 400 }
-    );
+
+  try {
+    console.log('Reading template file...');
+    const templatePath = path.join(process.cwd(), 'src', 'templates', `${template}.tex`);
+    const templateContent = fs.readFileSync(templatePath, 'utf-8');
+    console.log('Template file read successfully.');
+
+    console.log('Rendering LaTeX with EJS...');
+    console.log('Profile data being passed to EJS:', profileData); // Add this line for debugging
+    const renderedLatex = ejs.render(templateContent, { profile: profileData }); // Pass profileData nested under 'profile'
+    console.log('LaTeX rendered successfully.');
+
+    if (format === 'pdf') {
+      const tempDir = path.join(process.cwd(), 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir);
+        console.log('Created temporary directory:', tempDir);
+      }
+      const texFilePath = path.join(tempDir, `${profileId}.tex`);
+      fs.writeFileSync(texFilePath, renderedLatex);
+      console.log('LaTeX content written to:', texFilePath);
+
+      console.log('Executing xelatex command...');
+      const { stdout, stderr } = await execAsync(`xelatex -output-directory=${tempDir} ${texFilePath}`);
+      console.log('xelatex stdout:', stdout);
+      if (stderr) {
+        console.error('xelatex stderr:', stderr);
+      }
+      console.log('xelatex command executed.');
+
+      const pdfFilePath = path.join(tempDir, `${profileId}.pdf`);
+      console.log('Reading generated PDF from:', pdfFilePath);
+      const pdfBuffer = fs.readFileSync(pdfFilePath);
+      console.log('PDF read successfully.');
+
+      fs.unlinkSync(texFilePath);
+      console.log('Deleted .tex file:', texFilePath);
+      fs.unlinkSync(pdfFilePath);
+      console.log('Deleted .pdf file:', pdfFilePath);
+      
+      const logFilePath = path.join(tempDir, `${profileId}.log`);
+      if (fs.existsSync(logFilePath)) {
+        fs.unlinkSync(logFilePath);
+        console.log('Deleted .log file:', logFilePath);
+      }
+      const auxFilePath = path.join(tempDir, `${profileId}.aux`);
+      if (fs.existsSync(auxFilePath)) {
+        fs.unlinkSync(auxFilePath);
+        console.log('Deleted .aux file:', auxFilePath);
+      }
+
+      let jobAdTitle = '';
+      if (jobAdId) {
+        try {
+          const jobAd = await getJobAd(jobAdId);
+          if (jobAd && jobAd.jobTitle) {
+            jobAdTitle = jobAd.jobTitle;
+          }
+        } catch (e) {
+          console.error('Failed to fetch job ad for filename:', e);
+        }
+      }
+      // Sanitize names for filename
+      function sanitize(str: string) {
+        return (str || '').replace(/[^a-z0-9\-_]+/gi, '_').replace(/^_+|_+$/g, '');
+      }
+      const profileName = profileData.name || 'profile';
+      const filename = `${sanitize(profileName)}_${sanitize(jobAdTitle) || 'resume'}.pdf`;
+
+      const response = new NextResponse(pdfBuffer);
+      response.headers.set('Content-Type', 'application/pdf');
+      response.headers.set('Content-Disposition', `attachment; filename="${filename}"`);
+      console.log('PDF response prepared and sent.');
+      
+      // Save the PDF to GridFS
+      const uploadStream = bucket.openUploadStream(filename, {
+        metadata: {
+          profileId: profileId,
+          template: template,
+          format: 'pdf',
+          createdAt: new Date(),
+          isGenerated: true, // Mark as generated resume
+          ...(jobAdId && { jobAdId: jobAdId }), // Conditionally add jobAdId
+        },
+      });
+      uploadStream.end(pdfBuffer);
+
+      const fileId = await new Promise<string>((resolve, reject) => {
+        uploadStream.on('finish', () => {
+          // The file object is not passed directly to 'finish' in some GridFS versions.
+          // The _id is available on the stream itself after it finishes.
+          if (uploadStream.id) {
+            console.log('PDF saved to GridFS with ID:', uploadStream.id.toString());
+            resolve(uploadStream.id.toString());
+          } else {
+            reject(new Error('File ID not available after upload.'));
+          }
+        });
+        uploadStream.on('error', (err: Error) => {
+          console.error('Error saving PDF to GridFS:', err);
+          reject(err);
+        });
+      });
+
+      return NextResponse.json({ message: 'Resume generated and saved successfully', fileId: fileId }, { status: 200 });
+    }
+  } catch (error) {
+    console.error('An unexpected error occurred during PDF generation:', error);
+    return NextResponse.json({ error: 'An unexpected error occurred during PDF generation' }, { status: 500 });
   }
 
-  // — Load profile document —
-  const { ObjectId } = await import("mongodb");
-  const profileDoc = await db
-    .collection("profiles")
-    .findOne({ _id: new ObjectId(profileId), userId: decoded.uid });
-  if (!profileDoc) {
-    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
-  }
-
-  // — Load job ad document —
-  const jobAdDoc = await db
-    .collection("jobAds")
-    .findOne({ _id: new ObjectId(jobAdId), userId: decoded.uid });
-  if (!jobAdDoc) {
-    return NextResponse.json({ error: "Job ad not found" }, { status: 404 });
-  }
-
-  // — Build prompt —
-  const prompt = `
-Generate an unformatted resume tailored to this job posting using the following profile JSON and the job ad verbatim.
-
-Profile JSON:
-${JSON.stringify(profileDoc.data, null, 2)}
-
-Job Ad (verbatim):
-${jobAdDoc.rawText ?? jobAdDoc.previewHtml}
-
-Output only the resume text, no extra commentary.
-  `.trim();
-
-  // — Call OpenAI —
-  const ai = await openai.chat.completions.create({
-    model: "openai/gpt-4o-mini",
-    temperature: 0.7,
-    messages: [{ role: "user", content: prompt }],
-  });
-  const resume = ai.choices[0].message.content?.trim() ?? "";
-
-  return NextResponse.json({ resume });
+  return NextResponse.json({ error: 'Unsupported format' }, { status: 400 });
 }

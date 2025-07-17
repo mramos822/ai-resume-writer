@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X as CloseIcon } from "@/components/icons/X";
 
-type ToastType = "success" | "error";
+type ToastType = "success" | "error" | "info";
 interface Toast {
   id: number;
   message: string;
@@ -15,11 +15,13 @@ interface Toast {
 interface ToastContextType {
   success: (msg: string) => void;
   error: (msg: string) => void;
+  info: (msg: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType>({
   success: () => {},
   error: () => {},
+  info: () => {},
 });
 
 let counter = 0;
@@ -38,9 +40,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const success = useCallback((msg: string) => push(msg, "success"), [push]);
   const error = useCallback((msg: string) => push(msg, "error"), [push]);
+  const info = useCallback((msg: string) => push(msg, "info"), [push]);
 
   return (
-    <ToastContext.Provider value={{ success, error }}>
+    <ToastContext.Provider value={{ success, error, info }}>
       {children}
 
       {createPortal(
@@ -49,7 +52,11 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             <div
               key={id}
               className={`flex items-center p-3 rounded-lg shadow-lg ${
-                type === "success" ? "bg-green-500 text-white" : "bg-red-500 text-white"
+                type === "success"
+                  ? "bg-green-500 text-white"
+                  : type === "error"
+                  ? "bg-red-500 text-white"
+                  : "bg-blue-500 text-white" // Styling for info toasts
               }`}
             >
               <span className="flex-1">{message}</span>

@@ -40,7 +40,7 @@ export default function RootLayout({
         <meta name="twitter:image" content="/logo.png" />
         <link rel="icon" href="/favicon.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
-        <link rel="manifest" href="/site.webmanifest" />
+        <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#ffffff" />
         <link rel="canonical" href="https://fouriergauss.com" />
       </head>

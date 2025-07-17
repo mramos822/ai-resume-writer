@@ -1,0 +1,110 @@
+% Modern Resume Template - Improved
+
+% Use XeLaTeX for custom fonts
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec} % For custom fonts
+\usepackage{geometry}
+\geometry{left=1.2cm, right=1.2cm, top=1.2cm, bottom=1.2cm}
+\usepackage{paracol} % For two-column layout
+\usepackage{titlesec} % For custom section titles
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{amssymb}
+
+% Set up fonts (Lato for both headings and body)
+\setmainfont{Lato}
+% Use Lato for headings as well
+\newfontfamily\headingfont{Lato}
+
+% Colors
+\definecolor{sectionline}{HTML}{282828}
+\definecolor{sectiontitle}{HTML}{282828}
+\definecolor{graytext}{HTML}{646464}
+\definecolor{accent}{HTML}{0077B6}
+
+% Section Title Style
+\titleformat{\section}{\headingfont\Large\color{sectiontitle}\uppercase}{\thesection}{1em}{}
+\titlespacing*{\section}{0pt}{2ex}{1ex}
+
+% Custom rule under section titles
+\newcommand{\sectionrule}{\color{sectionline}\rule{\linewidth}{1.5pt}\color{black}}
+
+\pagestyle{empty}
+
+\begin{document}
+
+% Header
+\noindent{\headingfont\fontsize{24}{28}\selectfont\color{accent} <%= profile.name || 'NAME' %>}\\
+{\large <%= profile.jobTitle || 'JOB TITLE' %>}\\[1.5ex]
+
+\begin{paracol}{2}
+% Sidebar (left column)
+\section*{Details}
+\sectionrule
+\textbf{Address}\\
+{\footnotesize <%= profile.contactInfo.address || 'ADDRESS' %>}\\[0.5ex]
+\textbf{Phone}\\
+{\footnotesize <%= profile.contactInfo.phone || 'PHONE' %>}\\[0.5ex]
+\textbf{Email}\\
+{\footnotesize <%= profile.contactInfo.email || 'EMAIL' %>}\\[0.5ex]
+\textbf{Nationality}\\
+{\footnotesize <%= profile.contactInfo.nationality || 'NATIONALITY' %>}\\[1.5ex]
+
+<% if (profile.skills && profile.skills.length > 0) { %>
+\section*{Skills}
+\sectionrule
+\begin{itemize}[leftmargin=*, label=\textbullet]
+<% profile.skills.forEach(function(skill) { %>
+  \item <%= skill %>
+<% }); %>
+\end{itemize}
+<% } %>
+
+<% if (profile.languages && profile.languages.length > 0) { %>
+\section*{Languages}
+\sectionrule
+\begin{itemize}[leftmargin=*, label=\textbullet]
+<% profile.languages.forEach(function(lang) { %>
+  \item <%= lang %>
+<% }); %>
+\end{itemize}
+<% } %>
+
+\switchcolumn
+% Main content (right column)
+<% if (profile.careerObjective && profile.careerObjective.trim()) { %>
+\section*{Profile}
+\sectionrule
+{\footnotesize <%= profile.careerObjective %>}\\[1.5ex]
+<% } %>
+
+<% if (profile.jobHistory && profile.jobHistory.length > 0) { %>
+\section*{Employment History}
+\sectionrule
+<% profile.jobHistory.forEach(function(job) { %>
+  \textbf{<%= job.title || 'TITLE' %>}\\
+  {\footnotesize <%= job.company || 'COMPANY' %> \hfill <%= job.location || '' %>}\\
+  {\footnotesize <%= job.startDate || 'START' %> -- <%= job.endDate || 'END' %>}\\[-1ex]
+  \begin{itemize}[leftmargin=*, label=\textbullet]
+  <% (job.accomplishments || []).forEach(function(acc) { %>
+    \item <%= acc %>
+  <% }); %>
+  \end{itemize}
+<% }); %>
+<% } %>
+
+<% if (profile.education && profile.education.length > 0) { %>
+\section*{Education}
+\sectionrule
+<% profile.education.forEach(function(edu) { %>
+  \textbf{<%= edu.degree || 'DEGREE' %>}\\
+  {\footnotesize <%= edu.school || 'SCHOOL' %> \hfill <%= edu.location || '' %>}\\
+  {\footnotesize <%= edu.dates || 'DATES' %>}\\[1ex]
+<% }); %>
+<% } %>
+
+\end{paracol}
+
+\end{document}

@@ -2,7 +2,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore } from "firebase/firestore"; // Import initializeFirestore
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
@@ -14,6 +14,9 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// Force all Firestore calls over simple XHR (no streaming websockets)
+initializeFirestore(app, { experimentalForceLongPolling: true });
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);

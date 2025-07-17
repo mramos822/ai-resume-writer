@@ -11,6 +11,7 @@ import CareerObjectiveSection from '@/components/profile/careerObjectiveSection'
 import SkillsSection from '@/components/profile/skillsSection';
 import JobHistorySection from '@/components/profile/jobHistorySection';
 import EducationSection from '@/components/profile/educationSection';
+import InternshipSection from '@/components/profile/internshipSection';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,7 +20,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from "@/context/toastContext";
 import { usePathname } from 'next/navigation';
 
-const VALID_SECTIONS = ["contact","objective","skills","jobs","education"] as const;
+const VALID_SECTIONS = ["contact","objective","skills","jobs","education","internships"] as const;
 type SectionKey = typeof VALID_SECTIONS[number];
 
 /** 
@@ -141,7 +142,7 @@ export default function ProfilePage() {
           <Card>
             <CardContent className="p-6">
               <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-6">
                   {VALID_SECTIONS.map((key) => (
                     <TabsTrigger key={key} value={key} className="flex items-center space-x-2">
                       {{
@@ -150,6 +151,7 @@ export default function ProfilePage() {
                         skills: "⚡",
                         jobs: "💼",
                         education: "🎓",
+                        internships: "🌟", // New icon for internships
                       }[key]}
                       <span className="hidden sm:inline capitalize">{key}</span>
                     </TabsTrigger>
@@ -170,6 +172,9 @@ export default function ProfilePage() {
                 </TabsContent>
                 <TabsContent value="education" className="mt-6">
                   <EducationSection />
+                </TabsContent>
+                <TabsContent value="internships" className="mt-6">
+                  <InternshipSection />
                 </TabsContent>
               </Tabs>
             </CardContent>

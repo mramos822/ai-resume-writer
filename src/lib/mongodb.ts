@@ -1,5 +1,5 @@
 // src/lib/mongodb.ts
-import { MongoClient, GridFSBucket } from "mongodb";
+import { MongoClient, GridFSBucket, ObjectId } from "mongodb";
 
 const {
   MONGODB_USER,
@@ -47,5 +47,17 @@ const db = client.db(); // default database from URI
 const bucket = new GridFSBucket(db, {
   bucketName: "uploads", // will create `uploads.files` & `uploads.chunks`
 });
+
+export async function getProfile(profileId: string) {
+    const profiles = db.collection('profiles');
+    const profile = await profiles.findOne({ _id: new ObjectId(profileId) });
+    return profile;
+}
+
+export async function getJobAd(jobAdId: string) {
+    const jobAds = db.collection('jobAds');
+    const jobAd = await jobAds.findOne({ _id: new ObjectId(jobAdId) });
+    return jobAd;
+}
 
 export { client, db, bucket };

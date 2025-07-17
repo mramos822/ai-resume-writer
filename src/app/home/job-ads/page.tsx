@@ -4,6 +4,11 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/authContext";
 import { useToast } from "@/context/toastContext";
 import { Button } from "@/components/ui/button";
+import TemplateSelector from "@/components/templateSelector";
+import ResumePreviewModal from "@/components/resumePreviewModal";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { format } from "date-fns";
+import { Trash2 } from "lucide-react";
 
 interface JobAd {
   id: string;
@@ -13,6 +18,22 @@ interface JobAd {
   jobTitle: string;
   postedAt: string;
   previewHtml: string;
+}
+
+interface Resume {
+  id: string;
+  filename: string;
+  uploadDate: string;
+  metadata: {
+    profileId: string;
+    template: string;
+    format: string;
+    createdAt: string;
+    jobAdId?: string; // Optional, as not all resumes might be linked to a job ad
+    isGenerated?: boolean; // Added to mark generated resumes
+  };
+  profileName?: string; // Added profileName
+  jobAdTitle?: string; // Added jobAdTitle
 }
 
 interface ParsedJob {
@@ -39,13 +60,21 @@ export default function JobAdsPage() {
   // NEW: profiles for resume gen
   const [profiles, setProfiles] = useState<{ id: string; name: string }[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [generating, setGenerating] = useState(false);
-  const [generatedResume, setGeneratedResume] = useState<string>("");
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  // Load job ads + profiles on mount
+  // NEW: State for saved resumes
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [isLoadingResumes, setIsLoadingResumes] = useState(true);
+
+  // Load job ads + profiles + resumes on mount
   useEffect(() => {
     if (!user) return;
-    user.getIdToken().then((token) => {
+    const tokenPromise = user.getIdToken();
+
+    tokenPromise.then((token) => {
       fetch("/api/job-ads", {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -66,7 +95,31 @@ export default function JobAdsPage() {
         })
         .catch(console.error);
     });
-  }, [user]);
+
+    // Fetch saved resumes
+    const fetchResumes = async () => {
+      if (!user || !selectedProfileId) return; // Ensure user and profileId are loaded
+      setIsLoadingResumes(true);
+      try {
+        const token = await user.getIdToken(); // Get token here
+        const response = await fetch(`/api/resumes?profileId=${selectedProfileId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          throw new Error("Failed to fetch resumes");
+        }
+        const data: Resume[] = await response.json();
+        setResumes(data);
+      } catch (error) {
+        console.error("Error fetching resumes:", error);
+        toast.error("Failed to load resumes.");
+      } finally {
+        setIsLoadingResumes(false);
+      }
+    };
+
+    fetchResumes();
+  }, [user, selectedProfileId, toast]); // Depend on user, selectedProfileId, and toast
 
   // Re-parse when selectedAd changes
   useEffect(() => {
@@ -85,9 +138,9 @@ export default function JobAdsPage() {
     })
       .then((r) => r.json())
       .then((pj: ParsedJob) => setParsed(pj))
-      .catch((err) => toast.error(err.message))
+      .catch((err) => toast.error((err as Error).message))
       .finally(() => setParsing(false));
-  }, [selectedAd, toast]);
+  }, [selectedAd, toast]); // Added toast to dependency array
 
   // Save a new ad
   const handleSave = async () => {
@@ -130,9 +183,8 @@ export default function JobAdsPage() {
 
   // NEW: Generate resume
   const handleGenerate = async () => {
-    if (!user || !selectedAd || !selectedProfileId) return;
+    if (!user || !selectedAd || !selectedProfileId || !selectedTemplateId) return;
     setGenerating(true);
-    setGeneratedResume("");
     try {
       const token = await user.getIdToken();
       const res = await fetch("/api/generate-resume", {
@@ -143,156 +195,255 @@ export default function JobAdsPage() {
         },
         body: JSON.stringify({
           profileId: selectedProfileId,
-          jobAdId: selectedAd.id,
+          template: selectedTemplateId,
+          format: 'pdf',
+          jobAdId: selectedAd.id, // Pass the jobAdId
         }),
       });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Generation failed");
-      setGeneratedResume(result.resume);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("Resume generation failed:", errorData);
+        toast.error(errorData.error || "Generation failed");
+        return;
+      }
+      const data = await res.json();
+      console.log("Resume generation response:", data);
+      const { fileId } = data;
+      if (!fileId) {
+        toast.error("Resume generation did not return a fileId.");
+        return;
+      }
+      setPreviewFileId(fileId);
+      setIsPreviewModalOpen(true);
+      toast.success("Resume generated and saved!");
     } catch (err) {
+      console.error("Resume generation error:", err);
       toast.error((err as Error).message);
     } finally {
       setGenerating(false);
     }
   };
 
+  const handleDeleteResume = async (fileId: string) => {
+    if (confirm("Are you sure you want to delete this resume?")) {
+      try {
+        const token = await user?.getIdToken();
+        const response = await fetch(`/api/resumes?fileId=${fileId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          throw new Error("Failed to delete resume");
+        }
+        setResumes(resumes.filter((resume) => resume.id !== fileId));
+        toast.success("Resume deleted successfully!");
+      } catch (error) {
+        console.error("Error deleting resume:", error);
+        toast.error("Failed to delete resume.");
+      }
+    }
+  };
+
+  const handlePreviewResume = (fileId: string) => {
+    setPreviewFileId(fileId);
+    setIsPreviewModalOpen(true);
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 py-8">
-      {/* Left: Form + Details + Resume Gen */}
-      <div className="lg:col-span-3 space-y-8">
-        {/* Form */}
-        <section className="p-6 bg-neutral-800 rounded-lg space-y-4">
-          <h1 className="text-2xl font-bold">Add Job Ad</h1>
-          <div className="space-y-2">
-            <label className="block">URL</label>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="w-full p-2 bg-neutral-700 rounded"
-              placeholder="https://example.com/job-posting"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="block">Or Paste Text</label>
-            <textarea
-              value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
-              className="w-full p-2 bg-neutral-700 rounded"
-              rows={4}
-            />
-          </div>
-          <Button onClick={handleSave} disabled={loading || (!url && !rawText)}>
-            {loading ? "Saving…" : "Save Job Ad"}
-          </Button>
-        </section>
-
-        {/* AI-Extracted */}
-        {selectedAd && (
-          <section className="p-6 bg-neutral-800 rounded-lg space-y-4">
-            <h2 className="text-xl font-semibold">
-              {parsing ? "Extracting…" : parsed?.jobTitle || "Loading…"}
-            </h2>
-            {parsed && (
-              <>
-                <p className="text-sm text-neutral-400">
-                  <strong>Company:</strong> {parsed.companyName}
-                </p>
-                <p className="text-sm text-neutral-400">
-                  <strong>Posted at:</strong> {parsed.postedAt}
-                </p>
-                {parsed.location && (
-                  <p className="text-sm text-neutral-400">
-                    <strong>Location:</strong> {parsed.location}
-                  </p>
-                )}
-                <div>
-                  <h3 className="font-medium">Description</h3>
-                  <p className="text-sm">{parsed.description}</p>
+    <div className="min-h-screen py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Add Job Ad</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <label className="block">URL</label>
+                  <input
+                    type="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="w-full p-2 bg-neutral-800 rounded border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="https://example.com/job-posting"
+                  />
                 </div>
-                <div>
-                  <h3 className="font-medium">Requirements</h3>
-                  <ul className="list-disc list-inside text-sm">
-                    {parsed.requirements.map((r, i) => (
-                      <li key={i}>{r}</li>
+                <div className="space-y-2">
+                  <label className="block">Or Paste Text</label>
+                  <textarea
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
+                    className="w-full p-2 bg-neutral-800 rounded border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={4}
+                  />
+                </div>
+                <Button onClick={handleSave} disabled={loading || (!url && !rawText)} className="w-full">
+                  {loading ? "Saving…" : "Save Job Ad"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* AI-Extracted */}
+            {selectedAd && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Job Ad Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <h2 className="text-xl font-semibold">
+                    {parsing ? "Extracting…" : parsed?.jobTitle || "Loading…"}
+                  </h2>
+                  {parsed && (
+                    <>
+                      <p className="text-sm text-neutral-400">
+                        <strong>Company:</strong> {parsed.companyName}
+                      </p>
+                      <p className="text-sm text-neutral-400">
+                        <strong>Posted at:</strong> {parsed.postedAt}
+                      </p>
+                      {parsed.location && (
+                        <p className="text-sm text-neutral-400">
+                          <strong>Location:</strong> {parsed.location}
+                        </p>
+                      )}
+                      <div>
+                        <h3 className="font-medium">Description</h3>
+                        <p className="text-sm whitespace-pre-line break-words">{parsed.description}</p>
+                      </div>
+                      <div>
+                        <h3 className="font-medium">Requirements</h3>
+                        <ul className="list-disc list-inside text-sm space-y-1">
+                          {(parsed.requirements ?? []).map((r, i) => (
+                            <li key={i}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Resume Generation */}
+            {selectedAd && profiles.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Generate Resume</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <TemplateSelector onTemplateSelect={setSelectedTemplateId} />
+                  <div className="flex flex-col sm:flex-row items-center gap-4 mt-4">
+                    <select
+                      value={selectedProfileId}
+                      onChange={(e) => setSelectedProfileId(e.target.value)}
+                      className="bg-neutral-800 p-2 rounded border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {profiles.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button onClick={handleGenerate} disabled={generating || !selectedTemplateId} className="w-full sm:w-auto">
+                      {generating ? "Processing…" : "Generate Resume"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-8">
+            {/* Previous Job Ads */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Previous Job Ads</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {jobAds.map((ad) => (
+                    <li key={ad.id}>
+                      <button
+                        onClick={() => setSelectedAd(ad)}
+                        className={`w-full text-left p-3 rounded-lg transition font-medium border border-transparent ${
+                          selectedAd?.id === ad.id
+                            ? "bg-blue-600 text-white border-blue-400 shadow"
+                            : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
+                        }`}
+                      >
+                        <div className="truncate">{ad.jobTitle}</div>
+                        <div className="text-xs text-neutral-400 truncate">
+                          {ad.companyName} • {new Date(ad.postedAt).toLocaleDateString()}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* Saved Resumes Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Saved Resumes</CardTitle>
+                <CardDescription>
+                  Manage and download your previously generated resumes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingResumes ? (
+                  <p>Loading resumes...</p>
+                ) : resumes.length === 0 ? (
+                  <p>No resumes saved yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {resumes.map((resume) => (
+                      <div
+                        key={resume.id}
+                        className="flex items-center justify-between p-4 border rounded-md cursor-pointer hover:bg-neutral-700 transition"
+                        onClick={() => handlePreviewResume(resume.id)}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate max-w-xs" title={resume.filename}>{resume.filename}</p>
+                          <p className="text-sm text-muted-foreground truncate max-w-xs" title={`Template: ${resume.metadata.template} | Format: ${resume.metadata.format}${resume.metadata.isGenerated ? ' (AI Generated)' : ''}`}>
+                            Template: {resume.metadata.template} | Format: {resume.metadata.format}
+                            {resume.metadata.isGenerated && " (AI Generated)"}
+                          </p>
+                          {resume.profileName && (
+                            <p className="text-sm text-muted-foreground truncate max-w-xs" title={`Profile: ${resume.profileName}`}>Profile: {resume.profileName}</p>
+                          )}
+                          {resume.jobAdTitle && (
+                            <p className="text-sm text-muted-foreground truncate max-w-xs" title={`Job Post: ${resume.jobAdTitle}`}>Job Post: {resume.jobAdTitle}</p>
+                          )}
+                          <p className="text-sm text-muted-foreground truncate max-w-xs" title={`Generated on: ${format(new Date(resume.uploadDate), 'PPP p')}`}>Generated on: {format(new Date(resume.uploadDate), "PPP p")}</p>
+                        </div>
+                        <div className="flex space-x-2" onClick={e => e.stopPropagation()}>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteResume(resume.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     ))}
-                  </ul>
-                </div>
-              </>
-            )}
-          </section>
-        )}
-
-        {/* Full-Text Verbatim */}
-        {/* {selectedAd && (
-          <section className="p-6 bg-neutral-800 rounded-lg">
-            <h2 className="text-xl font-semibold mb-2">Full Text (verbatim)</h2>
-            {selectedAd.rawText ? (
-              <pre className="whitespace-pre-wrap bg-neutral-700 p-4 rounded max-h-[500px] overflow-auto text-sm">
-                {selectedAd.rawText}
-              </pre>
-            ) : (
-              <div
-                className="prose prose-invert bg-neutral-700 p-4 rounded max-h-[500px] overflow-auto"
-                dangerouslySetInnerHTML={{ __html: selectedAd.previewHtml }}
-              />
-            )}
-          </section>
-        )} */}
-
-        {/* Resume Generation */}
-        {selectedAd && profiles.length > 0 && (
-          <section className="p-6 bg-neutral-800 rounded-lg space-y-4">
-            <h2 className="text-xl font-semibold">Generate Resume</h2>
-            <div className="flex items-center space-x-4">
-              <select
-                value={selectedProfileId}
-                onChange={(e) => setSelectedProfileId(e.target.value)}
-                className="bg-neutral-700 p-2 rounded"
-              >
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? "Processing…" : "Generate Resume"}
-              </Button>
-            </div>
-            {generatedResume && (
-              <pre className="whitespace-pre-wrap bg-neutral-700 p-4 rounded text-sm">
-                {generatedResume}
-              </pre>
-            )}
-          </section>
-        )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        <ResumePreviewModal
+          isOpen={isPreviewModalOpen}
+          onClose={() => setIsPreviewModalOpen(false)}
+          fileId={previewFileId}
+        />
       </div>
-
-      {/* Sidebar: List */}
-      <aside className="space-y-4">
-        <h2 className="text-xl font-semibold">Previous Job Ads</h2>
-        <ul className="space-y-2">
-          {jobAds.map((ad) => (
-            <li key={ad.id}>
-              <button
-                onClick={() => setSelectedAd(ad)}
-                className={`w-full text-left p-3 rounded-lg transition ${
-                  selectedAd?.id === ad.id
-                    ? "bg-blue-600 text-white"
-                    : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
-                }`}
-              >
-                <div className="font-medium">{ad.jobTitle}</div>
-                <div className="text-xs text-neutral-400">
-                  {ad.companyName} •{" "}
-                  {new Date(ad.postedAt).toLocaleDateString()}
-                </div>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </aside>
     </div>
   );
 }

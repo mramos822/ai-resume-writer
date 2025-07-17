@@ -1,0 +1,106 @@
+% Creative Resume Template - Two Column Layout with Boxed Header
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{left=1.2cm, right=1.2cm, top=1.2cm, bottom=1.2cm}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{multicol}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{helvet}
+\usepackage{amssymb}
+\renewcommand{\familydefault}{\sfdefault}
+
+% Colors
+\definecolor{headerbg}{RGB}{240,240,240}
+\definecolor{sectionline}{RGB}{40,40,40}
+\definecolor{graytext}{RGB}{100,100,100}
+
+% Section Title
+\newcommand{\sectiontitle}[1]{\vspace{1.5ex}\noindent\textbf{#1}\par\noindent\color{sectionline}\rule{\linewidth}{0.5pt}\color{black}\vspace{0.5ex}}
+
+\pagestyle{empty}
+
+\begin{document}
+
+% Boxed Header
+\begin{center}
+  \fcolorbox{sectionline}{headerbg}{
+    \begin{minipage}{0.9\linewidth}
+      \centering
+      {\LARGE\textbf{<%= profile.name || 'NAME' %>}}\\[2pt]
+      {\normalsize <%= profile.jobTitle || 'JOB TITLE' %>}
+    \end{minipage}
+  }
+\end{center}
+\vspace{1.5ex}
+
+\begin{tabular}{@{}p{0.36\linewidth}@{\hspace{1.5em}}p{0.60\linewidth}@{}}
+% Left Column
+\begin{minipage}[t]{\linewidth}
+\sectiontitle{Details}
+\textbf{Address}\\
+{\footnotesize <%= profile.contactInfo.address || 'ADDRESS' %>}\\[0.5ex]
+\textbf{Phone}\\
+{\footnotesize <%= profile.contactInfo.phone || 'PHONE' %>}\\[0.5ex]
+\textbf{Email}\\
+{\footnotesize <%= profile.contactInfo.email || 'EMAIL' %>}\\[0.5ex]
+\textbf{Nationality}\\
+{\footnotesize <%= profile.contactInfo.nationality || 'NATIONALITY' %>}\\[1.5ex]
+
+<% if (profile.skills && profile.skills.length > 0) { %>
+\sectiontitle{Skills}
+\begin{itemize}[leftmargin=*, label=]
+<% profile.skills.forEach(function(skill) { %>
+  \item <%= skill %>
+<% }); %>
+\end{itemize}
+<% } %>
+
+<% if (profile.languages && profile.languages.length > 0) { %>
+\sectiontitle{Languages}
+\begin{itemize}[leftmargin=*, label=]
+<% profile.languages.forEach(function(lang) { %>
+  \item <%= lang %>
+<% }); %>
+\end{itemize}
+<% } %>
+\end{minipage}
+&
+% Right Column
+\begin{minipage}[t]{\linewidth}
+<% if (profile.careerObjective && profile.careerObjective.trim()) { %>
+\sectiontitle{Profile}
+{\footnotesize <%= profile.careerObjective %>}\\[1.5ex]
+<% } %>
+
+<% if (profile.jobHistory && profile.jobHistory.length > 0) { %>
+\sectiontitle{Employment History}
+<% profile.jobHistory.forEach(function(job) { %>
+  \textbf{<%= job.title || 'TITLE' %>}\\
+  {\footnotesize <%= job.company || 'COMPANY' %> \hfill <%= job.location || '' %>}\\
+  {\footnotesize <%= job.startDate || 'START' %> -- <%= job.endDate || 'END' %>}\\[-1ex]
+  \begin{itemize}[leftmargin=*, label=]
+  <% (job.accomplishments || []).forEach(function(acc) { %>
+    \item <%= acc %>
+  <% }); %>
+  \end{itemize}
+<% }); %>
+<% } %>
+
+<% if (profile.education && profile.education.length > 0) { %>
+\sectiontitle{Education}
+<% profile.education.forEach(function(edu) { %>
+  \textbf{<%= edu.degree || 'DEGREE' %>}\\
+  {\footnotesize <%= edu.school || 'SCHOOL' %> \hfill <%= edu.location || '' %>}\\
+  {\footnotesize <%= edu.dates || 'DATES' %>}\\[1ex]
+<% }); %>
+<% } %>
+\end{minipage}
+\end{tabular}
+
+\end{document}
