@@ -10,11 +10,11 @@ if (!TOKEN) {
 }
 
 const client = new OpenAI({ apiKey: TOKEN });
-const MODEL  = "openai/gpt-4o-mini";
+const MODEL  = "mistral-ai/mistral-medium-2505";
 
 /** 
  * Given a Buffer and its MIME type, extract text (PDF/Word/plain),
- * call GPT-4o-mini to parse into JSON, and return a Partial<ProfileData>.
+ * call mistral-ai/mistral-medium-2505 to parse into JSON, and return a Partial<ProfileData>.
  */
 export async function parseBufferToProfileData(
   buffer: Buffer,

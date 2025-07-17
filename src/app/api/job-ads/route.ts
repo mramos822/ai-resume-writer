@@ -117,7 +117,7 @@ Respond with nothing else, no markdown fences.
 `.trim();
 
   const ai = await openai.chat.completions.create({
-    model: "openai/gpt-4o-mini",
+    model: "mistral-ai/mistral-medium-2505",
     temperature: 0,
     messages: [
       { role: "system", content: systemPrompt },

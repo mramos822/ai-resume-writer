@@ -122,7 +122,7 @@ const FileUpload: React.FC = () => {
       >
         <input {...getInputProps()} />
         <motion.div className="p-8 text-center">
-          <Upload className={`h-12 w-12 mb-4 ${isDragActive ? "text-blue-400" : "text-neutral-500"}`} />
+          <Upload className={`h-12 w-12 mb-4 mx-auto ${isDragActive ? "text-blue-400" : "text-neutral-500"}`} />
           <h3 className="text-lg font-semibold text-neutral-100 mb-2">
             {isDragActive ? "Drop files here" : "Upload your documents"}
           </h3>

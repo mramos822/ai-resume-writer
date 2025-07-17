@@ -1,6 +1,8 @@
 // src/app/api/job-ads/parse/route.ts
 import { NextResponse } from "next/server";
-import { openai, MODEL } from "@/lib/openai";
+import { getChatCompletion, MODEL } from "@/lib/openai";
+import { db } from '@/lib/mongodb';
+import crypto from 'crypto';
 
 interface ParseRequest {
   url?: string;
@@ -49,17 +51,49 @@ export async function POST(request: Request) {
     );
   }
 
-  // call OpenAI
-  const ai = await openai.chat.completions.create({
-    model: MODEL,
-    temperature: 0,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT.trim() },
-      { role: "user", content: textSource },
-    ],
-  });
+  // Caching: hash the input
+  const cacheKey = crypto.createHash('sha256').update(textSource).digest('hex');
+  const cacheColl = db.collection('ai_jobad_parse_cache');
+  const cached = await cacheColl.findOne({ key: cacheKey });
+  if (cached && cached.result) {
+    return NextResponse.json(cached.result);
+  }
 
-  const content = ai.choices[0].message.content ?? "";
+  // call OpenAI
+  let content = "";
+  try {
+    const aiResponse = await getChatCompletion({
+      model: MODEL,
+      temperature: 0,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT.trim() },
+        { role: "user", content: textSource },
+      ],
+    });
+    content = aiResponse.content ?? "";
+  } catch (error: unknown) {
+    if (
+      typeof error === 'object' && error !== null &&
+      ('code' in error || 'status' in error)
+    ) {
+      const err = error as { code?: string; status?: number; message?: string };
+      if (err.code === 'RateLimitReached' || err.status === 429) {
+        return NextResponse.json(
+          { error: "OpenAI API rate limit exceeded. Please try again later." },
+          { status: 429 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Failed to call AI API", details: err.message },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json(
+      { error: "Failed to call AI API", details: String(error) },
+      { status: 500 }
+    );
+  }
+
   // extract the JSON block
   const match = content.match(/\{[\s\S]*\}$/);
   if (!match) {
@@ -71,6 +105,8 @@ export async function POST(request: Request) {
 
   try {
     const parsed = JSON.parse(match[0]) as ParsedJob;
+    // Cache the result
+    await cacheColl.insertOne({ key: cacheKey, result: parsed, createdAt: new Date() });
     return NextResponse.json(parsed);
   } catch {
     return NextResponse.json(

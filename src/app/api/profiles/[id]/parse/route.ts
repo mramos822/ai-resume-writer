@@ -5,9 +5,9 @@ import { NextResponse } from "next/server";
 import admin from "firebase-admin";
 import { ObjectId } from "mongodb";
 import { db, bucket } from "@/lib/mongodb";
-import OpenAI from "openai";
 import mammoth from "mammoth";
 import type { ProfileData } from "@/context/profileContext";
+import { getChatCompletion, MODEL } from "@/lib/openai";
 
 // === Stub out pdf-parse's test-data loader ===
 const originalReadFileSync = fs.readFileSync;
@@ -33,12 +33,6 @@ if (!admin.apps.length) {
   });
 }
 
-const TOKEN = process.env.GITHUB_TOKEN!;
-const aiClient = new OpenAI({
-  baseURL: "https://models.github.ai/inference",
-  apiKey: TOKEN,
-});
-const MODEL = "openai/gpt-4o-mini";
 
 // Extract text with PDF fallback
 async function extractText(buffer: Buffer, filename: string): Promise<string> {
@@ -60,42 +54,9 @@ async function extractText(buffer: Buffer, filename: string): Promise<string> {
   }
 }
 
-async function parseWithAI(text: string): Promise<Partial<ProfileData>> {
-  const systemPrompt = `
-You are an expert resume parser.
-Respond with NOTHING but a single, valid JSON object matching this interface exactly:
-
-interface ProfileData {
-  contactInfo: { email: string; phone: string; additionalEmails?: string[]; additionalPhones?: string[] };
-  careerObjective: string;
-  skills: string[];
-  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; accomplishments: string[] }[];
-  education: { school: string; degree: string; dates: string; gpa?: string }[];
-}
-
-Output only the JSON, no explanation.
-  `.trim();
-
-  const completion = await aiClient.chat.completions.create({
-    model: MODEL,
-    temperature: 0,
-    top_p: 1,
-    max_tokens: 2000,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: text },
-    ],
-  });
-
-  const raw = completion.choices[0].message.content ?? "";
-  const match = raw.match(/\{[\s\S]*\}$/);
-  if (!match) throw new Error("Invalid JSON from parser");
-  return JSON.parse(match[0]) as Partial<ProfileData>;
-}
-
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: profileId } = await params;
 
@@ -153,11 +114,46 @@ export async function POST(
 
   // 6) Extract text
   const text = await extractText(buffer, fileMeta.filename);
+  console.log("Extracted text (first 1000 chars):", text.slice(0, 1000));
+
+  const systemPrompt = `
+You are an expert resume parser.
+Respond with NOTHING but a single, valid JSON object matching this interface exactly:
+
+interface ProfileData {
+  name: string;
+  jobTitle: string;
+  contactInfo: { email: string; phone: string; additionalEmails?: string[]; additionalPhones?: string[] };
+  careerObjective: string;
+  skills: string[];
+  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; accomplishments: string[] }[];
+  education: { school: string; degree: string; dates: string; gpa?: string }[];
+  internships: { company: string; title: string; description: string; startDate: string; endDate: string; accomplishments: string[] }[];
+}
+
+Output only the JSON, no explanation.
+  `.trim();
 
   // 7) Call AI parser
   let parsed: Partial<ProfileData>;
   try {
-    parsed = await parseWithAI(text);
+    const completion = await getChatCompletion({
+      model: MODEL,
+      temperature: 0,
+      top_p: 1,
+      max_tokens: 2000,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: text },
+      ],
+    });
+    const raw = completion.choices[0].message.content ?? "";
+    console.log("AI raw response (first 1000 chars):", raw.slice(0, 1000));
+    // Remove Markdown code block markers if present
+    const cleanedRaw = raw.replace(/^```json\s*|^```\s*|```$/gm, "").trim();
+    const match = cleanedRaw.match(/\{[\s\S]*\}$/);
+    if (!match) throw new Error("Invalid JSON from parser");
+    parsed = JSON.parse(match[0]) as Partial<ProfileData>;
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },
@@ -166,9 +162,13 @@ export async function POST(
   }
 
   // 8) Save to Mongo
+  const update: Record<string, unknown> = { data: parsed, updatedAt: new Date() };
+  if (parsed.name && typeof parsed.name === 'string' && parsed.name.trim() !== '') {
+    update.name = parsed.name.trim();
+  }
   await db.collection("profiles").updateOne(
     { _id: new ObjectId(profileId), userId: decoded.uid },
-    { $set: { data: parsed, updatedAt: new Date() } }
+    { $set: update }
   );
 
   // 9) Return parsed JSON

@@ -10,10 +10,12 @@ import React, {
   useCallback,
 } from "react";
 import { useAuth } from "@/context/authContext";
+import { useToast } from "@/context/toastContext";
 
 export interface ContactInfo {
   email: string;
   phone: string;
+  address: string; // Re-added address to ContactInfo
   additionalEmails?: string[];
   additionalPhones?: string[];
 }
@@ -37,11 +39,14 @@ export interface EducationEntry {
 }
 
 export interface ProfileData {
+  name: string; // Added name field
+  jobTitle: string; // Added jobTitle field
   contactInfo: ContactInfo;
   careerObjective: string;
   skills: string[];
   jobHistory: JobEntry[];
   education: EducationEntry[];
+  internships: JobEntry[];
 }
 
 export type ProfileDoc = {
@@ -62,6 +67,8 @@ export interface ProfileContextType {
   saveChanges: () => Promise<void>;
   hasUnsavedChanges: boolean;
   updateContactInfo: (ci: Partial<ContactInfo>) => void;
+  updateName: (name: string) => void; // Added updateName
+  updateJobTitle: (jobTitle: string) => void; // Added updateJobTitle
   updateCareerObjective: (obj: string) => void;
   updateSkills: (skills: string[]) => void;
   addJobEntry: (job: Omit<JobEntry, "id">) => void;
@@ -70,14 +77,20 @@ export interface ProfileContextType {
   addEducationEntry: (edu: Omit<EducationEntry, "id">) => void;
   updateEducationEntry: (id: string, edu: Partial<EducationEntry>) => void;
   deleteEducationEntry: (id: string) => void;
+  addInternshipEntry: (internship: Omit<JobEntry, "id">) => void;
+  updateInternshipEntry: (id: string, internship: Partial<JobEntry>) => void;
+  deleteInternshipEntry: (id: string) => void;
 }
 
 const EMPTY_PROFILE: ProfileData = {
-  contactInfo: { email: "", phone: "" },
+  name: "", // Initialized name
+  jobTitle: "", // Initialized jobTitle
+  contactInfo: { email: "", phone: "", address: "" }, // Initialized address
   careerObjective: "",
   skills: [],
   jobHistory: [],
   education: [],
+  internships: [],
 };
 
 const ProfileContext = createContext<ProfileContextType | undefined>(
@@ -86,6 +99,7 @@ const ProfileContext = createContext<ProfileContextType | undefined>(
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
+  const toast = useToast();
   const [profiles, setProfiles] = useState<ProfileDoc[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string>("");
   const [profileData, setProfileData] = useState<ProfileData>(
@@ -213,23 +227,29 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     async (fileId: string): Promise<Partial<ProfileData>> => {
       if (!user || !activeProfileId) return {};
       const token = await user.getIdToken();
-      
       // send JSON; parse-route expects jSON { fileId }
       const res = await fetch(`/api/profiles/${activeProfileId}/parse`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({  fileId}),
+        body: JSON.stringify({ fileId }),
       });
       if (!res.ok) throw new Error("Parse failed");
-      const parsed = (await res.json()) as Partial<ProfileData>;
-      setProfileData((prev) => ({ ...prev, ...parsed }));
-      markUnsaved();
-      return parsed;
+      // After parsing, refetch the profile to get updated name and data
+      const profileRes = await fetch(`/api/profiles/${activeProfileId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!profileRes.ok) throw new Error("Failed to reload profile after parsing");
+      const doc = (await profileRes.json()) as ProfileDoc;
+      setProfileName(doc.name);
+      setProfileData(doc.data);
+      setHasUnsavedChanges(true);
+      toast.success("Finished parsing file!");
+      return doc.data;
     },
-    [user, activeProfileId]
+    [user, activeProfileId, toast]
   );
 
   return (
@@ -247,6 +267,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         hasUnsavedChanges,
         updateContactInfo: (ci) =>
           updateField("contactInfo", { ...profileData.contactInfo, ...ci }),
+        updateName: (n) => updateField("name", n), // Implemented updateName
+        updateJobTitle: (jt) => updateField("jobTitle", jt), // Implemented updateJobTitle
         updateCareerObjective: (o) => updateField("careerObjective", o),
         updateSkills: (s) => updateField("skills", s),
         addJobEntry: (job) =>
@@ -282,6 +304,23 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           updateField(
             "education",
             profileData.education.filter((x) => x.id !== id)
+          ),
+        addInternshipEntry: (internship) =>
+          updateField("internships", [
+            ...profileData.internships,
+            { ...internship, id: Date.now().toString() },
+          ]),
+        updateInternshipEntry: (id, i) =>
+          updateField(
+            "internships",
+            profileData.internships.map((e) =>
+              e.id === id ? { ...e, ...i } : e
+            )
+          ),
+        deleteInternshipEntry: (id) =>
+          updateField(
+            "internships",
+            profileData.internships.filter((e) => e.id !== id)
           ),
       }}
     >

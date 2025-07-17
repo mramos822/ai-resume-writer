@@ -9,12 +9,17 @@ import { useProfile, ContactInfo } from "@/context/profileContext";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea"; // Import Textarea for address
 
 const ContactInfoSection: React.FC = () => {
   // pull out your actual context API
-  const { activeProfile: profile, updateContactInfo } = useProfile();
+  const { activeProfile: profile, updateContactInfo, updateName } = useProfile();
   const [showAdditionalEmails, setShowAdditionalEmails] = useState(false);
   const [showAdditionalPhones, setShowAdditionalPhones] = useState(false);
+
+  // Use separate state for name and address as they are now directly on ProfileData
+  const [name, setName] = useState(profile.name || '');
+  const [address, setAddress] = useState(profile.contactInfo.address || '');
 
   const {
     register,
@@ -23,16 +28,25 @@ const ContactInfoSection: React.FC = () => {
     setValue,
     watch,
   } = useForm<ContactInfo>({
-    defaultValues: profile.contactInfo,
+    defaultValues: profile.contactInfo, // Still use for email/phone
   });
+
+  // Update name and address when profile changes
+  React.useEffect(() => {
+    setName(profile.name || '');
+    setAddress(profile.contactInfo.address || '');
+  }, [profile]);
+
+  const onSubmit = (data: ContactInfo) => {
+    // Update contact info (email, phone, additional)
+    updateContactInfo(data);
+    // Update name and address separately
+    updateName(name);
+    updateContactInfo({ address: address }); // Update address via contactInfo
+  };
 
   const additionalEmails = watch("additionalEmails") || [];
   const additionalPhones = watch("additionalPhones") || [];
-
-  const onSubmit = (data: ContactInfo) => {
-    // this will merge into profile.contactInfo
-    updateContactInfo(data);
-  };
 
   const addAdditionalEmail = () => {
     const newEmails = [...(profile.contactInfo.additionalEmails || []), ""];
@@ -85,6 +99,30 @@ const ContactInfoSection: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Name */}
+        <div className="space-y-2">
+          <Label htmlFor="name">Full Name *</Label>
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            placeholder="e.g., John Doe"
+          />
+        </div>
+
+        {/* Address */}
+        <div className="space-y-2">
+          <Label htmlFor="address">Address</Label>
+          <Textarea
+            id="address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            rows={3}
+            placeholder="e.g., 123 Main St, Anytown, USA 12345"
+          />
+        </div>
+
         {/* Primary Email */}
         <div className="space-y-2">
           <Label htmlFor="email">Primary Email Address *</Label>

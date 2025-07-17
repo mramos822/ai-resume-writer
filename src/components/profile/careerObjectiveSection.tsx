@@ -9,6 +9,7 @@ import { useProfile } from "@/context/profileContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input"; // Import Input for jobTitle
 import {
   Card,
   CardContent,
@@ -16,24 +17,27 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-interface ObjectiveForm {
+interface CareerObjectiveForm {
   careerObjective: string;
+  jobTitle: string; // Added jobTitle to form interface
 }
 
 const CareerObjectiveSection: React.FC = () => {
-  const { activeProfile, updateCareerObjective } = useProfile();
+  const { activeProfile, updateCareerObjective, updateJobTitle } = useProfile();
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<ObjectiveForm>({
+  } = useForm<CareerObjectiveForm>({
     defaultValues: {
       careerObjective: activeProfile.careerObjective,
+      jobTitle: activeProfile.jobTitle, // Set default value for jobTitle
     },
   });
 
-  const onSubmit = (data: ObjectiveForm) => {
+  const onSubmit = (data: CareerObjectiveForm) => {
     updateCareerObjective(data.careerObjective);
+    updateJobTitle(data.jobTitle); // Update jobTitle
   };
 
   return (
@@ -53,6 +57,21 @@ const CareerObjectiveSection: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Job Title */}
+        <div className="space-y-2">
+          <Label htmlFor="jobTitle">Current Job Title / Desired Role *</Label>
+          <Input
+            {...register("jobTitle", { required: "Job title is required" })}
+            type="text"
+            id="jobTitle"
+            placeholder="e.g., Senior Software Engineer"
+          />
+          {errors.jobTitle && (
+            <p className="text-sm text-destructive">{errors.jobTitle.message}</p>
+          )}
+        </div>
+
+        {/* Career Objective */}
         <div className="space-y-2">
           <Label htmlFor="careerObjective">
             Career Objective Statement
@@ -81,7 +100,7 @@ const CareerObjectiveSection: React.FC = () => {
         </div>
 
         <Button type="submit" className="w-full">
-          Update Career Objective
+          Update Profile Summary
         </Button>
       </form>
 

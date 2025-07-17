@@ -9,6 +9,7 @@ import { Upload } from "@/components/icons/uploadField";
 import { FileText } from "@/components/icons/fileText";
 import { useToast } from "@/context/toastContext";
 import { useProfile } from "@/context/profileContext";
+import { File } from "@/components/icons/file";
 
 import FileUpload from "@/components/fileUpload";
 import BiographyForm from "@/components/biographyForm";
@@ -234,9 +235,17 @@ export default function HomePage() {
                       View Profile
                     </Link>
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Generate Resume
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <Link href="/home/job-ads" className="hover:underline">
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate Resume
+                    </Link>
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <Link href="/home/resumes" className="hover:underline">
+                        <File className="h-4 w-4 mr-2" />
+                        View Saved Resumes
+                    </Link>
                   </Button>
                 </CardContent>
               </Card>
