@@ -40,6 +40,7 @@ npm run dev
 
 ## Contributions
 This project was developed as part of **NJIT CS490 Capstone 2025**
+
 **My role:**
 - Implemented resume parsing for PDF/DOCX/Markdown.
 - Integrated Firebase authentication.
