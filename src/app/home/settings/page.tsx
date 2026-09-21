@@ -20,6 +20,8 @@ import { useForm } from "react-hook-form";
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { getFriendlyFirebaseErrorMessage } from "@/utils/firebaseErrorHandler";
+import PageHeader from "@/components/pageHeader";
+import { UserRound, Palette, KeyRound, Info } from "lucide-react";
 
 type ThemeType = "light" | "dark" | "system";
 
@@ -151,12 +153,16 @@ export default function SettingsPage() {
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen text-gray-900 dark:text-gray-100">
-            <div className="w-full max-w-md">
-                <h1 className="text-2xl font-bold mb-6">Settings</h1>
+        <div className="mx-auto max-w-2xl">
+            <div>
+                <PageHeader
+                    title="Settings"
+                    subtitle="Your name, how the app looks, and your password."
+                />
                 <Form {...form}>
                     <form className="space-y-6" onSubmit={handleSave}>
-                        {/* Name Field */}
+                        <section className="space-y-5 rounded-lg border bg-card p-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-100 text-blue-700"><UserRound className="h-5 w-5" /></span><div><h2 className="text-lg font-bold leading-tight">Your account</h2><p className="text-sm text-muted-foreground">This is how we greet you.</p></div></div>
+{/* Name Field */}
                         <FormField
                             control={form.control}
                             name="name"
@@ -194,7 +200,9 @@ export default function SettingsPage() {
                             )}
                         />
 
-                        {/* Theme Field */}
+                        </section>
+<section className="space-y-5 rounded-lg border bg-card p-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-md bg-violet-100 text-violet-700"><Palette className="h-5 w-5" /></span><div><h2 className="text-lg font-bold leading-tight">Appearance</h2><p className="text-sm text-muted-foreground">Light, dark, or follow your device.</p></div></div>
+{/* Theme Field */}
                         <FormField
                             control={form.control}
                             name="theme"
@@ -225,7 +233,15 @@ export default function SettingsPage() {
                             )}
                         />
 
-                        {/* Password Fields */}
+                        </section>
+<section className="space-y-5 rounded-lg border bg-card p-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-md bg-amber-100 text-amber-700"><KeyRound className="h-5 w-5" /></span><div><h2 className="text-lg font-bold leading-tight">Password</h2><p className="text-sm text-muted-foreground">Leave these empty to keep your current password.</p></div></div>
+{isOAuthUser && (
+    <p className="flex items-start gap-2 rounded-md border bg-accent/60 p-3 text-sm text-muted-foreground">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+        You signed in with Google, so your password is managed by Google.
+    </p>
+)}
+{/* Password Fields */}
                         <FormField
                             control={form.control}
                             name="currentPassword"
@@ -323,28 +339,33 @@ export default function SettingsPage() {
                             )}
                         />
 
-                        {/* Buttons */}
-                        <div className="flex justify-end space-x-4">
+                        </section>
+{/* Buttons */}
+                        <div className="flex justify-end gap-3">
                             <Button
                                 type="submit"
                                 disabled={isSaving}
-                                className="w-32 bg-blue-500 hover:bg-blue-600 text-white"
+                                className="h-11 w-32"
                             >
                                 {isSaving ? "Saving..." : "Save"}
                             </Button>
                             <Button
                                 type="button"
+                                variant="outline"
                                 onClick={handleCancel}
-                                className="w-32 bg-gray-500 hover:bg-gray-600 text-white"
+                                className="h-11 w-32"
                             >
                                 Cancel
                             </Button>
                         </div>
 
                         {/* Error Message */}
-                        {error && <p className="text-red-500 mt-2">{error}</p>}
+                        {error && (
+                            <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
+                        )}
                     </form>
-                </Form>            </div>
+                </Form>
+            </div>
         </div>
     );
 }

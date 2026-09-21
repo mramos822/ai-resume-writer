@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { useAuth } from "@/context/authContext";
 import { useToast } from "@/context/toastContext";
+import { formatPeriod } from "@/lib/dateFormat";
 
 export interface ContactInfo {
   email: string;
@@ -26,7 +27,8 @@ export interface JobEntry {
   title: string;
   description: string;
   startDate: string;
-  endDate: string;
+  endDate: string; // empty while currently working here
+  current?: boolean; // currently working here
   accomplishments: string[];
 }
 
@@ -34,8 +36,26 @@ export interface EducationEntry {
   id: string;
   school: string;
   degree: string;
-  dates: string;
+  startDate: string; // YYYY-MM
+  endDate: string; // YYYY-MM, empty while currently enrolled
+  current?: boolean; // currently attending
+  dates?: string; // legacy free-text value from older profiles
   gpa?: string;
+}
+
+/** Human-readable education period, e.g. "Sep 2018 – May 2022" or "Sep 2022 – Present" */
+export const formatEducationDates = formatPeriod;
+
+export interface ProjectEntry {
+  id: string;
+  name: string;
+  description: string;
+  link?: string;
+  technologies: string[];
+  startDate: string; // YYYY-MM, optional
+  endDate: string; // YYYY-MM, empty while ongoing
+  current?: boolean;
+  accomplishments: string[];
 }
 
 export interface ProfileData {
@@ -47,6 +67,7 @@ export interface ProfileData {
   jobHistory: JobEntry[];
   education: EducationEntry[];
   internships: JobEntry[];
+  projects: ProjectEntry[];
 }
 
 export type ProfileDoc = {
@@ -80,6 +101,9 @@ export interface ProfileContextType {
   addInternshipEntry: (internship: Omit<JobEntry, "id">) => void;
   updateInternshipEntry: (id: string, internship: Partial<JobEntry>) => void;
   deleteInternshipEntry: (id: string) => void;
+  addProjectEntry: (project: Omit<ProjectEntry, "id">) => void;
+  updateProjectEntry: (id: string, project: Partial<ProjectEntry>) => void;
+  deleteProjectEntry: (id: string) => void;
 }
 
 const EMPTY_PROFILE: ProfileData = {
@@ -91,6 +115,7 @@ const EMPTY_PROFILE: ProfileData = {
   jobHistory: [],
   education: [],
   internships: [],
+  projects: [],
 };
 
 const ProfileContext = createContext<ProfileContextType | undefined>(
@@ -246,10 +271,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       setProfileName(doc.name);
       setProfileData(doc.data);
       setHasUnsavedChanges(true);
+      await loadProfiles(); // refresh the profile selector with the new name
       toast.success("Finished parsing file!");
       return doc.data;
     },
-    [user, activeProfileId, toast]
+    [user, activeProfileId, toast, loadProfiles]
   );
 
   return (
@@ -257,7 +283,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       value={{
         profiles,
         activeProfileId,
-        activeProfile: { ...profileData, name: profileName },
+        activeProfile: {
+          ...profileData,
+          internships: profileData.internships ?? [],
+          projects: profileData.projects ?? [],
+          name: profileName,
+        },
         setActiveProfileId,
         createProfile,
         deleteProfile,
@@ -316,6 +347,23 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             profileData.internships.map((e) =>
               e.id === id ? { ...e, ...i } : e
             )
+          ),
+        addProjectEntry: (project) =>
+          updateField("projects", [
+            ...(profileData.projects ?? []),
+            { ...project, id: Date.now().toString() },
+          ]),
+        updateProjectEntry: (id, pr) =>
+          updateField(
+            "projects",
+            (profileData.projects ?? []).map((e) =>
+              e.id === id ? { ...e, ...pr } : e
+            )
+          ),
+        deleteProjectEntry: (id) =>
+          updateField(
+            "projects",
+            (profileData.projects ?? []).filter((e) => e.id !== id)
           ),
         deleteInternshipEntry: (id) =>
           updateField(

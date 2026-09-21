@@ -1,115 +1,141 @@
 "use client";
 
-import { Bars3Icon } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import Image from "next/image";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useRouter, usePathname } from "next/navigation";
+import { signOut } from "firebase/auth";
+import {
+    Menu,
+    HelpCircle,
+    Plus,
+    Settings,
+    LogOut,
+    PlayCircle,
+    LifeBuoy,
+    ChevronRight,
+} from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { useAuth } from "@/context/authContext";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
     DropdownMenu,
     DropdownMenuTrigger,
     DropdownMenuContent,
     DropdownMenuItem,
-} from "@/components/ui/dropdown-menu"; // Import Shadcn dropdown components
-import { useRouter, usePathname } from "next/navigation"; // Import usePathname
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { openTour } from "@/components/guidedTour";
+
 interface TopBannerProps {
     toggleSidePanel: () => void;
 }
 
+const PAGE_TITLES: Record<string, string> = {
+    "/home": "Dashboard",
+    "/home/profile": "Profile",
+    "/home/resumes": "Resumes",
+    "/home/job-ads": "Job Ads",
+    "/home/settings": "Settings",
+    "/home/help": "Help & tutorials",
+};
+
 export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
     const router = useRouter();
-    const pathname = usePathname(); // Get the current path
+    const pathname = usePathname();
+    const { user } = useAuth();
 
-    // Get current user
-    const user = auth.currentUser;
+    const name = user?.displayName || user?.email?.split("@")[0] || "";
+    const initials = name
+        .split(/[\s._-]+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0]?.toUpperCase())
+        .join("");
 
-    // Helper to get initials from displayName
-    const getInitials = (name?: string | null) => {
-        if (!name) return "";
-        const parts = name.trim().split(" ");
-        if (parts.length === 1) return parts[0][0]?.toUpperCase() || "";
-        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    };
-
-    const initials = getInitials(user?.displayName).toLowerCase();
-
-
-    // Map paths to page titles
-    const pageTitles: { [key: string]: string } = {
-        "/home": "Home",
-        "/home/settings": "Settings",
-    };
-
-    const pageTitle = pageTitles[pathname] || "Page"; // Default to "Page" if no match
+    const pageTitle = PAGE_TITLES[pathname] ?? "Kaizo";
 
     const handleLogout = async () => {
         try {
             await signOut(auth);
-            router.push("/"); // Redirect to landing page
+            router.push("/");
         } catch (error) {
             console.error("Failed to log out:", error);
         }
     };
 
     return (
-        <header className="bg-stone-200 dark:bg-stone-800 p-2 shadow border-b border-stone-600 flex items-center justify-between">
-            {/* Left Section: Hamburger Menu, Logo, and Breadcrumb */}
-            <div className="flex items-center space-x-4">
+        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b bg-card/90 px-4 backdrop-blur">
+            <div className="flex items-center gap-3">
                 <button
                     onClick={toggleSidePanel}
-                    className="p-2 rounded-md border-none hover:bg-stone-300 dark:hover:bg-stone-700"
+                    className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    aria-label="Toggle menu"
                 >
-                    <Bars3Icon className="h-9 w-9 text-gray-800 dark:text-gray-200" />
+                    <Menu className="h-5 w-5" />
                 </button>
-                <Link href="/" className="flex items-center">
-                    <Image
-                        src="/logo.png"
-                        alt="Marcus Home"
-                        width={48}
-                        height={48}
-                        className="mr-2"
-                    />
+                <nav className="flex items-center gap-1.5 text-sm">
+                    <Link href="/home" className="hidden text-muted-foreground hover:text-foreground sm:inline">
+                        Kaizo
+                    </Link>
+                    <ChevronRight className="hidden h-4 w-4 text-muted-foreground sm:inline" />
+                    <span className="font-semibold">{pageTitle}</span>
+                </nav>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <Link
+                    href="/home/job-ads"
+                    className="hidden items-center gap-1.5 rounded-md bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 sm:inline-flex"
+                >
+                    <Plus className="h-4 w-4" /> New resume
                 </Link>
-                <div className="flex space-x-2 text-md">
-                    <p>{pageTitle}</p> {/* Dynamically display the page title */}
-                </div>
-            </div>
 
-            {/* Center Section: Title */}
-            <div className="flex-grow flex justify-center">
-                <h1 className="text-xl font-semibold">Kaizo</h1>
-            </div>
-
-            {/* Right Section: Avatar with Dropdown */}
-            <div className="flex items-center relative">
+                {/* Help menu */}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <div className="relative cursor-pointer">
-                            <Avatar className="w-10 h-10">
-                                <AvatarImage src="/path-to-avatar-image.jpg" alt="User Avatar" />
-                                <AvatarFallback className="bg-blue-500 w-full h-full flex items-center justify-center rounded-full">
+                        <button
+                            className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            aria-label="Help"
+                        >
+                            <HelpCircle className="h-5 w-5" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-60">
+                        <DropdownMenuLabel>Need a hand?</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={openTour} className="gap-2">
+                            <PlayCircle className="h-4 w-4" /> Take the 1-minute tour
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push("/home/help")} className="gap-2">
+                            <LifeBuoy className="h-4 w-4" /> Help center and guides
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Account menu */}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button
+                            className="rounded-full ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label="Account menu"
+                        >
+                            <Avatar className="h-9 w-9">
+                                <AvatarFallback className="bg-blue-600 text-sm font-semibold text-white">
                                     {initials || "?"}
                                 </AvatarFallback>
                             </Avatar>
-                            {/* Down Arrow Indicator */}
-                            <span
-                                className="absolute text-gray-800 dark:text-gray-200 text-xs"
-                                style={{
-                                    bottom: "-4px", // Move the arrow slightly lower
-                                    right: "-4px",  // Move the arrow slightly to the right
-                                }}
-                            >
-                                ▼
-                            </span>
-                        </div>
+                        </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onClick={() => router.push("/home/settings")}>
-                            Settings
+                    <DropdownMenuContent align="end" className="w-60">
+                        <DropdownMenuLabel className="font-normal">
+                            <p className="truncate text-sm font-semibold">{name || "Your account"}</p>
+                            <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => router.push("/home/settings")} className="gap-2">
+                            <Settings className="h-4 w-4" /> Settings
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleLogout}>
-                            Logout
+                        <DropdownMenuItem onClick={handleLogout} className="gap-2">
+                            <LogOut className="h-4 w-4" /> Log out
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

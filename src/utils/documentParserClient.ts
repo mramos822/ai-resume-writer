@@ -1,7 +1,8 @@
 import { ProfileData } from "@/context/profileContext";
+import { authFetch } from "@/lib/authFetch";
 
 async function postForm(form: FormData): Promise<Partial<ProfileData>> {
-  const res = await fetch("/api/parse-document", {
+  const res = await authFetch("/api/parse-document", {
     method: "POST",
     body: form,
   });

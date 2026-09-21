@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { bucket, db } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { convertPdfToDocx } from '@/lib/pdfConverter';
+import { authUid, assertResumeOwner, errorResponse } from '@/lib/apiAuth';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ fileId: string }> }) {
   try {
@@ -14,6 +15,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
     if (!fileId) {
       return NextResponse.json({ error: 'File ID not provided' }, { status: 400 });
     }
+
+    const uid = await authUid(req);
+    await assertResumeOwner(uid, fileId);
 
     const downloadStream = bucket.openDownloadStream(new ObjectId(fileId));
 
@@ -50,21 +54,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
 
     const response = new NextResponse(outputBuffer);
     response.headers.set('Content-Type', contentType);
+    response.headers.set('X-Filename', encodeURIComponent(String(file.filename || '')));
     response.headers.set('Content-Disposition', `${viewMode ? 'inline' : 'attachment'}; filename="${filename}"`);
     return response;
   } catch (error) {
-    console.error('Failed to retrieve resume:', error);
-    return NextResponse.json({ error: 'Failed to download resume' }, { status: 500 });
+    return errorResponse(error, 'Failed to download resume');
   }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ fileId: string }> }) {
   try {
+    const uid = await authUid(req);
     const { fileId } = await params;
     const { filename } = await req.json();
     if (!fileId || !filename) {
       return NextResponse.json({ error: 'File ID and filename are required' }, { status: 400 });
     }
+    await assertResumeOwner(uid, fileId);
     // Update the filename in GridFS
     const result = await db.collection('uploads.files').updateOne(
       { _id: new ObjectId(fileId) },
@@ -76,7 +82,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ fi
       return NextResponse.json({ error: 'File not found or not updated' }, { status: 404 });
     }
   } catch (error) {
-    console.error('Failed to rename resume:', error);
-    return NextResponse.json({ error: 'Failed to rename resume' }, { status: 500 });
+    return errorResponse(error, 'Failed to rename resume');
   }
 }

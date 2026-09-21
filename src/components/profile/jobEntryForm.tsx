@@ -15,6 +15,7 @@ interface JobFormData {
   description: string;
   startDate: string;
   endDate: string;
+  current: boolean;
   accomplishments: string[];
 }
 
@@ -31,15 +32,17 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
       description: job?.description || '',
       startDate: job?.startDate || '',
       endDate: job?.endDate || '',
+      current: job ? (job.current ?? !job.endDate) : false,
       accomplishments: job?.accomplishments || [''],
     }
   });
 
-  const isCurrentJob = !watch('endDate');
+  const isCurrentJob = watch('current');
 
   const onSubmit = (data: JobFormData) => {
     const jobData = {
       ...data,
+      endDate: data.current ? '' : data.endDate,
       accomplishments: accomplishments.filter(acc => acc.trim() !== ''),
     };
 
@@ -69,7 +72,7 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-neutral-800 rounded-lg p-6"
+      className="bg-card rounded-lg p-6"
     >
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold">
@@ -86,13 +89,13 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-white mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Company Name *
             </label>
             <input
               {...register('company', { required: 'Company name is required' })}
               type="text"
-              className="bg-black w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="bg-background w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="e.g., TechCorp Inc."
             />
             {errors.company && (
@@ -101,13 +104,13 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-white mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Job Title *
             </label>
             <input
               {...register('title', { required: 'Job title is required' })}
               type="text"
-              className="bg-black w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="bg-background w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="e.g., Senior Software Engineer"
             />
             {errors.title && (
@@ -118,13 +121,13 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
 
         <div className="grid md:grid-cols-2 gap-4">
           <div className='flex flex-col relative w-full'>
-            <label className="block text-sm font-medium text-white mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Start Date *
             </label>
             <input
               {...register('startDate', { required: 'Start date is required' })}
               type="month"
-              className="bg-black w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="bg-background w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
 
             {/* Custom calendar SVG icon */}
@@ -152,14 +155,14 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              End Date
+            <label className="block text-sm font-medium text-foreground mb-2">
+              End Date {isCurrentJob ? '' : '*'}
             </label>
             <input
-              {...register('endDate')}
+              {...register('endDate', { required: isCurrentJob ? false : 'End date is required' })}
               type="month"
-              className="bg-black w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Leave empty if current job"
+              disabled={isCurrentJob}
+              className="bg-background w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-40 disabled:cursor-not-allowed"
             />
 
             {/* Custom calendar SVG icon */}
@@ -181,20 +184,28 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
               </svg>
             </div>
 
-            {isCurrentJob && (
-              <p className="mt-1 text-sm text-green-600">Current position</p>
+            {errors.endDate && (
+              <p className="mt-1 text-sm text-red-600">{errors.endDate.message}</p>
             )}
+            <label className="mt-2 flex items-center space-x-2 text-sm text-foreground cursor-pointer">
+              <input
+                {...register('current')}
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <span>Currently working here</span>
+            </label>
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-white mb-2">
+          <label className="block text-sm font-medium text-foreground mb-2">
             Job Description *
           </label>
           <textarea
             {...register('description', { required: 'Job description is required' })}
             rows={4}
-            className="bg-black w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="bg-background w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             placeholder="Describe your role, responsibilities, and key activities..."
           />
           {errors.description && (
@@ -204,13 +215,13 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
 
         <div>
           <div className="flex items-center justify-between mb-3">
-            <label className="block text-sm font-medium text-white">
+            <label className="block text-sm font-medium text-foreground">
               Key Accomplishments
             </label>
             <button
               type="button"
               onClick={addAccomplishment}
-              className="flex items-center space-x-1 text-blue-400 hover:text-white-700 text-sm"
+              className="flex items-center space-x-1 text-blue-600 hover:text-white-700 text-sm"
             >
               <Plus className="h-4 w-4" />
               <span>Add Accomplishment</span>
@@ -224,7 +235,7 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
                   type="text"
                   value={accomplishment}
                   onChange={(e) => updateAccomplishment(index, e.target.value)}
-                  className="bg-black flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="bg-background flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="e.g., Increased team productivity by 25%"
                 />
                 {accomplishments.length > 1 && (
@@ -239,7 +250,7 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
               </div>
             ))}
           </div>
-          <p className="mt-1 text-sm text-white">
+          <p className="mt-1 text-sm text-foreground">
             Add specific achievements, metrics, and impact you made in this role
           </p>
         </div>

@@ -107,7 +107,7 @@ const CareerObjectiveSection: React.FC = () => {
       {/* Writing Tips */}
       <Card className="border-blue-500">
         <CardHeader>
-          <CardTitle className="font-semibold text-blue-400">
+          <CardTitle className="font-semibold text-blue-600">
             💡 Writing Tips
           </CardTitle>
         </CardHeader>
@@ -125,7 +125,7 @@ const CareerObjectiveSection: React.FC = () => {
       {/* Example Objectives */}
       <Card className="border-blue-500">
         <CardHeader>
-          <CardTitle className="font-semibold text-blue-400">
+          <CardTitle className="font-semibold text-blue-600">
             📝 Example Objectives
           </CardTitle>
         </CardHeader>

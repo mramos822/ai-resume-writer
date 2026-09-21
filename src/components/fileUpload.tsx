@@ -116,17 +116,17 @@ const FileUpload: React.FC = () => {
         {...getRootProps()}
         className={`border-2 border-dashed rounded-xl cursor-pointer transition-all ${
           isDragActive
-            ? "border-blue-400 bg-neutral-800"
-            : "border-neutral-600 hover:border-blue-500 hover:bg-neutral-900"
+            ? "border-blue-400 bg-card"
+            : "border-border hover:border-blue-500 hover:bg-muted"
         }`}
       >
         <input {...getInputProps()} />
         <motion.div className="p-8 text-center">
-          <Upload className={`h-12 w-12 mb-4 mx-auto ${isDragActive ? "text-blue-400" : "text-neutral-500"}`} />
-          <h3 className="text-lg font-semibold text-neutral-100 mb-2">
+          <Upload className={`h-12 w-12 mb-4 mx-auto ${isDragActive ? "text-blue-600" : "text-muted-foreground"}`} />
+          <h3 className="text-lg font-semibold text-foreground mb-2">
             {isDragActive ? "Drop files here" : "Upload your documents"}
           </h3>
-          <p className="text-neutral-400 mb-4">
+          <p className="text-muted-foreground mb-4">
             Drag & drop PDF, DOCX, TXT, or MD (max 10 MB)
           </p>
         </motion.div>
@@ -134,23 +134,23 @@ const FileUpload: React.FC = () => {
 
       {uploadedFiles.length > 0 && (
         <div className="space-y-3">
-          <h4 className="text-lg font-semibold text-neutral-100">Uploaded Files</h4>
+          <h4 className="text-lg font-semibold text-foreground">Uploaded Files</h4>
           {uploadedFiles.map((uf, idx) => (
             <motion.div
               key={idx}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-between p-4 bg-neutral-800 rounded-lg"
+              className="flex items-center justify-between p-4 bg-card rounded-lg"
             >
               <div className="flex items-center space-x-3">
                 {uf.file.name.endsWith(".pdf") || uf.file.name.endsWith(".docx") ? (
-                  <FileText className="h-6 w-6 text-blue-400" />
+                  <FileText className="h-6 w-6 text-blue-600" />
                 ) : (
-                  <FileIcon className="h-6 w-6 text-neutral-500" />
+                  <FileIcon className="h-6 w-6 text-muted-foreground" />
                 )}
                 <div>
-                  <p className="font-medium text-neutral-100">{uf.file.name}</p>
-                  <p className="text-sm text-neutral-400">
+                  <p className="font-medium text-foreground">{uf.file.name}</p>
+                  <p className="text-sm text-muted-foreground">
                     {(uf.file.size / 1024 / 1024).toFixed(2)} MB
                   </p>
                   {uf.status === "error" && uf.error && (
@@ -166,8 +166,8 @@ const FileUpload: React.FC = () => {
                 ) : (
                   <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
                 )}
-                <button onClick={() => removeFile(idx)} className="p-1 hover:bg-neutral-700 rounded-full">
-                  <X className="h-4 w-4 text-neutral-400" />
+                <button onClick={() => removeFile(idx)} className="p-1 hover:bg-muted rounded-full">
+                  <X className="h-4 w-4 text-muted-foreground" />
                 </button>
               </div>
             </motion.div>

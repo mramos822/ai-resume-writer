@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
+import React, { useState, useEffect } from "react";
+import Image from "next/image";
+import { Check } from "lucide-react";
 
 interface Template {
   id: string;
@@ -19,16 +20,17 @@ export default function TemplateSelector({ onTemplateSelect }: TemplateSelectorP
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/templates')
+    fetch("/api/templates")
       .then((res) => res.json())
-      .then((data) => {
+      .then((data: Template[]) => {
         setTemplates(data);
         if (data.length > 0) {
           const defaultTemplate = data[0].id;
           setSelectedTemplate(defaultTemplate);
           onTemplateSelect(defaultTemplate);
         }
-      });
+      })
+      .catch(console.error);
   }, [onTemplateSelect]);
 
   const handleSelect = (templateId: string) => {
@@ -37,28 +39,43 @@ export default function TemplateSelector({ onTemplateSelect }: TemplateSelectorP
   };
 
   return (
-    <div className="grid grid-cols-2 gap-6">
-      {templates.map((template) => (
-        <div
-          key={template.id}
-          className={`cursor-pointer border-2 rounded-lg p-4 ${
-            selectedTemplate === template.id
-              ? 'border-blue-500'
-              : 'border-transparent'
-          } flex flex-col items-center text-center`}
-          onClick={() => handleSelect(template.id)}
-        >
-          <Image
-            src={template.imageUrl}
-            alt={template.name}
-            width={250}
-            height={350}
-            className="rounded-md object-contain"
-          />
-          <h3 className="text-lg font-semibold mt-2">{template.name}</h3>
-          <p className="text-sm text-gray-500">{template.description}</p>
-        </div>
-      ))}
+    <div className="grid grid-cols-3 gap-3 sm:gap-4" role="radiogroup" aria-label="Resume template">
+      {templates.map((template) => {
+        const active = selectedTemplate === template.id;
+        return (
+          <button
+            key={template.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => handleSelect(template.id)}
+            className={`group relative overflow-hidden rounded-lg border-2 bg-card text-left transition-all ${
+              active
+                ? "border-blue-600 shadow-lg ring-4 ring-blue-600/10"
+                : "border-border hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+            }`}
+          >
+            {active && (
+              <span className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow">
+                <Check className="h-4 w-4" strokeWidth={3} />
+              </span>
+            )}
+            <div className="bg-muted p-2">
+              <Image
+                src={template.imageUrl}
+                alt={`${template.name} preview`}
+                width={250}
+                height={350}
+                className="h-auto w-full rounded-sm shadow-sm"
+              />
+            </div>
+            <div className="p-2.5">
+              <p className="text-sm font-bold leading-tight">{template.name.replace(" (Default)", "")}</p>
+              <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">{template.description}</p>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

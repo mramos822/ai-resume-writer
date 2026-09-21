@@ -1,5 +1,6 @@
 "use client";
 
+import { authFetch } from "@/lib/authFetch";
 import {
     Dialog,
     DialogContent,
@@ -104,7 +105,7 @@ export default function DownloadModal({ isOpen, onClose, profileId }: DownloadMo
                                 if (!selectedTemplate) return;
                                 setIsProcessing(true);
                                 try {
-                                    const response = await fetch('/api/generate-resume', {
+                                    const response = await authFetch('/api/generate-resume', {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',

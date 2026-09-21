@@ -6,13 +6,21 @@ import type { MockAuth } from "@/types/auth";
 // Mock next/image to avoid Next.js SSR issues
 jest.mock("next/image", () => ({
     __esModule: true,
-    default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img {...props} />,
+    // eslint-disable-next-line @next/next/no-img-element
+    default: (props: React.ImgHTMLAttributes<HTMLImageElement> & { priority?: boolean }) => {
+        const rest = { ...props };
+        delete rest.priority;
+        return <img alt="" {...rest} />;
+    },
 }));
 
-// Mock useRouter
+// The page redirects to /homepage unless a ?view= is present, so tests always set one
 const pushMock = jest.fn();
+const replaceMock = jest.fn();
+// Next's real router object is stable between renders; a fresh one each time would re-run the page's effects
+const routerMock = { push: pushMock, replace: replaceMock };
 jest.mock("next/navigation", () => ({
-    useRouter: () => ({ push: pushMock }),
+    useRouter: () => routerMock,
 }));
 
 // Variable to control useAuth mock
@@ -21,19 +29,10 @@ jest.mock("@/context/authContext", () => ({
     useAuth: () => mockAuthValue,
 }));
 
-// Explicit prop types for mocked forms
-type LoginFormProps = {
-    onLogin: () => void;
-    onForgotPassword: () => void;
-};
-type RegistrationFormProps = {
-    onRegister: () => void;
-};
-type ResetPasswordFormProps = {
-    onSuccess: () => void;
-};
+type LoginFormProps = { onLogin: () => void; onForgotPassword: () => void };
+type RegistrationFormProps = { onRegister: () => void };
+type ResetPasswordFormProps = { onSuccess: () => void };
 
-// Mock form components
 jest.mock("@/components/forms/loginForm", () => ({
     LoginForm: ({ onLogin, onForgotPassword }: LoginFormProps) => (
         <div>
@@ -57,55 +56,67 @@ jest.mock("@/components/forms/resetPasswordForm", () => ({
     ),
 }));
 
-describe("LandingPage", () => {
+function openWithView(view: string | null) {
+    window.history.pushState({}, "", view ? `/?view=${view}` : "/");
+}
+
+describe("Sign-in page", () => {
     beforeEach(() => {
         pushMock.mockClear();
-        mockAuthValue = { user: null, loading: false }; // Reset to default before each test
+        replaceMock.mockClear();
+        mockAuthValue = { user: null, loading: false };
+        openWithView("login");
     });
 
-    it("shows login form by default", () => {
+    it("shows the login form by default", () => {
         render(<LandingPage />);
-        expect(screen.getByText("Sign in")).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
         expect(screen.getByText("Login")).toBeInTheDocument();
     });
 
-    it("switches to registration form", () => {
+    it("sends visitors without a ?view= to the marketing homepage", () => {
+        openWithView(null);
         render(<LandingPage />);
-        fireEvent.click(screen.getByText("Sign up for an account"));
-        expect(screen.getByText("Sign up")).toBeInTheDocument();
+        expect(replaceMock).toHaveBeenCalledWith("/homepage");
+    });
+
+    it("switches to the registration form", () => {
+        render(<LandingPage />);
+        fireEvent.click(screen.getByText("Create a free account"));
+        expect(screen.getByRole("heading", { name: "Create your account" })).toBeInTheDocument();
         expect(screen.getByText("Register")).toBeInTheDocument();
     });
 
-    it("switches to reset password form", () => {
+    it("switches to the reset password form", () => {
         render(<LandingPage />);
         fireEvent.click(screen.getByText("Forgot Password"));
-        expect(screen.getByText("Reset your password")).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Reset your password" })).toBeInTheDocument();
         expect(screen.getByText("Reset Password")).toBeInTheDocument();
     });
 
     it("returns to login from registration", () => {
         render(<LandingPage />);
-        fireEvent.click(screen.getByText("Sign up for an account"));
-        fireEvent.click(screen.getByText("Sign in"));
-        expect(screen.getByText("Sign in")).toBeInTheDocument();
+        fireEvent.click(screen.getByText("Create a free account"));
+        fireEvent.click(screen.getByText("Log in"));
+        expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
     });
 
     it("returns to login from reset password", () => {
         render(<LandingPage />);
         fireEvent.click(screen.getByText("Forgot Password"));
-        fireEvent.click(screen.getByText("Go back to sign in"));
-        expect(screen.getByText("Sign in")).toBeInTheDocument();
+        fireEvent.click(screen.getByText("Back to log in"));
+        expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
     });
 
-    it("redirects to /home if user is authenticated", () => {
+    it("redirects to /home if the user is already signed in", () => {
         mockAuthValue = { user: { uid: "123" }, loading: false };
         render(<LandingPage />);
         expect(pushMock).toHaveBeenCalledWith("/home");
     });
 
-    it("shows loading state if loading is true", () => {
+    it("shows a spinner while auth is loading", () => {
         mockAuthValue = { user: null, loading: true };
-        render(<LandingPage />);
-        expect(screen.getByText("Loading...")).toBeInTheDocument();
+        const { container } = render(<LandingPage />);
+        expect(container.querySelector(".animate-spin")).toBeInTheDocument();
     });
 });

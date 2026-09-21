@@ -131,7 +131,7 @@ const BiographyForm: React.FC = () => {
         <div>
           <label
             htmlFor="biography"
-            className="block text-sm font-medium text-neutral-200 mb-2"
+            className="block text-sm font-medium text-foreground mb-2"
           >
             Career Biography
           </label>
@@ -145,7 +145,7 @@ const BiographyForm: React.FC = () => {
               },
             })}
             rows={12}
-            className="w-full px-4 py-3 border border-neutral-600 rounded-lg bg-neutral-900 text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="w-full px-4 py-3 border border-input rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             placeholder={`Write your professional biography here. Include your career objectives, work experience, education, skills, and accomplishments. The more detailed you are, the better our AI can structure your information.
 
 Example:
@@ -174,7 +174,7 @@ I am a software engineer with 5 years of experience in full-stack development. I
             </>
           ) : (
             <>
-              <Sparkles className="h-5 w-5 text-blue-400" />
+              <Sparkles className="h-5 w-5 text-blue-600" />
               <span>Process Biography</span>
             </>
           )}
@@ -182,12 +182,12 @@ I am a software engineer with 5 years of experience in full-stack development. I
       </form>
 
       {/* Writing Tips */}
-      <div className="bg-neutral-800 rounded-lg p-4">
-        <h4 className="font-semibold text-blue-400 mb-2 flex items-center space-x-2">
-          <FileText className="h-5 w-5 text-blue-400" />
+      <div className="bg-card rounded-lg p-4">
+        <h4 className="font-semibold text-blue-600 mb-2 flex items-center space-x-2">
+          <FileText className="h-5 w-5 text-blue-600" />
           <span>✍️ Writing Tips:</span>
         </h4>
-        <ul className="text-sm text-neutral-200 space-y-1">
+        <ul className="text-sm text-foreground space-y-1">
           <li>• Include your career objectives and goals</li>
           <li>• List work experience with company, title, dates</li>
           <li>• Mention education, degrees, institutions</li>
@@ -198,11 +198,11 @@ I am a software engineer with 5 years of experience in full-stack development. I
       </div>
 
       {/* Example */}
-      <div className="bg-neutral-900 rounded-lg p-4">
-        <h4 className="font-semibold text-neutral-100 mb-2">
+      <div className="bg-card rounded-lg p-4">
+        <h4 className="font-semibold text-foreground mb-2">
           💡 Example Biography:
         </h4>
-        <p className="text-sm text-neutral-300 italic">
+        <p className="text-sm text-muted-foreground italic">
           I am a marketing professional with 7 years of experience in digital marketing and brand management. I graduated from State University with a Marketing degree in 2017. I started my career at StartupCo as a Marketing Coordinator, then moved to TechCorp as a Senior Marketing Manager where I led campaigns that increased brand awareness by 40%. My skills include SEO, social media marketing, Google Analytics, and team leadership. I&apos;m passionate about data-driven marketing strategies and building strong brand identities...
         </p>
       </div>

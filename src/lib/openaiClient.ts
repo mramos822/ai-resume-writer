@@ -1,14 +1,15 @@
 import OpenAI from 'openai';
 import type { ChatCompletionCreateParams, ChatCompletion } from 'openai/resources/chat/completions/completions';
 
-const githubToken = process.env.GITHUB_TOKEN;
-if (!githubToken) {
-  throw new Error('Missing GITHUB_TOKEN environment variable');
+import { AI_API_KEY, AI_BASE_URL } from './aiConfig';
+
+if (!AI_API_KEY) {
+  throw new Error('Missing AI_API_KEY environment variable');
 }
 
 const openai = new OpenAI({
-  baseURL: 'https://models.github.ai/inference',
-  apiKey: githubToken,
+  baseURL: AI_BASE_URL,
+  apiKey: AI_API_KEY,
 });
 
 export { openai };

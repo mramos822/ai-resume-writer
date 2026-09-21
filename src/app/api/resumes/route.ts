@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
 import { bucket, db } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
+import { authUid, ownedProfile, assertResumeOwner, errorResponse } from '@/lib/apiAuth';
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,6 +12,9 @@ export async function GET(req: NextRequest) {
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID not provided' }, { status: 400 });
     }
+
+    const uid = await authUid(req);
+    await ownedProfile(uid, profileId);
 
     const resumes = await db.collection('uploads.files').aggregate([
       {
@@ -60,8 +64,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(resumes, { status: 200 });
   } catch (error) {
-    console.error('Failed to fetch resumes:', error);
-    return NextResponse.json({ error: 'Failed to fetch resumes' }, { status: 500 });
+    return errorResponse(error, 'Failed to fetch resumes');
   }
 }
 
@@ -74,11 +77,12 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'File ID not provided' }, { status: 400 });
     }
 
+    const uid = await authUid(req);
+    await assertResumeOwner(uid, fileId);
     await bucket.delete(new ObjectId(fileId));
 
     return NextResponse.json({ message: 'Resume deleted successfully' }, { status: 200 });
   } catch (error) {
-    console.error('Failed to delete resume:', error);
-    return NextResponse.json({ error: 'Failed to delete resume' }, { status: 500 });
+    return errorResponse(error, 'Failed to delete resume');
   }
 }

@@ -57,9 +57,9 @@ function SkillChip({ skill, onRemove }: SkillChipProps) {
       // spread the drag listeners on the WHOLE chip so the user can grab anywhere
       {...attributes}
       {...listeners}
-      className="flex items-center space-x-3 p-3 bg-neutral-800 rounded-lg hover:ring-2 hover:ring-blue-500"
+      className="flex items-center space-x-3 p-3 bg-card rounded-lg hover:ring-2 hover:ring-blue-500"
     >
-      <GripVertical className="h-4 w-4 text-gray-400" />
+      <GripVertical className="h-4 w-4 text-muted-foreground" />
       <span className="flex-1 select-none">{skill}</span>
       <button
         onClick={() => onRemove(skill)}
@@ -132,14 +132,14 @@ const SkillsSection: React.FC = () => {
       </header>
 
       {/** Add new skill **/}
-      <div className="bg-neutral-800 p-4 rounded-lg">
+      <div className="bg-card p-4 rounded-lg">
         <div className="flex space-x-2">
           <input
             value={newSkill}
             onChange={(e) => setNewSkill(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addSkill()}
             placeholder="e.g. TypeScript"
-            className="flex-1 px-3 py-2 rounded-lg bg-black border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-600"
+            className="flex-1 px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
           <button
             onClick={addSkill}

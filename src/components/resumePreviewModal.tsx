@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react"; // Removed X
 import { useEffect, useState } from "react";
 import { useToast } from "@/context/toastContext";
+import { authFetch } from "@/lib/authFetch";
 
 interface ResumePreviewModalProps {
     isOpen: boolean;
@@ -26,29 +27,45 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
     const toast = useToast();
 
     useEffect(() => {
+        let objectUrl: string | null = null;
+        let cancelled = false;
+
         if (isOpen && fileId) {
-            const url = `/api/resumes/${fileId}?view=true`;
-            setPdfUrl(url);
-            // Fetch current filename
-            fetch(`/api/resumes/${fileId}`)
-                .then(res => res.ok ? res.json() : null)
-                .then(data => {
-                    if (data && data.filename) {
-                        setFilename(data.filename);
-                        setNewFilename(data.filename);
+            setPdfUrl(null);
+            // The PDF is fetched with the user's token and shown from a local blob URL
+            authFetch(`/api/resumes/${fileId}?view=true`)
+                .then(async (res) => {
+                    if (!res.ok) throw new Error("Could not open this resume.");
+                    const name = decodeURIComponent(res.headers.get("X-Filename") || "");
+                    const blob = await res.blob();
+                    if (cancelled) return;
+                    objectUrl = URL.createObjectURL(blob);
+                    setPdfUrl(objectUrl);
+                    if (name) {
+                        setFilename(name);
+                        setNewFilename(name);
                     }
+                })
+                .catch(() => {
+                    if (!cancelled) toast.error("We couldn't open that resume. Please try again.");
                 });
         } else {
             setPdfUrl(null);
             setFilename("");
             setNewFilename("");
         }
+
+        return () => {
+            cancelled = true;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, fileId]);
 
     const handleDownload = async (format: 'pdf' | 'docx') => {
         if (!fileId) return;
         try {
-            const response = await fetch(`/api/resumes/${fileId}?format=${format}`);
+            const response = await authFetch(`/api/resumes/${fileId}?format=${format}`);
             if (!response.ok) {
                 throw new Error("Failed to download file.");
             }
@@ -70,7 +87,7 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
     const handleRename = async () => {
         if (!fileId || !newFilename || newFilename === filename) return;
         try {
-            const res = await fetch(`/api/resumes/${fileId}`, {
+            const res = await authFetch(`/api/resumes/${fileId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ filename: newFilename })

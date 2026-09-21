@@ -3,12 +3,15 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/authContext";
 import { useToast } from "@/context/toastContext";
+import { useDialog } from "@/context/dialogContext";
+import { authFetch } from "@/lib/authFetch";
 import { Button } from "@/components/ui/button";
 import TemplateSelector from "@/components/templateSelector";
 import ResumePreviewModal from "@/components/resumePreviewModal";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import PageHeader from "@/components/pageHeader";
+import Link from "next/link";
 import { format } from "date-fns";
-import { Trash2 } from "lucide-react";
+import { Trash2, Plus, Building2, MapPin, Wand2, FileText, ClipboardPaste, X, ChevronDown, ArrowRight } from "lucide-react";
 
 interface JobAd {
   id: string;
@@ -48,6 +51,7 @@ interface ParsedJob {
 export default function JobAdsPage() {
   const { user } = useAuth();
   const toast = useToast();
+  const dialog = useDialog();
 
   const [url, setUrl] = useState("");
   const [rawText, setRawText] = useState("");
@@ -128,7 +132,7 @@ export default function JobAdsPage() {
       return;
     }
     setParsing(true);
-    fetch("/api/job-ads/parse", {
+    authFetch("/api/job-ads/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -136,9 +140,16 @@ export default function JobAdsPage() {
         rawText: selectedAd.rawText,
       }),
     })
-      .then((r) => r.json())
-      .then((pj: ParsedJob) => setParsed(pj))
-      .catch((err) => toast.error((err as Error).message))
+      .then(async (r) => {
+        const pj = await r.json();
+        if (!r.ok) throw new Error(pj.error || "Could not parse this job ad");
+        return pj as ParsedJob;
+      })
+      .then((pj) => setParsed(pj))
+      .catch((err) => {
+        setParsed(null);
+        toast.error((err as Error).message);
+      })
       .finally(() => setParsing(false));
   }, [selectedAd, toast]); // Added toast to dependency array
 
@@ -216,6 +227,22 @@ export default function JobAdsPage() {
       setPreviewFileId(fileId);
       setIsPreviewModalOpen(true);
       toast.success("Resume generated and saved!");
+
+      // Tell people when we had to adjust their resume to fit
+      if (typeof data.scale === "number" && data.scale < 0.8) {
+        toast.info("Your resume is long, so we shrank the text to keep it on one page. Removing older or less relevant items will make it easier to read.");
+      }
+      if (Array.isArray(data.droppedChars) && data.droppedChars.length > 0) {
+        toast.info(`Some characters (${data.droppedChars.slice(0, 6).join(" ")}) can't be shown in the PDF and were left out.`);
+      }
+
+      // Show the new resume in "latest resumes" right away
+      authFetch(`/api/resumes?profileId=${selectedProfileId}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((list: Resume[] | null) => {
+          if (list) setResumes(list);
+        })
+        .catch(() => {});
     } catch (err) {
       console.error("Resume generation error:", err);
       toast.error((err as Error).message);
@@ -224,8 +251,38 @@ export default function JobAdsPage() {
     }
   };
 
+  const handleDeleteJobAd = async (adId: string) => {
+    if (!user) return;
+    const ok = await dialog.confirm({
+      title: "Delete this job ad?",
+      description: "The saved posting and its advice will be removed. Resumes you already generated stay in your library.",
+      confirmText: "Delete job ad",
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/job-ads?id=${adId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to delete job ad");
+      setJobAds((prev) => prev.filter((ad) => ad.id !== adId));
+      if (selectedAd?.id === adId) setSelectedAd(null);
+      toast.success("Job ad deleted");
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
   const handleDeleteResume = async (fileId: string) => {
-    if (confirm("Are you sure you want to delete this resume?")) {
+    const ok = await dialog.confirm({
+      title: "Delete this resume?",
+      description: "The PDF will be permanently removed from your library.",
+      confirmText: "Delete resume",
+      tone: "danger",
+    });
+    if (ok) {
       try {
         const token = await user?.getIdToken();
         const response = await fetch(`/api/resumes?fileId=${fileId}`, {
@@ -249,201 +306,293 @@ export default function JobAdsPage() {
     setIsPreviewModalOpen(true);
   };
 
+  // One box for everything: a link or the pasted text
+  const [adInput, setAdInput] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [showAllReqs, setShowAllReqs] = useState(false);
+
+  useEffect(() => {
+    if (!url && !rawText) setAdInput("");
+  }, [url, rawText]);
+
+  const onAdInput = (value: string) => {
+    setAdInput(value);
+    const v = value.trim();
+    if (/^https?:\/\/\S+$/i.test(v)) {
+      setUrl(v);
+      setRawText("");
+    } else {
+      setUrl("");
+      setRawText(value);
+    }
+  };
+
+  const hasAds = jobAds.length > 0;
+  const formOpen = showAdd || !hasAds;
+  const reqs = parsed?.requirements ?? [];
+  const shownReqs = showAllReqs ? reqs : reqs.slice(0, 5);
+  const singleProfile = profiles.length <= 1;
+  const latest = resumes.slice(0, 3);
+
+  const onSaveAd = async () => {
+    await handleSave();
+    setShowAdd(false);
+  };
+
   return (
-    <div className="min-h-screen py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Form */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Add Job Ad</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <label className="block">URL</label>
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    className="w-full p-2 bg-neutral-800 rounded border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://example.com/job-posting"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block">Or Paste Text</label>
-                  <textarea
-                    value={rawText}
-                    onChange={(e) => setRawText(e.target.value)}
-                    className="w-full p-2 bg-neutral-800 rounded border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={4}
-                  />
-                </div>
-                <Button onClick={handleSave} disabled={loading || (!url && !rawText)} className="w-full">
-                  {loading ? "Saving…" : "Save Job Ad"}
-                </Button>
-              </CardContent>
-            </Card>
+    <div className="mx-auto max-w-3xl">
+      <PageHeader
+        title="Make a resume for a job"
+        subtitle="Paste the job you want. We'll write a resume that fits it."
+      />
 
-            {/* AI-Extracted */}
-            {selectedAd && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Job Ad Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <h2 className="text-xl font-semibold">
-                    {parsing ? "Extracting…" : parsed?.jobTitle || "Loading…"}
-                  </h2>
-                  {parsed && (
-                    <>
-                      <p className="text-sm text-neutral-400">
-                        <strong>Company:</strong> {parsed.companyName}
-                      </p>
-                      <p className="text-sm text-neutral-400">
-                        <strong>Posted at:</strong> {parsed.postedAt}
-                      </p>
-                      {parsed.location && (
-                        <p className="text-sm text-neutral-400">
-                          <strong>Location:</strong> {parsed.location}
-                        </p>
-                      )}
-                      <div>
-                        <h3 className="font-medium">Description</h3>
-                        <p className="text-sm whitespace-pre-line break-words">{parsed.description}</p>
-                      </div>
-                      <div>
-                        <h3 className="font-medium">Requirements</h3>
-                        <ul className="list-disc list-inside text-sm space-y-1">
-                          {(parsed.requirements ?? []).map((r, i) => (
-                            <li key={i}>{r}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Resume Generation */}
-            {selectedAd && profiles.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Generate Resume</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <TemplateSelector onTemplateSelect={setSelectedTemplateId} />
-                  <div className="flex flex-col sm:flex-row items-center gap-4 mt-4">
-                    <select
-                      value={selectedProfileId}
-                      onChange={(e) => setSelectedProfileId(e.target.value)}
-                      className="bg-neutral-800 p-2 rounded border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {profiles.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                    <Button onClick={handleGenerate} disabled={generating || !selectedTemplateId} className="w-full sm:w-auto">
-                      {generating ? "Processing…" : "Generate Resume"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-8">
-            {/* Previous Job Ads */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Previous Job Ads</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {jobAds.map((ad) => (
-                    <li key={ad.id}>
-                      <button
-                        onClick={() => setSelectedAd(ad)}
-                        className={`w-full text-left p-3 rounded-lg transition font-medium border border-transparent ${
-                          selectedAd?.id === ad.id
-                            ? "bg-blue-600 text-white border-blue-400 shadow"
-                            : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
-                        }`}
-                      >
-                        <div className="truncate">{ad.jobTitle}</div>
-                        <div className="text-xs text-neutral-400 truncate">
-                          {ad.companyName} • {new Date(ad.postedAt).toLocaleDateString()}
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-
-            {/* Saved Resumes Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Saved Resumes</CardTitle>
-                <CardDescription>
-                  Manage and download your previously generated resumes.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoadingResumes ? (
-                  <p>Loading resumes...</p>
-                ) : resumes.length === 0 ? (
-                  <p>No resumes saved yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {resumes.map((resume) => (
-                      <div
-                        key={resume.id}
-                        className="flex items-center justify-between p-4 border rounded-md cursor-pointer hover:bg-neutral-700 transition"
-                        onClick={() => handlePreviewResume(resume.id)}
-                      >
-                        <div className="min-w-0">
-                          <p className="font-semibold truncate max-w-xs" title={resume.filename}>{resume.filename}</p>
-                          <p className="text-sm text-muted-foreground truncate max-w-xs" title={`Template: ${resume.metadata.template} | Format: ${resume.metadata.format}${resume.metadata.isGenerated ? ' (AI Generated)' : ''}`}>
-                            Template: {resume.metadata.template} | Format: {resume.metadata.format}
-                            {resume.metadata.isGenerated && " (AI Generated)"}
-                          </p>
-                          {resume.profileName && (
-                            <p className="text-sm text-muted-foreground truncate max-w-xs" title={`Profile: ${resume.profileName}`}>Profile: {resume.profileName}</p>
-                          )}
-                          {resume.jobAdTitle && (
-                            <p className="text-sm text-muted-foreground truncate max-w-xs" title={`Job Post: ${resume.jobAdTitle}`}>Job Post: {resume.jobAdTitle}</p>
-                          )}
-                          <p className="text-sm text-muted-foreground truncate max-w-xs" title={`Generated on: ${format(new Date(resume.uploadDate), 'PPP p')}`}>Generated on: {format(new Date(resume.uploadDate), "PPP p")}</p>
-                        </div>
-                        <div className="flex space-x-2" onClick={e => e.stopPropagation()}>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteResume(resume.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+      {/* ---------- your saved jobs ---------- */}
+      {hasAds && (
+        <div className="mb-6">
+          <p className="mb-2 text-sm font-semibold text-muted-foreground">Your jobs</p>
+          <ul className="flex flex-wrap gap-2">
+            {jobAds.map((ad) => {
+              const active = selectedAd?.id === ad.id;
+              return (
+                <li
+                  key={ad.id}
+                  className={`group flex max-w-full items-center rounded-md border text-sm transition-colors ${
+                    active
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : "bg-card hover:border-blue-300 hover:bg-accent"
+                  }`}
+                >
+                  <button
+                    onClick={() => {
+                      setSelectedAd(ad);
+                      setShowAllReqs(false);
+                      setShowAdd(false);
+                    }}
+                    className="min-w-0 py-2 pl-3 pr-2 text-left"
+                    title={`${ad.jobTitle} · ${ad.companyName}`}
+                  >
+                    <span className="block max-w-[14rem] truncate font-semibold">{ad.jobTitle}</span>
+                    <span className={`block max-w-[14rem] truncate text-xs ${active ? "text-blue-100" : "text-muted-foreground"}`}>
+                      {ad.companyName}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteJobAd(ad.id)}
+                    aria-label={`Delete ${ad.jobTitle}`}
+                    title="Delete this job"
+                    className={`mr-1 rounded p-1.5 transition-colors ${
+                      active ? "text-blue-100 hover:bg-white/20" : "text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                    }`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              );
+            })}
+            <li>
+              <button
+                onClick={() => setShowAdd((v) => !v)}
+                className="flex h-full items-center gap-1.5 rounded-md border border-dashed px-3 py-2 text-sm font-semibold text-blue-600 hover:border-blue-400 hover:bg-accent"
+              >
+                <Plus className="h-4 w-4" /> Add another job
+              </button>
+            </li>
+          </ul>
         </div>
-        <ResumePreviewModal
-          isOpen={isPreviewModalOpen}
-          onClose={() => setIsPreviewModalOpen(false)}
-          fileId={previewFileId}
-        />
-      </div>
+      )}
+
+      {/* ---------- add a job ---------- */}
+      {formOpen && (
+        <section className="animate-pop-in mb-6 rounded-lg border bg-card p-6">
+          <div className="mb-4 flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-accent text-blue-600">
+              <ClipboardPaste className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-bold leading-tight">Which job do you want?</h2>
+              <p className="text-sm text-muted-foreground">
+                Paste the link to the posting, or copy and paste the whole description.
+              </p>
+            </div>
+          </div>
+          <textarea
+            value={adInput}
+            onChange={(e) => onAdInput(e.target.value)}
+            rows={5}
+            aria-label="Job posting link or text"
+            placeholder="Paste a link like https://company.com/jobs/123, or the job description text here…"
+            className="w-full resize-y rounded-md border border-input bg-background px-3 py-3 text-sm placeholder:text-muted-foreground focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+          />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              {url ? "Looks like a link. We'll read the page for you." : rawText ? "We'll use the text you pasted." : "Nothing pasted yet."}
+            </p>
+            <div className="flex gap-2">
+              {hasAds && (
+                <Button variant="ghost" onClick={() => setShowAdd(false)}>
+                  Cancel
+                </Button>
+              )}
+              <Button onClick={onSaveAd} disabled={loading || (!url && !rawText)} className="h-11 gap-2 px-6">
+                {loading ? "Reading the job…" : "Continue"} {!loading && <ArrowRight className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ---------- the selected job ---------- */}
+      {selectedAd && (
+        <section className="animate-pop-in mb-6 rounded-lg border bg-card p-6">
+          {parsing || !parsed ? (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-blue-600">Reading the job…</p>
+              <div className="shimmer h-6 w-2/3 rounded bg-muted" />
+              <div className="shimmer h-3 w-1/3 rounded bg-muted" />
+              <div className="shimmer h-3 w-full rounded bg-muted" />
+              <div className="shimmer h-3 w-5/6 rounded bg-muted" />
+            </div>
+          ) : (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Going for</p>
+              <h2 className="mt-1 text-2xl font-extrabold leading-tight">{parsed.jobTitle}</h2>
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <Building2 className="h-4 w-4" /> {parsed.companyName}
+                </span>
+                {parsed.location && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4" /> {parsed.location}
+                  </span>
+                )}
+              </div>
+
+              {reqs.length > 0 && (
+                <div className="mt-5">
+                  <p className="mb-2 text-sm font-semibold">What they&apos;re looking for</p>
+                  <ul className="flex flex-wrap gap-2">
+                    {shownReqs.map((r, i) => (
+                      <li key={i} className="rounded-md bg-accent px-3 py-1.5 text-sm text-foreground">
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                  {reqs.length > 5 && (
+                    <button
+                      onClick={() => setShowAllReqs((v) => !v)}
+                      className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:underline"
+                    >
+                      {showAllReqs ? "Show less" : `Show all ${reqs.length}`}
+                      <ChevronDown className={`h-4 w-4 transition-transform ${showAllReqs ? "rotate-180" : ""}`} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {/* ---------- make the resume ---------- */}
+      {selectedAd && profiles.length > 0 && (
+        <section className="animate-pop-in mb-10 rounded-lg border-2 border-blue-200 bg-card p-6">
+          <div className="mb-5 flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white">
+              <Wand2 className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-bold leading-tight">Pick a look and make it</h2>
+              <p className="text-sm text-muted-foreground">You can try the other looks afterwards. Nothing gets lost.</p>
+            </div>
+          </div>
+
+          <TemplateSelector onTemplateSelect={setSelectedTemplateId} />
+
+          {!singleProfile && (
+            <div className="mt-5">
+              <label htmlFor="profile-pick" className="mb-1.5 block text-sm font-semibold">
+                Use details from
+              </label>
+              <select
+                id="profile-pick"
+                value={selectedProfileId}
+                onChange={(e) => setSelectedProfileId(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 sm:w-72"
+              >
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <Button
+            onClick={handleGenerate}
+            disabled={generating || !selectedTemplateId || parsing}
+            className="mt-6 h-12 w-full gap-2 text-base"
+          >
+            <Wand2 className="h-5 w-5" />
+            {generating ? "Writing your resume…" : "Make my resume"}
+          </Button>
+
+          {generating && (
+            <div className="mt-4">
+              <div className="h-2 overflow-hidden rounded-full bg-border">
+                <div className="shimmer h-full w-2/3 rounded-full bg-blue-500" />
+              </div>
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                This takes a few seconds. Your resume will open when it&apos;s ready.
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ---------- latest resumes ---------- */}
+      {!isLoadingResumes && latest.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              <FileText className="h-4 w-4 text-blue-600" /> Your latest resumes
+            </h2>
+            <Link href="/home/resumes" className="text-sm font-semibold text-blue-600 hover:underline">
+              See all
+            </Link>
+          </div>
+          <ul className="grid gap-3 sm:grid-cols-3">
+            {latest.map((resume) => (
+              <li key={resume.id} className="group relative">
+                <button
+                  onClick={() => handlePreviewResume(resume.id)}
+                  className="w-full rounded-lg border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                  title={resume.filename}
+                >
+                  <p className="truncate pr-6 text-sm font-semibold">{resume.jobAdTitle || resume.filename}</p>
+                  <p className="mt-0.5 truncate text-xs capitalize text-muted-foreground">
+                    {resume.metadata.template} · {format(new Date(resume.uploadDate), "PP")}
+                  </p>
+                </button>
+                <button
+                  onClick={() => handleDeleteResume(resume.id)}
+                  aria-label="Delete resume"
+                  title="Delete resume"
+                  className="absolute right-2 top-2 rounded p-1.5 text-muted-foreground opacity-0 transition hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <ResumePreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        fileId={previewFileId}
+      />
     </div>
   );
 }

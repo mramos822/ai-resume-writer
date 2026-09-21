@@ -22,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -45,11 +45,12 @@ export default function RootLayout({
         <link rel="canonical" href="https://fouriergauss.com" />
       </head>
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
           <AppThemeProvider>
-            <Toaster position="top-right" />
+            <Toaster position="bottom-right" richColors closeButton />
             {children}
           </AppThemeProvider>
         </AuthProvider>

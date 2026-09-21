@@ -10,11 +10,13 @@ import {
   GraduationCap,
   Calendar,
 } from "lucide-react";
-import { useProfile, EducationEntry } from "@/context/profileContext";
+import { useProfile, EducationEntry, formatEducationDates } from "@/context/profileContext";
 import EducationEntryForm from "./educationEntryForm";
+import { useDialog } from "@/context/dialogContext";
 
 const EducationSection: React.FC = () => {
   const { activeProfile, deleteEducationEntry } = useProfile();
+  const dialog = useDialog();
   const [editingEducation, setEditingEducation] = useState<EducationEntry | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -29,10 +31,14 @@ const EducationSection: React.FC = () => {
     setShowAddForm(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this education entry?")) {
-      deleteEducationEntry(id);
-    }
+  const handleDelete = async (id: string) => {
+    const ok = await dialog.confirm({
+      title: "Remove this education entry?",
+      description: "It will disappear from your profile and from resumes you generate next.",
+      confirmText: "Remove",
+      tone: "danger",
+    });
+    if (ok) deleteEducationEntry(id);
   };
 
   const handleCloseForm = () => {
@@ -89,7 +95,7 @@ const EducationSection: React.FC = () => {
       <div className="space-y-4">
         {activeProfile.education.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <GraduationCap className="h-12 w-12 mx-auto mb-4 text-white" />
+            <GraduationCap className="h-12 w-12 mx-auto mb-4 text-foreground" />
             <p className="text-lg font-medium mb-2">No education entries yet</p>
             <p>Add your educational background to get started</p>
           </div>
@@ -100,25 +106,25 @@ const EducationSection: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-neutral-800 border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+              className="bg-card border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
-                    <GraduationCap className="h-5 w-5 text-white" />
-                    <h3 className="text-lg font-semibold text-white">
+                    <GraduationCap className="h-5 w-5 text-foreground" />
+                    <h3 className="text-lg font-semibold text-foreground">
                       {education.school}
                     </h3>
                   </div>
 
-                  <p className="text-white font-medium mb-2">
+                  <p className="text-foreground font-medium mb-2">
                     {education.degree}
                   </p>
 
-                  <div className="flex items-center space-x-4 text-sm text-white">
+                  <div className="flex items-center space-x-4 text-sm text-foreground">
                     <div className="flex items-center space-x-1">
                       <Calendar className="h-4 w-4" />
-                      <span>{education.dates}</span>
+                      <span>{formatEducationDates(education)}</span>
                     </div>
                     {education.gpa && (
                       <div>
@@ -151,7 +157,7 @@ const EducationSection: React.FC = () => {
       {/* Tips */}
       <div className="rounded-lg p-4 border border-blue-500">
         <h4 className="font-semibold text-purple-500 mb-2">🎓 Education Tips:</h4>
-        <ul className="text-sm text-neutral-200 space-y-1">
+        <ul className="text-sm text-foreground space-y-1">
           <li>• List education in reverse chronological order (most recent first)</li>
           <li>• Include relevant coursework, honors, or achievements</li>
           <li>• Add GPA if it’s 3.5 or higher (or equivalent)</li>

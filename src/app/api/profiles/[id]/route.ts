@@ -18,7 +18,7 @@ export async function GET(
   request: Request,
   context: any
 ) {
-  const { id } = context.params;
+  const { id } = await context.params;
   const bearer = request.headers.get("Authorization")?.replace(/^Bearer\s+/, "");
   if (!bearer) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -54,7 +54,7 @@ export async function PATCH(
   request: Request,
   context: any
 ) {
-  const { id } = context.params;
+  const { id } = await context.params;
   const bearer = request.headers.get("Authorization")?.replace(/^Bearer\s+/, "");
   if (!bearer) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -92,7 +92,7 @@ export async function DELETE(
   request: Request,
   context: any
 ) {
-  const { id } = context.params;
+  const { id } = await context.params;
   const bearer = request.headers.get("Authorization")?.replace(/^Bearer\s+/, "");
   if (!bearer) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

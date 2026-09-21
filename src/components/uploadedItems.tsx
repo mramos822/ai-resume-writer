@@ -8,6 +8,8 @@ import React, {
   } from "react";
 import { useAuth } from "@/context/authContext";
 import { useProfile } from "@/context/profileContext";
+import { useDialog } from "@/context/dialogContext";
+import { useToast } from "@/context/toastContext";
 import { Button } from "@/components/ui/button";
 import {
   List,
@@ -84,11 +86,18 @@ function SortableTile(props: {
     `/api/download?id=${encodeURIComponent(it.id)}` +
     `&type=upload&token=${encodeURIComponent(token)}`;
 
+  const dialog = useDialog();
   const deleteBtn = (
     <button
-      onClick={(e) => {
+      onClick={async (e) => {
         e.stopPropagation();
-        if (confirm(`Delete “${it.filename}”?`)) onDelete(it.id);
+        const ok = await dialog.confirm({
+          title: `Delete “${it.filename}”?`,
+          description: "The file is removed from your uploads. Details already imported into your profile are kept.",
+          confirmText: "Delete file",
+          tone: "danger",
+        });
+        if (ok) onDelete(it.id);
       }}
       className="p-1 hover:text-red-500"
     >
@@ -118,23 +127,23 @@ function SortableTile(props: {
         {...listeners}
         onClick={() => onClick(it)}
         style={style}
-        className="flex items-center justify-between p-2.5 bg-neutral-800 rounded hover:bg-neutral-700 cursor-pointer"
+        className="flex items-center justify-between p-2.5 bg-card rounded hover:bg-muted cursor-pointer"
       >
         <div {...attributes} {...listeners} className="p-1 cursor-grab hover:text-blue-400">
-          <GripVertical className="h-4 w-4 text-neutral-400" />
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="flex items-center space-x-2 flex-1 min-w-0">
           {it.type.startsWith("text/") ? (
-            <FileText className="h-5 w-5 text-neutral-200 flex-shrink-0" />
+            <FileText className="h-5 w-5 text-foreground flex-shrink-0" />
           ) : (
-            <FileIcon className="h-5 w-5 text-neutral-200 flex-shrink-0" />
+            <FileIcon className="h-5 w-5 text-foreground flex-shrink-0" />
           )}
-          <span className="text-neutral-100 truncate">{it.filename}</span>
-          <span className="ml-2 text-xs uppercase bg-neutral-700 text-neutral-300 px-1 rounded truncate">
+          <span className="text-foreground truncate">{it.filename}</span>
+          <span className="ml-2 text-xs uppercase bg-muted text-muted-foreground px-1 rounded truncate">
             {getTypeLabel(it.type, it.filename)}
           </span>
         </div>
-        <span className="ml-4 text-sm text-neutral-400 whitespace-nowrap flex-shrink-0">
+        <span className="ml-4 text-sm text-muted-foreground whitespace-nowrap flex-shrink-0">
           {fmt(it.createdAt)}
         </span>
         <div className="ml-4 flex items-center space-x-2">
@@ -152,7 +161,7 @@ function SortableTile(props: {
       {...listeners}
       onClick={() => onClick(it)}
       style={style}
-      className="relative flex flex-col items-center justify-center p-4 bg-neutral-800 rounded hover:bg-neutral-700"
+      className="relative flex flex-col items-center justify-center p-4 bg-card rounded hover:bg-muted"
     >
       {it.type === "application/pdf" ? (
         <embed
@@ -167,14 +176,14 @@ function SortableTile(props: {
           className="w-full h-32 object-cover rounded whitespace-pre-wrap overflow-hidden"
         />
       ) : (
-        <FileIcon className="h-8 w-8 text-neutral-200" />
+        <FileIcon className="h-8 w-8 text-foreground" />
       )}
       <div className="mt-2 text-center w-full">
-        <span className="block text-sm text-neutral-100 truncate">{it.filename}</span>
-        <span className="block text-xs uppercase bg-neutral-700 text-neutral-300 inline-block px-1 rounded truncate">
+        <span className="block text-sm text-foreground truncate">{it.filename}</span>
+        <span className="block text-xs uppercase bg-muted text-muted-foreground inline-block px-1 rounded truncate">
           {getTypeLabel(it.type, it.filename)}
         </span>
-        <span className="block text-xs text-neutral-400 truncate">
+        <span className="block text-xs text-muted-foreground truncate">
           {new Date(it.createdAt).toLocaleDateString()}
         </span>
       </div>
@@ -199,6 +208,7 @@ function SortableTile(props: {
 export default function UploadedItems() {
   const { user, loading } = useAuth();
   const { parseFile } = useProfile();
+  const toast = useToast();
   const [items, setItems] = useState<UploadedRecord[]>([]);
   const [viewMode, setViewMode] = useState<"list" | "icon">("list");
   const [token, setToken] = useState<string>("");
@@ -317,10 +327,12 @@ export default function UploadedItems() {
     (id: string) => {
       setParsingId(id);
       parseFile(id)
-        .catch((err) => alert(`Parse failed: ${err.message}`))
+        .catch((err) =>
+          toast.error(`We couldn't read that file: ${err.message}. Try again, or paste the text in Write Biography.`)
+        )
         .finally(() => setParsingId(null));
     },
-    [parseFile]
+    [parseFile, toast]
   );
 
   const openItem = async (it: UploadedRecord) => {
@@ -368,31 +380,31 @@ export default function UploadedItems() {
     <div>
       {/* header + toggle */}
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-lg font-semibold text-neutral-100">Your Uploads</h4>
+        <h4 className="text-lg font-semibold text-foreground">Your Uploads</h4>
         <div className="flex space-x-2">
           <Button variant="ghost" size="icon" onClick={() => setViewMode("list")}>
-            <List className={`h-5 w-5 ${viewMode === "list" ? "text-blue-400" : "text-neutral-400"}`} />
+            <List className={`h-5 w-5 ${viewMode === "list" ? "text-blue-600" : "text-muted-foreground"}`} />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setViewMode("icon")}>
-            <GridIcon className={`h-5 w-5 ${viewMode === "icon" ? "text-blue-400" : "text-neutral-400"}`} />
+            <GridIcon className={`h-5 w-5 ${viewMode === "icon" ? "text-blue-600" : "text-muted-foreground"}`} />
           </Button>
         </div>
       </div>
 
       {/* SORT BAR */}
       <div className="flex items-center space-x-2 mb-4">
-        <span className="text-sm text-neutral-400">Sort by:</span>
+        <span className="text-sm text-muted-foreground">Sort by:</span>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortBy)}
-          className="bg-neutral-800 text-neutral-100 text-sm rounded px-2 py-1"
+          className="bg-card text-foreground text-sm rounded px-2 py-1"
         >
           <option value="order">Order</option>
           <option value="name">Name</option>
           <option value="date">Date</option>
           <option value="type">Type</option>
         </select>
-        <button onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} className="bg-neutral-800 text-neutral-100 text-sm rounded px-2 py-1">
+        <button onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} className="bg-card text-foreground text-sm rounded px-2 py-1">
           {sortDir === "asc" ? "↑" : "↓"}
         </button>
       </div>
@@ -438,32 +450,32 @@ export default function UploadedItems() {
       </DndContext>
 
       {selected && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-neutral-900 max-w-3xl w-full max-h-[80vh] overflow-auto rounded-lg p-6 relative">
-            <button onClick={closeModal} className="absolute top-4 right-4 p-1 text-neutral-400 hover:text-white">
+        <div className="fixed inset-0 bg-background/50 flex items-center justify-center z-50">
+          <div className="bg-card max-w-3xl w-full max-h-[80vh] overflow-auto rounded-lg p-6 relative">
+            <button onClick={closeModal} className="absolute top-4 right-4 p-1 text-muted-foreground hover:text-white">
               <X className="h-6 w-6" />
             </button>
 
-            <h2 className="text-xl font-semibold text-neutral-100 mb-4">
-              <a href={contentUrl!} download={selected.filename} className="text-blue-400 underline">
+            <h2 className="text-xl font-semibold text-foreground mb-4">
+              <a href={contentUrl!} download={selected.filename} className="text-blue-600 underline">
                 {selected.filename}
               </a>
             </h2>
 
             {loadingContent ? (
-              <p className="text-neutral-400">Loading…</p>
+              <p className="text-muted-foreground">Loading…</p>
             ) : previewMode === "pdf" ? (
               <iframe src={contentUrl!} className="w-full h-[70vh] border" title={selected.filename} />
             ) : previewMode === "docx" ? (
-              <div className="prose prose-invert max-w-none text-neutral-200" dangerouslySetInnerHTML={{ __html: textContent! }} />
+              <div className="prose prose-invert max-w-none text-foreground" dangerouslySetInnerHTML={{ __html: textContent! }} />
             ) : previewMode === "md" ? (
-              <div className="prose prose-invert overflow-auto text-neutral-200">
+              <div className="prose prose-invert overflow-auto text-foreground">
                 <ReactMarkdown>{textContent!}</ReactMarkdown>
               </div>
             ) : previewMode === "text" ? (
-              <pre className="whitespace-pre-wrap text-neutral-200">{textContent}</pre>
+              <pre className="whitespace-pre-wrap text-foreground">{textContent}</pre>
             ) : (
-              <p className="text-neutral-400">No preview available.</p>
+              <p className="text-muted-foreground">No preview available.</p>
             )}
           </div>
         </div>

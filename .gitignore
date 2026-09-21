@@ -45,3 +45,6 @@ next-env.d.ts
 *Zone.Identifier
 # Local Netlify folder
 .netlify
+
+# generated scratch files
+/temp

@@ -4,6 +4,7 @@
 import React, { useState } from "react";
 import { useProfile } from "@/context/profileContext";
 import { Button } from "@/components/ui/button";
+import { useDialog } from "@/context/dialogContext";
 
 export default function ProfileSelector() {
   const {
@@ -15,6 +16,7 @@ export default function ProfileSelector() {
     deleteProfile,
   } = useProfile();
   const [newName, setNewName] = useState("");
+  const dialog = useDialog();
 
   return (
     <div className="flex items-center space-x-2">
@@ -52,10 +54,15 @@ export default function ProfileSelector() {
       </Button>
 
       <Button
-        onClick={() => {
-          if (activeProfileId && confirm("Delete this profile?")) {
-            deleteProfile(activeProfileId);
-          }
+        onClick={async () => {
+          if (!activeProfileId) return;
+          const ok = await dialog.confirm({
+            title: "Delete this profile?",
+            description: "All of its details and uploads will be removed for good.",
+            confirmText: "Delete profile",
+            tone: "danger",
+          });
+          if (ok) deleteProfile(activeProfileId);
         }}
         size="sm"
         variant="destructive"

@@ -3,8 +3,9 @@
 import fs from "fs";
 import { NextResponse } from "next/server";
 import { getOpenAIChatCompletion } from "@/lib/openaiClient";
-const MODEL = process.env.AI_MODEL || 'mistral-ai/mistral-medium-2505';
+import { AI_MODEL as MODEL } from "@/lib/aiConfig";
 import mammoth from "mammoth";
+import { authUid, errorResponse } from "@/lib/apiAuth";
 import type { ProfileData, ContactInfo } from "@/context/profileContext";
 
 // 1) Capture the original
@@ -66,6 +67,11 @@ function mergeProfiles(a: Partial<ProfileData>, b: Partial<ProfileData>): Partia
 
 // 7) The handler
 export async function POST(request: Request) {
+  try {
+    await authUid(request);
+  } catch (err) {
+    return errorResponse(err);
+  }
   // a) parse FormData
   const form = await request.formData();
   const file = form.get("file");
@@ -100,8 +106,8 @@ interface ProfileData {
   contactInfo: { email: string; phone: string; address: string; additionalEmails?: string[]; additionalPhones?: string[] };
   careerObjective: string;
   skills: string[];
-  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; accomplishments: string[] }[];
-  education: { school: string; degree: string; dates: string; gpa?: string }[];
+  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
+  education: { school: string; degree: string; startDate: string; endDate: string; current: boolean; gpa?: string }[];
 }
 
 Output only the JSON, no explanation.
@@ -112,7 +118,7 @@ Output only the JSON, no explanation.
     model: MODEL,
     temperature: 0,
     top_p: 1,
-    max_tokens: 2000,
+    max_tokens: 8192,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: text },

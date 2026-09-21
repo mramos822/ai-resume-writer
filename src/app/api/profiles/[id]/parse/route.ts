@@ -123,13 +123,22 @@ Respond with NOTHING but a single, valid JSON object matching this interface exa
 interface ProfileData {
   name: string;
   jobTitle: string;
-  contactInfo: { email: string; phone: string; additionalEmails?: string[]; additionalPhones?: string[] };
+  contactInfo: { email: string; phone: string; address: string; additionalEmails?: string[]; additionalPhones?: string[] };
   careerObjective: string;
   skills: string[];
-  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; accomplishments: string[] }[];
-  education: { school: string; degree: string; dates: string; gpa?: string }[];
-  internships: { company: string; title: string; description: string; startDate: string; endDate: string; accomplishments: string[] }[];
+  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
+  education: { school: string; degree: string; startDate: string; endDate: string; current: boolean; gpa?: string }[];
+  internships: { company: string; title: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
+  projects: { name: string; description: string; link?: string; technologies: string[]; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
 }
+
+Sorting rules (important):
+- "internships" is ONLY for formal internships, co-ops or traineeships done at a company or organization.
+- "projects" is for personal, academic, class, hackathon, open-source, freelance or side projects (anything listed under headings like Projects, Personal Projects, Academic Projects). NEVER put these in "internships" or "jobHistory".
+- For a project, "name" is the project title, "technologies" lists tools/languages used, and "accomplishments" holds its bullet points. Use empty strings for dates that are not written.
+
+For all startDate/endDate values use YYYY-MM format (e.g. "2018-09"); set current to true and endDate to "" if the person is still enrolled or still works there (end date is "Present" or in the future).
+For address use the city/state or full postal address written on the resume header (empty string if none).
 
 Output only the JSON, no explanation.
   `.trim();
@@ -141,7 +150,7 @@ Output only the JSON, no explanation.
       model: MODEL,
       temperature: 0,
       top_p: 1,
-      max_tokens: 2000,
+      max_tokens: 8192,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: text },
@@ -149,6 +158,7 @@ Output only the JSON, no explanation.
     });
     const raw = completion.choices[0].message.content ?? "";
     console.log("AI raw response (first 1000 chars):", raw.slice(0, 1000));
+    console.log("AI finish_reason:", completion.choices[0].finish_reason, "raw length:", raw.length);
     // Remove Markdown code block markers if present
     const cleanedRaw = raw.replace(/^```json\s*|^```\s*|```$/gm, "").trim();
     const match = cleanedRaw.match(/\{[\s\S]*\}$/);
@@ -161,12 +171,34 @@ Output only the JSON, no explanation.
     );
   }
 
+  // Give every entry an id, and make sure list fields always exist
+  const withIds = <T extends { id?: string }>(list: T[] | undefined, prefix: string) =>
+    (list ?? []).map((item, i) => ({ ...item, id: item.id || `${prefix}-${Date.now()}-${i}` }));
+  parsed = {
+    ...parsed,
+    jobHistory: withIds(parsed.jobHistory, "job"),
+    education: withIds(parsed.education, "edu"),
+    internships: withIds(parsed.internships, "int"),
+    projects: withIds(parsed.projects, "proj").map((pr) => ({
+      ...pr,
+      technologies: pr.technologies ?? [],
+      accomplishments: pr.accomplishments ?? [],
+    })),
+  } as Partial<ProfileData>;
+
   // 8) Save to Mongo
   const update: Record<string, unknown> = { data: parsed, updatedAt: new Date() };
-  // Do NOT update the name here; only update via explicit user action
-  // if (parsed.name && typeof parsed.name === 'string' && parsed.name.trim() !== '') {
-  //   update.name = parsed.name.trim();
-  // }
+  // Use the name from the resume, unless the user already renamed the profile
+  // (i.e. only replace auto-generated names like "Profile 1")
+  const cvName = typeof parsed.name === "string" ? parsed.name.trim() : "";
+  if (cvName) {
+    const existing = await db
+      .collection("profiles")
+      .findOne<{ name?: string }>({ _id: new ObjectId(profileId), userId: decoded.uid });
+    if (!existing?.name || /^Profile \d+$/.test(existing.name)) {
+      update.name = cvName;
+    }
+  }
   await db.collection("profiles").updateOne(
     { _id: new ObjectId(profileId), userId: decoded.uid },
     { $set: update }

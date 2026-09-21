@@ -12,27 +12,34 @@ interface EducationEntryFormProps {
 interface EducationFormData {
   school: string;
   degree: string;
-  dates: string;
+  startDate: string;
+  endDate: string;
+  current: boolean;
   gpa?: string;
 }
 
 const EducationEntryForm: React.FC<EducationEntryFormProps> = ({ education, onClose }) => {
   const { addEducationEntry, updateEducationEntry } = useProfile();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<EducationFormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<EducationFormData>({
     defaultValues: {
       school: education?.school || '',
       degree: education?.degree || '',
-      dates: education?.dates || '',
+      startDate: education?.startDate || '',
+      endDate: education?.endDate || '',
+      current: education?.current || false,
       gpa: education?.gpa || '',
     }
   });
 
+  const isCurrent = watch('current');
+
   const onSubmit = (data: EducationFormData) => {
+    const entry = { ...data, endDate: data.current ? '' : data.endDate };
     if (education) {
-      updateEducationEntry(education.id, data);
+      updateEducationEntry(education.id, entry);
     } else {
-      addEducationEntry(data);
+      addEducationEntry(entry);
     }
     onClose();
   };
@@ -41,10 +48,10 @@ const EducationEntryForm: React.FC<EducationEntryFormProps> = ({ education, onCl
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-neutral-800 rounded-lg p-6"
+      className="bg-card rounded-lg p-6"
     >
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-white">
+        <h3 className="text-lg font-semibold text-foreground">
           {education ? 'Edit Education Entry' : 'Add New Education'}
         </h3>
         <button
@@ -57,7 +64,7 @@ const EducationEntryForm: React.FC<EducationEntryFormProps> = ({ education, onCl
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-white mb-2">
+          <label className="block text-sm font-medium text-foreground mb-2">
             School/Institution Name *
           </label>
           <input
@@ -89,19 +96,43 @@ const EducationEntryForm: React.FC<EducationEntryFormProps> = ({ education, onCl
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-white-700 mb-2">
-              Dates Attended *
+              Start Date *
             </label>
             <input
-              {...register('dates', { required: 'Dates are required' })}
-              type="text"
+              {...register('startDate', { required: 'Start date is required' })}
+              type="month"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="e.g., 2018-2022 or Sep 2018 - May 2022"
             />
-            {errors.dates && (
-              <p className="mt-1 text-sm text-red-600">{errors.dates.message}</p>
+            {errors.startDate && (
+              <p className="mt-1 text-sm text-red-600">{errors.startDate.message}</p>
             )}
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-white-700 mb-2">
+              End Date {isCurrent ? '' : '*'}
+            </label>
+            <input
+              {...register('endDate', { required: isCurrent ? false : 'End date is required' })}
+              type="month"
+              disabled={isCurrent}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-40 disabled:cursor-not-allowed"
+            />
+            {errors.endDate && (
+              <p className="mt-1 text-sm text-red-600">{errors.endDate.message}</p>
+            )}
+            <label className="mt-2 flex items-center space-x-2 text-sm text-foreground cursor-pointer">
+              <input
+                {...register('current')}
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <span>Currently in</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-white-700 mb-2">
               GPA (Optional)
@@ -137,9 +168,9 @@ const EducationEntryForm: React.FC<EducationEntryFormProps> = ({ education, onCl
       </form>
 
       {/* Examples */}
-      <div className="mt-6 bg-neutral-700 rounded-lg p-4">
-        <h4 className="font-semibold text-white mb-2">📚 Examples:</h4>
-        <div className="space-y-2 text-sm text-white">
+      <div className="mt-6 bg-muted rounded-lg p-4">
+        <h4 className="font-semibold text-foreground mb-2">📚 Examples:</h4>
+        <div className="space-y-2 text-sm text-foreground">
           <div>
             <strong>University:</strong> &quot;Bachelor of Science in Computer Science&quot;
           </div>
