@@ -1,0 +1,219 @@
+// Turns a resume + the AI's judgement into a ReviewResult that always follows the fixed rubric (reviewRubric.ts).
+// The AI only supplies verdicts for the qualitative guidelines and proposed fixes; scoring, ordering and the
+// check that a fix does not make anything worse all happen here, in code.
+import type { ProfileData } from "@/context/profileContext";
+import {
+  AI_CRITERIA,
+  CRITERIA,
+  aiResults,
+  autoPoints,
+  evaluateAuto,
+  rubricForPrompt,
+  scoreOf,
+  seniorityOf,
+  type CriterionResult,
+  type PageFit,
+  type Verdict,
+} from "@/lib/reviewRubric";
+import type { RoleProfile } from "@/lib/roleProfile";
+import {
+  AUTO_ADVICE,
+  applyFixes,
+  autoFixFor,
+  cleanFix,
+  impactOf,
+  profileForReview,
+  type ReviewFix,
+  type ReviewIssue,
+  type ReviewResult,
+} from "@/lib/resumeReview";
+
+/** Bump when the rubric changes, so cached reviews are not reused. */
+export const RUBRIC_VERSION = "v3";
+
+export interface PreviousReview {
+  verdicts: { id: string; verdict: Verdict }[];
+  /** titles of the fixes the person applied since that review */
+  applied: string[];
+}
+
+export const REVIEW_SYSTEM = `You are a resume reviewer who follows a FIXED rubric. You never invent criteria, and you judge the same text the same way every time.
+The rubric encodes what the main applicant tracking systems (ATS) need to read a resume and what HR and recruiters check first. Your priority is that this resume passes both.
+
+You receive: the resume data as JSON, the person's TARGET ROLE and seniority, how the resume fits its single page, the results of the measurable guidelines (already computed by code, do not re-judge them), and, when this is a re-check, your previous verdicts and what the person changed since.
+
+Reply with ONE JSON object and nothing else:
+{
+  "headline": one friendly sentence summing up the resume,
+  "strengths": up to 3 short strings about what already works,
+  "qualitative": [ { "id": "<id>", "verdict": "pass" | "partial" | "fail", "reason": "<one short sentence>" } ],
+  "fixes": [ { "criterionId": "<id of a guideline that is NOT passing>", "title": "<max 8 words>", "detail": "<one or two friendly sentences>", "fix": <fix or null> } ]
+}
+
+"qualitative" has exactly one entry for EACH of these guidelines, judged only with these exact definitions:
+{{RUBRIC}}
+
+A "fix" is exactly one of:
+  { "type": "objective", "text": "<2 sentences, no 'I'>" }
+  { "type": "jobTitle", "text": "<target job title>" }
+  { "type": "bullets", "jobId": "<id from the data>", "bullets": ["<3 to 5 rewritten bullets>"] }
+  { "type": "addSkills", "skills": ["<up to 6 skills>"] }
+  { "type": "removeJob", "jobId": "<id from the data>" }
+  { "type": "removeSkills", "skills": ["<skills exactly as written in the data>"] }
+
+Rules, in order of importance:
+1. Judge against the ROLE PROFILE you are given: it is the professional rubric for this role (its keywords, requirements, recruiter priorities and the kind of evidence that impresses). It defines what "relevant" means. When its "kind" is "general", the resume is a general resume for the role, not for one company: do not ask for company-specific details. When it is "job", judge against that one posting.
+2. Be consistent. Apply the definitions literally: if the text satisfies a definition it MUST be "pass", even if it could still be better. Do not look for problems outside the guidelines and do not ask for perfection.
+3. Re-checks: if the person applied a fix for a guideline you had marked "partial" or "fail", judge it again on the CURRENT text; if it now meets the definition, mark "pass". Never change a verdict when the text did not change.
+4. "fixes" only for guidelines that are NOT passing (measurable ones are listed in "measurable" with their verdict). At most one fix per guideline, except "bullets" (one per job). Each fix must make its own guideline pass without breaking another one: keep bullets between 25 and 170 characters, start them with a strong verb, never drop a number that exists, keep 3 to 5 bullets for recent jobs, keep the summary between 250 and 700 characters and keep the skills (never shorten the skills list to make room).
+5. Use ONLY facts that are in the data. Never invent employers, dates, tools, degrees, metrics or numbers. If a bullet has no number, improve verb and clarity but do not add one.
+6. Experience: the 3 most recent jobs must stay on the resume. NEVER propose removing any of them, and never propose removing a job when 3 or fewer remain. Only older, clearly less relevant jobs can be removed, and only when "onePage" is not passing.
+7. The profile (careerObjective) is the person's cover letter: a short narrative of 3 to 5 sentences (250 to 700 characters), never a one-liner. When you rewrite it, keep it in that range, name the target role or field, include their strongest real experience and skills, and say what they bring. Do not make it shorter than the original unless the original is over 700 characters.
+8. Skills must be consistent with the rest of the resume: only add skills clearly shown by the person's jobs, projects, education or coursework, and treat skills as a PRIORITY: never remove a skill just because the resume does not mention it or to save space. Remove a skill ONLY when it is a repeat of another one, very redundant, or clearly useless for any job (for example a joke or an empty word). Prefer adding the missing evidence (a bullet that uses the skill) over deleting the skill. For keyword coverage, use the standard terms of the target role, written the way ATS expect (for example "PostgreSQL", not "Postgres DB").
+9. ATS and HR: plain wording, standard terms, no first person, consistent tense (current job in present, past jobs in past), no abbreviations that only insiders know.
+10. If "onePage" is not passing, the fix must remove content: "removeJob" for the oldest or least relevant job (never the most recent one), or a shorter "bullets" rewrite. NEVER remove skills for space. If it is passing, do NOT suggest removing content.
+11. EVERY issue should come with a usable "fix" (the person presses "Fix it for me"): rewrite the bullets, the summary, the skills. Only set "fix" to null when the guideline needs a fact only the person knows (a phone number, an address, a job they never listed); then say exactly what to add in "detail". Never invent employers, dates, degrees or numbers: when a bullet needs a metric you do not have, rewrite it stronger without a made-up number.
+12. Plain language, no emojis, no markdown.`;
+
+export function reviewSystemPrompt(): string {
+  return REVIEW_SYSTEM.replace("{{RUBRIC}}", rubricForPrompt());
+}
+
+export interface ReviewContext {
+  template: string;
+  fit: PageFit | null;
+  previous?: PreviousReview;
+  /** the professional rubric of the target role (or of one job posting), when available */
+  role?: RoleProfile | null;
+}
+
+/** Everything the AI is told about the person and the resume. */
+export function reviewPayload(p: ProfileData, ctx: ReviewContext, auto: CriterionResult[]) {
+  const s = seniorityOf(p);
+  return {
+    targetRole: ctx.role?.role || p.jobTitle?.trim() || "",
+    roleProfile: ctx.role
+      ? {
+          kind: ctx.role.source === "job-ad" ? "job" : "general",
+          field: ctx.role.field,
+          keywords: ctx.role.keywords,
+          requirements: ctx.role.requirements,
+          recruiterPriorities: ctx.role.priorities,
+          strongEvidence: ctx.role.evidence,
+        }
+      : null,
+    seniority: { yearsOfExperience: s.years, level: s.level },
+    layout: { template: ctx.template, pages: ctx.fit?.pages ?? 1, fitScale: ctx.fit?.scale ?? 1 },
+    measurable: auto.map((c) => ({ id: c.id, verdict: c.verdict, reason: c.reason })),
+    previous: ctx.previous,
+    resume: profileForReview(p),
+  };
+}
+
+const VERDICTS = new Set(["pass", "partial", "fail"]);
+const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+
+/**
+ * Builds the final review from the AI's raw answer. Returns null when the answer is unusable.
+ * `measureFit` re-measures the page for a patched resume (used only for fixes that change how much content there is).
+ */
+export async function interpretAi(
+  input: unknown,
+  p: ProfileData,
+  ctx: ReviewContext,
+  measureFit?: (patched: ProfileData) => Promise<PageFit | null>
+): Promise<ReviewResult | null> {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Record<string, unknown>;
+
+  const verdicts = (Array.isArray(raw.qualitative) ? raw.qualitative : [])
+    .map((q): { id: string; verdict: Verdict; reason: string } | null => {
+      const r = (q ?? {}) as Record<string, unknown>;
+      const id = str(r.id, 40);
+      if (!AI_CRITERIA.some((c) => c.id === id) || !VERDICTS.has(String(r.verdict))) return null;
+      return { id, verdict: r.verdict as Verdict, reason: str(r.reason, 180) };
+    })
+    .filter((x): x is { id: string; verdict: Verdict; reason: string } => Boolean(x));
+  if (verdicts.length === 0) return null;
+
+  const auto = evaluateAuto(p, ctx.fit, ctx.template, ctx.role);
+  const criteria = [...auto, ...aiResults(verdicts)];
+  const failing = new Map(criteria.filter((c) => c.verdict !== "pass").map((c) => [c.id, c]));
+  const autoBefore = autoPoints(auto);
+
+  // 1) the AI's proposed fixes, each checked against the same rubric before it is offered
+  const proposed = (Array.isArray(raw.fixes) ? raw.fixes : []).slice(0, 12);
+  const issues: ReviewIssue[] = [];
+  const covered = new Set<string>();
+  for (const item of proposed) {
+    const f = (item ?? {}) as Record<string, unknown>;
+    const criterionId = str(f.criterionId, 40);
+    const crit = failing.get(criterionId);
+    if (!crit) continue; // nothing to fix there: a passing guideline is never "improved"
+    const title = str(f.title, 90) || AUTO_ADVICE[criterionId]?.title || crit.label;
+    const detail = str(f.detail, 280) || crit.reason;
+
+    let fix: ReviewFix | null = cleanFix(f.fix, p) ?? autoFixFor(criterionId, p, ctx.role);
+    if (fix) {
+      const patched: ProfileData = { ...p, ...applyFixes(p, [fix]) };
+      const needsFit = fix.type === "removeJob" || fix.type === "removeJobs" || fix.type === "atsClean" || fix.type === "removeSkills" || fix.type === "bullets" || fix.type === "addSkills";
+      const fitAfter = needsFit && measureFit ? await measureFit(patched) : ctx.fit;
+      const after = evaluateAuto(patched, fitAfter, ctx.template, ctx.role);
+      const regressed = autoPoints(after) < autoBefore - 1e-9;
+      const targetAfter = after.find((c) => c.id === criterionId);
+      const stillFailsMeasurable = crit.kind === "auto" && targetAfter !== undefined && targetAfter.earned <= crit.earned + 1e-9;
+      if (regressed || stillFailsMeasurable) fix = null; // would make something worse, or would not even fix its own guideline
+    }
+    issues.push({ id: `a${issues.length + 1}`, criterionId, title, detail, impact: impactOf(crit.weight), fix });
+    covered.add(criterionId);
+  }
+
+  // 2) every other failing guideline still gets an entry, in the rubric's own words
+  for (const crit of failing.values()) {
+    if (covered.has(crit.id)) continue;
+    const advice = AUTO_ADVICE[crit.id];
+    issues.push({
+      id: `a${issues.length + 1}`,
+      criterionId: crit.id,
+      title: advice?.title ?? crit.label,
+      detail: `${advice?.detail ?? ""} ${crit.reason}`.trim(),
+      impact: impactOf(crit.weight),
+      fix: autoFixFor(crit.id, p, ctx.role),
+    });
+  }
+
+  // 3) most points at stake first
+  const lost = (id?: string) => {
+    const c = failing.get(id ?? "");
+    return c ? c.weight - c.earned : 0;
+  };
+  issues.sort((a, b) => lost(b.criterionId) - lost(a.criterionId));
+  const final = issues.slice(0, 8).map((i, n) => ({ ...i, id: `a${n + 1}` }));
+
+  const strengths = (Array.isArray(raw.strengths) ? raw.strengths : []).map((s: unknown) => str(s, 140)).filter(Boolean).slice(0, 3);
+  return {
+    source: "ai",
+    target: ctx.role ? { kind: ctx.role.source === "job-ad" ? "job" : "general", role: ctx.role.role, field: ctx.role.field, keywords: ctx.role.keywords } : undefined,
+    score: scoreOf(criteria),
+    headline: str(raw.headline, 160) || "Here is what I found.",
+    strengths: strengths.length ? strengths : criteria.filter((c) => c.verdict === "pass").sort((a, b) => b.weight - a.weight).slice(0, 3).map((c) => c.reason),
+    criteria,
+    issues: final,
+  };
+}
+
+/** Which guideline ids exist (used to sanitize what the client sends back as "previous"). */
+export const CRITERION_IDS = new Set(CRITERIA.map((c) => c.id));
+
+export function cleanPrevious(input: unknown): PreviousReview | undefined {
+  if (!input || typeof input !== "object") return undefined;
+  const r = input as Record<string, unknown>;
+  const verdicts = (Array.isArray(r.verdicts) ? r.verdicts : [])
+    .map((v): { id: string; verdict: Verdict } | null => {
+      const x = (v ?? {}) as Record<string, unknown>;
+      return CRITERION_IDS.has(String(x.id)) && VERDICTS.has(String(x.verdict)) ? { id: String(x.id), verdict: x.verdict as Verdict } : null;
+    })
+    .filter((x): x is { id: string; verdict: Verdict } => Boolean(x));
+  const applied = (Array.isArray(r.applied) ? r.applied : []).map((a: unknown) => str(a, 90)).filter(Boolean).slice(0, 12);
+  return verdicts.length || applied.length ? { verdicts, applied } : undefined;
+}

@@ -50,12 +50,12 @@ const GUIDES = [
     title: "3. Add a job ad",
     time: "1 min",
     steps: [
-      "Open Job Ads and paste the text of a posting you want to apply to.",
+      "Open Resumes, press New resume, and paste the text of a posting you want to apply to (optional).",
       "Save it. Kaizo reads the requirements and can give advice on how well you match.",
       "Add one ad per job, so each resume is tailored to a different role.",
     ],
-    href: "/home/job-ads",
-    cta: "Open Job Ads",
+    href: "/home/resumes/new",
+    cta: "Make a resume"
   },
   {
     icon: Download,
@@ -132,7 +132,7 @@ export default function HelpPage() {
   }, [query]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-10">
+    <div className="mx-auto max-w-[1400px] space-y-8">
       {/* Hero */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}

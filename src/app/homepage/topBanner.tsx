@@ -6,6 +6,7 @@ import Image from "next/image";
 import { MenuIcon, XIcon } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { LoginForm } from "@/components/forms/loginForm";
+import { useAuth } from "@/context/authContext";
 
 const links = [
   { href: "#how", label: "How it works" },
@@ -15,6 +16,9 @@ const links = [
 ];
 
 export default function TopBanner() {
+  const { user } = useAuth();
+  // a guest is not logged in: only a real account sees the dashboard shortcut
+  const signedIn = !!user && !user.uid.startsWith("guest-");
   const [showLogin, setShowLogin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -51,17 +55,17 @@ export default function TopBanner() {
 
   return (
     <header
-      className={`w-full fixed top-0 left-0 z-50 bg-white transition-shadow ${
+      className={`public-site w-full fixed top-0 left-0 z-50 bg-white transition-shadow ${
         scrolled ? "shadow-md" : "border-b border-gray-200"
       }`}
     >
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/homepage" className="flex items-center shrink-0">
+        <Link href="/" className="flex items-center shrink-0">
           <Image
             src="/kaizologo.png"
             alt="Kaizo Resume Builder logo"
-            width={150}
-            height={20}
+            width={118}
+            height={39}
             priority
           />
         </Link>
@@ -84,6 +88,12 @@ export default function TopBanner() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {signedIn ? (
+            <Link href="/home" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-md transition-colors">
+              Go to dashboard
+            </Link>
+          ) : (
+            <>
           <Popover open={showLogin} onOpenChange={setShowLogin}>
             <PopoverTrigger asChild>
               <button className="hidden sm:inline-block text-sm font-semibold text-gray-800 border border-gray-300 hover:border-gray-900 px-4 py-2 rounded-md transition-colors">
@@ -102,12 +112,12 @@ export default function TopBanner() {
               <LoginForm
                 onLogin={() => setShowLogin(false)}
                 onForgotPassword={() => {
-                  window.location.href = "/?view=resetPassword";
+                  window.location.href = "/login?view=resetPassword";
                 }}
               />
               <div className="mt-5 pt-4 border-t border-gray-200 text-center text-sm text-gray-600">
                 New here?{" "}
-                <Link href="/?view=register" className="text-blue-600 font-semibold hover:underline">
+                <Link href="/login?view=register" className="text-blue-600 font-semibold hover:underline">
                   Create a free account
                 </Link>
               </div>
@@ -115,11 +125,14 @@ export default function TopBanner() {
           </Popover>
 
           <Link
-            href="/?view=register"
+            href="/start"
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-md transition-colors"
           >
             Create my resume
           </Link>
+
+            </>
+          )}
 
           <button
             className="md:hidden p-2 text-gray-700"
@@ -147,8 +160,8 @@ export default function TopBanner() {
               {l.label}
             </a>
           ))}
-          <Link href="/?view=login" className="py-3 text-blue-600 font-semibold">
-            Log in
+          <Link href={signedIn ? "/home" : "/login?view=login"} className="py-3 text-blue-600 font-semibold">
+            {signedIn ? "Go to dashboard" : "Log in"}
           </Link>
         </div>
       )}

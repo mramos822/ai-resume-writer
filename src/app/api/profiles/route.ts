@@ -12,6 +12,9 @@ if (!admin.apps.length) {
   });
 }
 
+// the first profile starts as the sample person instead of "Profile 1"; it is replaced by the real name once known
+const DEFAULT_PROFILE_NAME = "John Doe";
+
 const EMPTY_DATA = {
   contactInfo: { email: "", phone: "" },
   careerObjective: "",
@@ -50,7 +53,7 @@ export async function GET(request: Request) {
 
   // lazy‐create a first profile if none
   if (docs.length === 0) {
-    const name = "Profile 1";
+    const name = DEFAULT_PROFILE_NAME;
     const res = await db.collection("profiles").insertOne({
       userId: decoded.uid,
       name,

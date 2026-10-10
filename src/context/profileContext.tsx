@@ -12,11 +12,18 @@ import React, {
 import { useAuth } from "@/context/authContext";
 import { useToast } from "@/context/toastContext";
 import { formatPeriod } from "@/lib/dateFormat";
+import type { LanguageEntry } from "@/lib/languages";
+import type { SkillLevels } from "@/lib/skillLevels";
+import type { CertificationEntry, LinkEntry } from "@/lib/links";
 
 export interface ContactInfo {
   email: string;
   phone: string;
   address: string; // Re-added address to ContactInfo
+  city?: string;
+  state?: string; // region: state, province, department...
+  country?: string;
+  countryCode?: string; // ISO code, like "US" or "PE"
   additionalEmails?: string[];
   additionalPhones?: string[];
 }
@@ -25,6 +32,7 @@ export interface JobEntry {
   id: string;
   company: string;
   title: string;
+  location?: string; // city / state, or Remote
   description: string;
   startDate: string;
   endDate: string; // empty while currently working here
@@ -41,6 +49,9 @@ export interface EducationEntry {
   current?: boolean; // currently attending
   dates?: string; // legacy free-text value from older profiles
   gpa?: string;
+  location?: string; // city / state
+  honors?: string; // e.g. Dean's List, Magna Cum Laude
+  coursework?: string; // relevant courses, comma separated
 }
 
 /** Human-readable education period, e.g. "Sep 2018 – May 2022" or "Sep 2022 – Present" */
@@ -61,6 +72,12 @@ export interface ProjectEntry {
 export interface ProfileData {
   name: string; // Added name field
   jobTitle: string; // Added jobTitle field
+  photo?: string; // Square JPEG data URL, optional
+  languages?: LanguageEntry[]; // spoken languages with a level
+  skillLevels?: SkillLevels; // optional 1-5 confidence per skill name
+  sectionOrder?: string[]; // order of the resume sections chosen by the person (see lib/sectionOrder)
+  links?: LinkEntry[]; // LinkedIn, GitHub, portfolio…
+  certifications?: CertificationEntry[];
   contactInfo: ContactInfo;
   careerObjective: string;
   skills: string[];
@@ -85,11 +102,21 @@ export interface ProfileContextType {
   deleteProfile: (id: string) => Promise<void>;
   renameProfile: (newName: string) => Promise<void>;
   parseFile: (fileId: string) => Promise<Partial<ProfileData>>;
+  /** loads the active profile again from the server (after something outside the page changed it) */
+  reloadProfile: () => Promise<void>;
   saveChanges: () => Promise<void>;
   hasUnsavedChanges: boolean;
   updateContactInfo: (ci: Partial<ContactInfo>) => void;
   updateName: (name: string) => void; // Added updateName
   updateJobTitle: (jobTitle: string) => void; // Added updateJobTitle
+  updatePhoto: (photo: string) => void; // "" removes the photo
+  setJobHistory: (jobs: JobEntry[]) => void; // replaces the whole list in one update
+  setEducation: (list: EducationEntry[]) => void; // same, for schools
+  updateLanguages: (list: LanguageEntry[]) => void;
+  updateSkillLevels: (levels: SkillLevels) => void;
+  updateSectionOrder: (order: string[]) => void;
+  updateLinks: (list: LinkEntry[]) => void;
+  updateCertifications: (list: CertificationEntry[]) => void;
   updateCareerObjective: (obj: string) => void;
   updateSkills: (skills: string[]) => void;
   addJobEntry: (job: Omit<JobEntry, "id">) => void;
@@ -248,6 +275,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     await loadProfiles();
   }, [user, activeProfileId, profileData, loadProfiles]);
 
+  const reloadProfile = useCallback(async () => {
+    if (!user || !activeProfileId) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/profiles/${activeProfileId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error("Failed to reload profile");
+    const doc = (await res.json()) as ProfileDoc;
+    setProfileName(doc.name);
+    setProfileData(doc.data);
+    await loadProfiles();
+  }, [user, activeProfileId, loadProfiles]);
+
   const parseFile = useCallback(
     async (fileId: string): Promise<Partial<ProfileData>> => {
       if (!user || !activeProfileId) return {};
@@ -294,12 +332,21 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         deleteProfile,
         renameProfile,
         parseFile,
+        reloadProfile,
         saveChanges,
         hasUnsavedChanges,
         updateContactInfo: (ci) =>
           updateField("contactInfo", { ...profileData.contactInfo, ...ci }),
         updateName: (n) => updateField("name", n), // Implemented updateName
         updateJobTitle: (jt) => updateField("jobTitle", jt), // Implemented updateJobTitle
+        updatePhoto: (ph) => updateField("photo", ph),
+        setJobHistory: (jobs) => updateField("jobHistory", jobs),
+        setEducation: (list) => updateField("education", list),
+        updateLanguages: (list) => updateField("languages", list),
+        updateSkillLevels: (lv) => updateField("skillLevels", lv),
+        updateSectionOrder: (o) => updateField("sectionOrder", o),
+        updateLinks: (list) => updateField("links", list),
+        updateCertifications: (list) => updateField("certifications", list),
         updateCareerObjective: (o) => updateField("careerObjective", o),
         updateSkills: (s) => updateField("skills", s),
         addJobEntry: (job) =>

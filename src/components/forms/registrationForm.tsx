@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,11 @@ export function RegistrationForm({ onRegister }: { onRegister: () => void }) {
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    // nobody under 16 may register: the person confirms their age and the terms before an account is made
+    const [agreed, setAgreed] = useState(false);
+    const needAgree = () => {
+        setError("Please confirm that you are 16 or older and accept the terms to continue.");
+    };
 
     const form = useForm<RegistrationFormValues>({
         defaultValues: {
@@ -33,6 +39,7 @@ export function RegistrationForm({ onRegister }: { onRegister: () => void }) {
     });
 
     const handleGoogleSignIn = async () => {
+        if (!agreed) return needAgree();
         try {
             const provider = new GoogleAuthProvider(); // Initialize GoogleAuthProvider
             const result = await signInWithPopup(auth, provider); // Sign in with Google popup
@@ -48,6 +55,7 @@ export function RegistrationForm({ onRegister }: { onRegister: () => void }) {
 
     const handleRegister = async (values: RegistrationFormValues) => {
         setError(null);
+        if (!agreed) return needAgree();
 
         if (values.password !== values.confirmPassword) {
             setError("Passwords do not match.");
@@ -159,6 +167,14 @@ export function RegistrationForm({ onRegister }: { onRegister: () => void }) {
                         </FormItem>
                     )}
                 />
+
+                <label className="flex items-start gap-2.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600" />
+                    <span>
+                        I am 16 or older, and I accept the <Link href="/terms" target="_blank" className="underline">Terms of Service</Link> and the{" "}
+                        <Link href="/privacy" target="_blank" className="underline">Privacy Policy</Link>.
+                    </span>
+                </label>
 
                 <Button type="submit" className="w-full">
                     Register

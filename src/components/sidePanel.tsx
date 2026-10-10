@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import KaizoLogo from "@/components/kaizoLogo";
 import {
     LayoutDashboard,
     User,
@@ -14,6 +14,10 @@ import {
     Wrench,
     Building2,
     GraduationCap,
+    FolderKanban,
+    Sprout,
+    Globe,
+    Languages,
     LifeBuoy,
     Check,
     X,
@@ -37,7 +41,7 @@ const MAIN_LINKS: NavItem[] = [
     { href: "/home", label: "Dashboard", icon: LayoutDashboard },
     { href: "/home/profile", label: "Profile", icon: User },
     { href: "/home/resumes", label: "Resumes", icon: FileText },
-    { href: "/home/job-ads", label: "Job Ads", icon: Briefcase },
+    { href: "/home/job-ads", label: "Job Search", icon: Briefcase },
 ];
 
 const SECTION_ICONS: Record<string, LucideIcon> = {
@@ -46,6 +50,10 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
     skills: Wrench,
     jobs: Building2,
     education: GraduationCap,
+    projects: FolderKanban,
+    internships: Sprout,
+    links: Globe,
+    languages: Languages,
 };
 
 const linkClasses = (active: boolean) =>
@@ -60,6 +68,13 @@ export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) 
     const onProfilePage = pathname === "/home/profile";
     const { activeProfile } = useProfile();
     const progress = getProfileProgress(activeProfile);
+    // the optional sections come after the main ones; they do not count in the profile strength
+    const extraSections = [
+        { key: "projects", label: "Projects", done: (activeProfile.projects?.length ?? 0) > 0 },
+        { key: "internships", label: "Internships", done: (activeProfile.internships?.length ?? 0) > 0 },
+        { key: "links", label: "Links", done: (activeProfile.links?.length ?? 0) + (activeProfile.certifications?.length ?? 0) > 0 },
+        { key: "languages", label: "Languages", done: (activeProfile.languages?.length ?? 0) > 0 },
+    ];
 
     return (
         <>
@@ -72,13 +87,13 @@ export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) 
             />
 
             <aside
-                className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-y-auto border-r bg-sidebar transition-transform duration-300 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:shrink-0 lg:self-start lg:transition-[margin] ${
+                className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-y-auto border-r bg-sidebar transition-transform duration-300 lg:sticky lg:left-auto lg:top-0 lg:z-auto lg:h-screen lg:shrink-0 lg:self-start lg:transition-[margin] ${
                     isSidePanelOpen ? "translate-x-0" : "-translate-x-full lg:-ml-64 lg:translate-x-0"
                 }`}
             >
                 <div className="flex h-16 shrink-0 items-center justify-between border-b px-5">
                     <Link href="/home" className="flex items-center">
-                        <Image src="/kaizologo.png" alt="Kaizo" width={130} height={18} priority />
+                        <KaizoLogo width={104} />
                     </Link>
                     <button
                         onClick={onClose}
@@ -110,7 +125,7 @@ export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) 
                             Profile sections
                         </p>
                         <ul className="flex flex-col gap-1">
-                            {progress.sections.map(({ key, label, done }) => {
+                            {[...progress.sections, ...extraSections].map(({ key, label, done }) => {
                                 const Icon = SECTION_ICONS[key];
                                 const cls = linkClasses(false);
                                 const inner = (

@@ -11,7 +11,6 @@ import {
     LogOut,
     PlayCircle,
     LifeBuoy,
-    ChevronRight,
 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/context/authContext";
@@ -25,19 +24,12 @@ import {
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { openTour } from "@/components/guidedTour";
+import ThemeToggle from "@/components/themeSwitch";
+import { PAGE_TITLES } from "@/lib/pageTitles";
 
 interface TopBannerProps {
     toggleSidePanel: () => void;
 }
-
-const PAGE_TITLES: Record<string, string> = {
-    "/home": "Dashboard",
-    "/home/profile": "Profile",
-    "/home/resumes": "Resumes",
-    "/home/job-ads": "Job Ads",
-    "/home/settings": "Settings",
-    "/home/help": "Help & tutorials",
-};
 
 export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
     const router = useRouter();
@@ -64,40 +56,42 @@ export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
     };
 
     return (
-        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b bg-card/90 px-4 backdrop-blur">
-            <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-20 shrink-0 border-b bg-background/85 px-3 backdrop-blur-md sm:px-5">
+          <div className="flex h-16 items-center gap-2">
+            <div className="flex items-center gap-1">
                 <button
                     onClick={toggleSidePanel}
-                    className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     aria-label="Toggle menu"
                 >
                     <Menu className="h-5 w-5" />
                 </button>
-                <nav className="flex items-center gap-1.5 text-sm">
-                    <Link href="/home" className="hidden text-muted-foreground hover:text-foreground sm:inline">
-                        Kaizo
-                    </Link>
-                    <ChevronRight className="hidden h-4 w-4 text-muted-foreground sm:inline" />
-                    <span className="font-semibold">{pageTitle}</span>
+                <nav className="flex items-center gap-2 pl-1 text-sm">
+                    <span className="text-lg font-extrabold tracking-tight">{pageTitle}</span>
                 </nav>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* a spot in the middle that a page can fill (the resume builder puts its buttons here) */}
+            <div id="topbar-center" className="flex min-w-0 flex-1 items-center justify-center px-2" />
+
+            <div className="ml-auto flex items-center gap-1">
                 <Link
-                    href="/home/job-ads"
-                    className="hidden items-center gap-1.5 rounded-md bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 sm:inline-flex"
+                    href="/home/resumes/new"
+                    className={`${pathname === "/home/resumes/new" || pathname === "/home/resumes" ? "hidden" : "hidden sm:inline-flex"} mr-2 h-9 items-center gap-1.5 rounded-full bg-blue-600 px-4 text-sm font-bold text-white transition-colors hover:bg-blue-700`}
                 >
                     <Plus className="h-4 w-4" /> New resume
                 </Link>
 
+                <ThemeToggle compact />
+
                 {/* Help menu */}
-                <DropdownMenu>
+                <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                         <button
-                            className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                             aria-label="Help"
                         >
-                            <HelpCircle className="h-5 w-5" />
+                            <HelpCircle className="h-[18px] w-[18px]" />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-60">
@@ -112,14 +106,14 @@ export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
                 </DropdownMenu>
 
                 {/* Account menu */}
-                <DropdownMenu>
+                <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                         <button
-                            className="rounded-full ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                            className="ml-1 rounded-full focus-visible:ring-2 focus-visible:ring-ring"
                             aria-label="Account menu"
                         >
-                            <Avatar className="h-9 w-9">
-                                <AvatarFallback className="bg-blue-600 text-sm font-semibold text-white">
+                            <Avatar className="h-8 w-8">
+                                <AvatarFallback className="bg-blue-600 text-xs font-bold text-white">
                                     {initials || "?"}
                                 </AvatarFallback>
                             </Avatar>
@@ -140,6 +134,7 @@ export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
+          </div>
         </header>
     );
 }

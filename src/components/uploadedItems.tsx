@@ -5,6 +5,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
   } from "react";
 import { useAuth } from "@/context/authContext";
 import { useProfile } from "@/context/profileContext";
@@ -335,6 +336,18 @@ export default function UploadedItems() {
     [parseFile, toast]
   );
 
+  // A file that was just uploaded is read into the profile automatically
+  const parseRef = useRef(handleParse);
+  parseRef.current = handleParse;
+  useEffect(() => {
+    const onUploaded = (e: Event) => {
+      const id = (e as CustomEvent<{ fileId?: string }>).detail?.fileId;
+      if (id) parseRef.current(id);
+    };
+    window.addEventListener("kaizo:file-uploaded", onUploaded);
+    return () => window.removeEventListener("kaizo:file-uploaded", onUploaded);
+  }, []);
+
   const openItem = async (it: UploadedRecord) => {
     if (!user) return;
     setSelected(it);
@@ -463,7 +476,7 @@ export default function UploadedItems() {
             </h2>
 
             {loadingContent ? (
-              <p className="text-muted-foreground">Loading…</p>
+              <p className="text-muted-foreground">Opening your file…</p>
             ) : previewMode === "pdf" ? (
               <iframe src={contentUrl!} className="w-full h-[70vh] border" title={selected.filename} />
             ) : previewMode === "docx" ? (

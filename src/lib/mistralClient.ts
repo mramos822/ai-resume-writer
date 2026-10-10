@@ -9,6 +9,8 @@ if (!AI_API_KEY) {
 const mistral = new OpenAI({
   baseURL: AI_BASE_URL,
   apiKey: AI_API_KEY,
+  timeout: 60_000, // never wait on the provider for more than a minute
+  maxRetries: 1,
 });
 
 export async function getMistralChatCompletion(params: any) {

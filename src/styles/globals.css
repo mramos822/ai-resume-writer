@@ -85,7 +85,7 @@
   --card-foreground: #f1f5f9;
   --popover: #111a2e;
   --popover-foreground: #f1f5f9;
-  --primary: #3b82f6;
+  --primary: #2563eb;
   --primary-foreground: #ffffff;
   --secondary: #1a2540;
   --secondary-foreground: #f1f5f9;
@@ -328,4 +328,87 @@
 }
 .app-shell main {
   font-size: 0.9375rem;
+}
+
+/* Entrance of the step-by-step builder: the page fades in, the form's pieces rise one by one, the preview slides in */
+@keyframes wizard-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes enter-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+@keyframes preview-in { from { opacity: 0; transform: translateX(44px) scale(0.97); } to { opacity: 1; transform: none; } }
+.animate-wizard-in { animation: wizard-in 0.4s ease-out both; }
+.animate-preview-in { animation: preview-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both; }
+.enter-stagger > * { animation: enter-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.enter-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.enter-stagger > *:nth-child(2) { animation-delay: 0.12s; }
+.enter-stagger > *:nth-child(3) { animation-delay: 0.19s; }
+.enter-stagger > *:nth-child(4) { animation-delay: 0.26s; }
+.enter-stagger > *:nth-child(5) { animation-delay: 0.33s; }
+.enter-stagger > *:nth-child(n + 6) { animation-delay: 0.4s; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-wizard-in, .animate-preview-in, .enter-stagger > * { animation: none; }
+}
+
+/* Light/dark switch: the browser cross-fades two snapshots of the page on the GPU (View Transitions), which is far
+   smoother than transitioning the colors of every element. Browsers without it switch instantly. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.28s;
+  animation-timing-function: ease-out;
+  mix-blend-mode: normal;
+}
+
+/* Global loading screen */
+/* a line travelling over the whole resume, down and up */
+@keyframes scan-bar {
+  0%, 100% { top: 3%; }
+  50% { top: 97%; }
+}
+.animate-scan-bar { animation: scan-bar 2.8s ease-in-out infinite; }
+/* the blue copy of the sheet is only visible in a band centred on the line (same timing as the line) */
+@keyframes scan-light {
+  0%, 100% { -webkit-mask-position: 0 -20.5%; mask-position: 0 -20.5%; }
+  50% { -webkit-mask-position: 0 120.5%; mask-position: 0 120.5%; }
+}
+.animate-scan-light {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 35%, #000 65%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 35%, #000 65%, transparent);
+  -webkit-mask-size: 100% 96px;
+  mask-size: 100% 96px;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: scan-light 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-scan-bar { animation: none; top: 40%; }
+  .animate-scan-light { animation: none; }
+}
+
+/* Scrollable areas that still scroll with wheel, touch or keys but never draw a scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* logos and pictures are part of the page: they cannot be dragged out or selected */
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* In dark mode blue text needs to be lighter to stay readable (WCAG AA). The public pages are always light, so they keep theirs. */
+.dark .text-blue-600 {
+  color: #60a5fa;
+}
+.dark .text-blue-500 {
+  color: #6aa8fb;
+}
+.dark .public-site .text-blue-600,
+.dark .auth-light .text-blue-600 {
+  color: #2563eb;
+}
+.dark .public-site .text-blue-500,
+.dark .auth-light .text-blue-500 {
+  color: #3b82f6;
 }

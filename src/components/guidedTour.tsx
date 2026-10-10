@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useProfile } from "@/context/profileContext";
+import { getProfileProgress } from "@/lib/profileProgress";
 
 export const OPEN_TOUR_EVENT = "kaizo:open-tour";
 const STORAGE_KEY = "kaizo_tour_done";
@@ -49,10 +51,10 @@ const STEPS = [
   {
     icon: Briefcase,
     title: "3. Paste the job ad",
-    body: "In Job Ads, paste the posting you want. Kaizo reads what they ask for and tailors your resume to it, and gives you advice on how well you match.",
+    body: "In Resumes, press New resume and paste the posting you want. Kaizo reads what they ask for and tailors your resume to it, and gives you advice on how well you match.",
     tip: "A different ad gives a different resume, so save one per job you apply to.",
-    href: "/home/job-ads",
-    cta: "Open Job Ads",
+    href: "/home/resumes/new",
+    cta: "Make a resume",
   },
   {
     icon: Download,
@@ -75,9 +77,13 @@ const STEPS = [
 export default function GuidedTour() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
+  const { profiles, activeProfile } = useProfile();
+  // New, empty accounts get the setup wizard instead of this tour
+  const hasData = profiles.length > 0 && getProfileProgress(activeProfile).doneCount > 0;
 
   // First visit: show once
   useEffect(() => {
+    if (!hasData) return;
     try {
       if (!localStorage.getItem(STORAGE_KEY)) {
         const t = setTimeout(() => setOpen(true), 600);
@@ -86,7 +92,7 @@ export default function GuidedTour() {
     } catch {
       /* storage unavailable: skip auto-open */
     }
-  }, []);
+  }, [hasData]);
 
   useEffect(() => {
     const handler = () => {

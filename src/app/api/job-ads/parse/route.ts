@@ -1,4 +1,5 @@
 // src/app/api/job-ads/parse/route.ts
+import { limited } from "@/lib/rateLimit";
 import { NextResponse } from "next/server";
 import { getChatCompletion, MODEL } from "@/lib/openai";
 import { db } from '@/lib/mongodb';
@@ -35,6 +36,8 @@ You are an expert recruiter assistant.  Given the full text of a job posting, ex
 `;
 
 export async function POST(request: Request) {
+  const tooMany = limited(request, "ai", 40, 10 * 60 * 1000);
+  if (tooMany) return tooMany;
   try {
     await authUid(request);
   } catch (err) {

@@ -16,7 +16,7 @@ export default function Login({ onClose }: LoginProps) {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push("/homepage");
+      router.push("/home");
     }
   }, [user, loading, router]);
 
@@ -40,7 +40,7 @@ export default function Login({ onClose }: LoginProps) {
 
         {/* NO onForgotPassword */}
         <LoginForm
-          onLogin={() => router.push("/homepage")}
+          onLogin={() => router.push("/home")}
         />
 
         <p className="text-sm text-gray-600 mt-4 text-center">
@@ -49,7 +49,7 @@ export default function Login({ onClose }: LoginProps) {
             type="button"
             onClick={() => {
               onClose();
-              router.push("/homepage");
+              router.push("/home");
             }}
             className="text-blue-500 hover:underline"
           >

@@ -47,7 +47,7 @@ describe("SidePanel", () => {
         render(<SidePanel isSidePanelOpen={true} onClose={() => {}} />);
         expect(screen.getByText("Dashboard")).toBeInTheDocument();
         expect(screen.getByText("Resumes")).toBeInTheDocument();
-        expect(screen.getByText("Job Ads")).toBeInTheDocument();
+        expect(screen.getByText("Job Search")).toBeInTheDocument();
         expect(screen.getByText("Help & tutorials")).toBeInTheDocument();
         expect(screen.getByText("Settings")).toBeInTheDocument();
     });

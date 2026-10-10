@@ -1,11 +1,13 @@
 // src/app/api/parse-document/route.ts
 
+import { limited } from "@/lib/rateLimit";
 import fs from "fs";
 import { NextResponse } from "next/server";
 import { getOpenAIChatCompletion } from "@/lib/openaiClient";
 import { AI_MODEL as MODEL } from "@/lib/aiConfig";
 import mammoth from "mammoth";
 import { authUid, errorResponse } from "@/lib/apiAuth";
+import { cleanParsedProfile } from "@/lib/parseCleanup";
 import type { ProfileData, ContactInfo } from "@/context/profileContext";
 
 // 1) Capture the original
@@ -67,6 +69,8 @@ function mergeProfiles(a: Partial<ProfileData>, b: Partial<ProfileData>): Partia
 
 // 7) The handler
 export async function POST(request: Request) {
+  const tooMany = limited(request, "ai", 40, 10 * 60 * 1000);
+  if (tooMany) return tooMany;
   try {
     await authUid(request);
   } catch (err) {
@@ -78,6 +82,10 @@ export async function POST(request: Request) {
   const type = form.get("type");
   if (!(file instanceof Blob) || (type !== "document" && type !== "biography")) {
     return NextResponse.json({ error: "Missing file or invalid type" }, { status: 400 });
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    return NextResponse.json({ error: "That file is too large. The limit is 10 MB." }, { status: 413 });
   }
 
   // b) into Uint8Array
@@ -106,9 +114,15 @@ interface ProfileData {
   contactInfo: { email: string; phone: string; address: string; additionalEmails?: string[]; additionalPhones?: string[] };
   careerObjective: string;
   skills: string[];
-  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
-  education: { school: string; degree: string; startDate: string; endDate: string; current: boolean; gpa?: string }[];
+  jobHistory: { company: string; title: string; location: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
+  education: { school: string; degree: string; location: string; startDate: string; endDate: string; current: boolean; gpa?: string }[];
 }
+
+Field rules (follow exactly):
+- "title" is ONLY the role and "company" ONLY the employer name; never combine them.
+- "location" is ONLY the city and state or country ("Newark, NJ", "Remote"). Never put a place inside company, school, description or accomplishments.
+- "accomplishments" holds ONLY what the person did or achieved, one short sentence each. NEVER put the job title, company, location, dates or a heading in it. Use [] if there are none.
+- "school" is ONLY the institution name, without city, state or address; the place goes in "location".
 
 Output only the JSON, no explanation.
   `.trim();
@@ -133,7 +147,7 @@ Output only the JSON, no explanation.
   }
   let parsed: Partial<ProfileData>;
   try {
-    parsed = JSON.parse(match[0]);
+    parsed = cleanParsedProfile(JSON.parse(match[0]) as Partial<ProfileData>);
   } catch {
     return NextResponse.json({ error: "JSON.parse failed", raw }, { status: 502 });
   }

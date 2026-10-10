@@ -8,7 +8,7 @@ import {
     DialogClose // Import DialogClose
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react"; // Removed X
+import { Download, FileText, Loader2, Pencil, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useToast } from "@/context/toastContext";
 import { authFetch } from "@/lib/authFetch";
@@ -102,55 +102,77 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-4xl h-[90vh] flex flex-col">
-                <DialogHeader>
-                    <DialogTitle>Resume Preview</DialogTitle>
-                    <div className="flex items-center space-x-2 mt-2">
-                        {editing ? (
-                            <>
-                                <input
-                                    className="border rounded px-2 py-1 text-sm"
-                                    value={newFilename}
-                                    onChange={e => setNewFilename(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter') handleRename(); }}
-                                    autoFocus
-                                />
-                                <Button size="sm" variant="outline" onClick={handleRename}>Save</Button>
-                                <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setNewFilename(filename); }}>Cancel</Button>
-                            </>
-                        ) : (
-                            <>
-                                <span className="font-semibold text-base">{filename}</span>
-                                <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Rename</Button>
-                            </>
-                        )}
+        <Dialog open={isOpen} onOpenChange={(o) => { if (!o) onClose(); }}>
+            <DialogContent
+                showCloseButton={false}
+                className="flex h-[92vh] max-h-[92vh] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-5xl"
+            >
+                {/* header: what this is and its name on the left, the close button aligned on the right */}
+                <DialogHeader className="flex flex-row items-center justify-between gap-4 space-y-0 border-b px-5 py-3.5 text-left">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600/10 text-blue-600">
+                            <FileText className="h-5 w-5" />
+                        </span>
+                        <div className="min-w-0">
+                            <DialogTitle className="text-base font-bold leading-tight">Resume preview</DialogTitle>
+                            {editing ? (
+                                <div className="mt-1 flex items-center gap-2">
+                                    <input
+                                        className="h-8 w-56 rounded-md border bg-transparent px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+                                        value={newFilename}
+                                        onChange={e => setNewFilename(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') { setEditing(false); setNewFilename(filename); } }}
+                                        autoFocus
+                                    />
+                                    <Button size="sm" onClick={handleRename}>Save</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setNewFilename(filename); }}>Cancel</Button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <span className="truncate">{filename || "Loading…"}</span>
+                                    {filename && (
+                                        <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium hover:bg-accent hover:text-foreground">
+                                            <Pencil className="h-3 w-3" /> Rename
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <DialogClose asChild>
-                        <Button
-                            variant="ghost"
-                            className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
-                            onClick={onClose}
+                        <button
+                            type="button"
+                            aria-label="Close"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
                         >
-                            <span className="sr-only">Close</span>
-                        </Button>
+                            <X className="h-4 w-4" />
+                        </button>
                     </DialogClose>
                 </DialogHeader>
-                <div className="flex-grow flex flex-col overflow-hidden">
+
+                {/* the resume on a grey desk */}
+                <div className="relative min-h-0 flex-1 bg-neutral-200/70 dark:bg-neutral-900">
                     {pdfUrl ? (
-                        <iframe src={pdfUrl} className="w-full h-full border-none" title="Resume Preview" />
+                        // the viewer's own toolbar (download / print) is hidden: the buttons below are the way to download
+                        <iframe
+                            src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&statusbar=0&view=FitH`}
+                            className="h-full w-full border-none"
+                            title="Resume Preview"
+                        />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                            <p>Loading preview...</p>
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-muted-foreground">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                            <p className="text-sm">Opening your resume…</p>
                         </div>
                     )}
                 </div>
-                <div className="flex justify-end space-x-2 p-4 border-t">
-                    <Button onClick={() => handleDownload('pdf')}>
-                        <Download className="mr-2 h-4 w-4" /> Download as PDF
+
+                <div className="flex items-center justify-end gap-3 border-t bg-background px-5 py-3.5">
+                    <Button variant="outline" onClick={() => handleDownload('docx')} disabled={!pdfUrl} className="h-10 gap-2 px-5">
+                        <Download className="h-4 w-4" /> Download as DOCX
                     </Button>
-                    <Button onClick={() => handleDownload('docx')}>
-                        <Download className="mr-2 h-4 w-4" /> Download as DOCX
+                    <Button onClick={() => handleDownload('pdf')} disabled={!pdfUrl} className="h-10 gap-2 px-5">
+                        <Download className="h-4 w-4" /> Download as PDF
                     </Button>
                 </div>
             </DialogContent>

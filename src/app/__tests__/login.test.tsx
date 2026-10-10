@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import LandingPage from "../page";
+import LandingPage from "../login/page";
 import type { MockAuth } from "@/types/auth";
 
 // Mock next/image to avoid Next.js SSR issues
@@ -14,7 +14,6 @@ jest.mock("next/image", () => ({
     },
 }));
 
-// The page redirects to /homepage unless a ?view= is present, so tests always set one
 const pushMock = jest.fn();
 const replaceMock = jest.fn();
 // Next's real router object is stable between renders; a fresh one each time would re-run the page's effects
@@ -28,6 +27,9 @@ let mockAuthValue: MockAuth = { user: null, loading: false };
 jest.mock("@/context/authContext", () => ({
     useAuth: () => mockAuthValue,
 }));
+
+// the live counter opens a server connection, which is tested apart
+jest.mock("@/components/liveResumeCount", () => ({ __esModule: true, default: () => <div data-testid="live-count" /> }));
 
 type LoginFormProps = { onLogin: () => void; onForgotPassword: () => void };
 type RegistrationFormProps = { onRegister: () => void };
@@ -57,7 +59,7 @@ jest.mock("@/components/forms/resetPasswordForm", () => ({
 }));
 
 function openWithView(view: string | null) {
-    window.history.pushState({}, "", view ? `/?view=${view}` : "/");
+    window.history.pushState({}, "", view ? `/login?view=${view}` : "/login");
 }
 
 describe("Sign-in page", () => {
@@ -74,10 +76,10 @@ describe("Sign-in page", () => {
         expect(screen.getByText("Login")).toBeInTheDocument();
     });
 
-    it("sends visitors without a ?view= to the marketing homepage", () => {
+    it("shows the login form when there is no ?view=", () => {
         openWithView(null);
         render(<LandingPage />);
-        expect(replaceMock).toHaveBeenCalledWith("/homepage");
+        expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
     });
 
     it("switches to the registration form", () => {

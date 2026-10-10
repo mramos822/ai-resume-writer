@@ -13,6 +13,7 @@ interface JobFormData {
   company: string;
   title: string;
   description: string;
+  location: string;
   startDate: string;
   endDate: string;
   current: boolean;
@@ -30,6 +31,7 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
       company: job?.company || '',
       title: job?.title || '',
       description: job?.description || '',
+      location: job?.location || '',
       startDate: job?.startDate || '',
       endDate: job?.endDate || '',
       current: job ? (job.current ?? !job.endDate) : false,
@@ -119,6 +121,16 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
           </div>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">Location</label>
+          <input
+            {...register('location')}
+            type="text"
+            className="bg-background w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="e.g., Austin, TX or Remote"
+          />
+        </div>
+
         <div className="grid md:grid-cols-2 gap-4">
           <div className='flex flex-col relative w-full'>
             <label className="block text-sm font-medium text-foreground mb-2">
@@ -200,13 +212,13 @@ const JobEntryForm: React.FC<JobEntryFormProps> = ({ job, onClose }) => {
 
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">
-            Job Description *
+            Short intro (optional)
           </label>
           <textarea
-            {...register('description', { required: 'Job description is required' })}
+            {...register('description')}
             rows={4}
             className="bg-background w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            placeholder="Describe your role, responsibilities, and key activities..."
+            placeholder="One line about the role. Put what you achieved in the bullets below."
           />
           {errors.description && (
             <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>

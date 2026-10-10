@@ -1,30 +1,22 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import RootLayout from "../layout";
+import RootLayout, { metadata } from "../layout";
 
-// Mock providers and external modules
-jest.mock("@/context/authContext", () => ({
-    AuthProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="auth-provider">{children}</div>,
+// The providers need the browser and the network: here they just pass children through
+jest.mock("@/app/providers", () => ({
+    __esModule: true,
+    default: ({ children }: { children: React.ReactNode }) => <div data-testid="providers">{children}</div>,
 }));
-jest.mock("@/context/themeContext", () => ({
-    ThemeProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="theme-provider">{children}</div>,
+jest.mock("next/font/google", () => ({
+    Geist: () => ({ variable: "geist" }),
+    Geist_Mono: () => ({ variable: "geist-mono" }),
 }));
-jest.mock("sonner", () => ({
-    Toaster: () => <div data-testid="toaster" />,
-}));
-
-// let consoleErrorSpy: jest.SpyInstance;
 
 const originalConsoleError = console.error;
 
 beforeAll(() => {
-    jest.spyOn(console, 'error').mockImplementation((msg, ...args) => {
-        if (
-            typeof msg === 'string' &&
-            msg.includes('cannot be a child of')
-        ) {
-            return;
-        }
+    jest.spyOn(console, "error").mockImplementation((msg, ...args) => {
+        if (typeof msg === "string" && msg.includes("cannot be a child of")) return;
         originalConsoleError(msg, ...args);
     });
 });
@@ -34,27 +26,19 @@ afterAll(() => {
 });
 
 describe("RootLayout", () => {
-    it("renders html, head, and body with children", () => {
+    it("renders the page inside the providers, with a skip link", () => {
         render(
             <RootLayout>
                 <div data-testid="child">Hello</div>
             </RootLayout>
         );
-
-        // Check for html and body tags
-        expect(document.querySelector("html")).toBeInTheDocument();
-        expect(document.querySelector("body")).toBeInTheDocument();
-
-        // Check for meta tags
-        expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
-            "content",
-            "Marcus - A modern SaaS application template"
-        );
-
-        // Check for providers and children
-        expect(screen.getByTestId("auth-provider")).toBeInTheDocument();
-        expect(screen.getByTestId("theme-provider")).toBeInTheDocument();
-        expect(screen.getByTestId("toaster")).toBeInTheDocument();
+        expect(screen.getByTestId("providers")).toBeInTheDocument();
         expect(screen.getByTestId("child")).toHaveTextContent("Hello");
+        expect(screen.getByText("Skip to content")).toHaveAttribute("href", "#main");
+    });
+
+    it("describes the real product (not the template it came from)", () => {
+        expect(JSON.stringify(metadata)).toContain("Kaizo");
+        expect(JSON.stringify(metadata)).not.toContain("Marcus");
     });
 });

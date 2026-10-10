@@ -52,6 +52,12 @@ export async function assertResumeOwner(uid: string, fileId: string) {
 /** Turns a thrown HttpError into a JSON response (unknown errors become a 500). */
 export function errorResponse(err: unknown, fallback = "Something went wrong.") {
   if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
-  console.error(fallback, err);
-  return NextResponse.json({ error: fallback }, { status: 500 });
+  // a provider we call (AI, job sources) is saturating us: tell the caller to wait instead of showing a server error
+  if ((err as { status?: number })?.status === 429) {
+    return NextResponse.json({ error: "We are very busy right now. Please try again in a minute." }, { status: 429, headers: { "Retry-After": "60" } });
+  }
+  // an id to quote when reporting the problem; the log line carries it too (and never a token or personal data)
+  const requestId = crypto.randomUUID().slice(0, 8);
+  console.error(`[${requestId}] ${fallback}`, err instanceof Error ? err.message : "unknown error");
+  return NextResponse.json({ error: fallback, requestId }, { status: 500, headers: { "x-request-id": requestId } });
 }

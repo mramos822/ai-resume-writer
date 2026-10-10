@@ -1,12 +1,11 @@
 // src/app/home/profile/page.tsx
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Save,
   RefreshCw,
-  Check,
   Mail,
   Target,
   Wrench,
@@ -14,6 +13,8 @@ import {
   GraduationCap,
   Sprout,
   FolderKanban,
+  Globe,
+  Languages,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -24,8 +25,8 @@ import CareerObjectiveSection from "@/components/profile/careerObjectiveSection"
 import SkillsSection from "@/components/profile/skillsSection";
 import JobHistorySection from "@/components/profile/jobHistorySection";
 import EducationSection from "@/components/profile/educationSection";
-import InternshipSection from "@/components/profile/internshipSection";
-import ProjectsSection from "@/components/profile/projectsSection";
+import ExtrasEditor from "@/components/extrasEditor";
+import SkillLevelPicker from "@/components/skillLevelPicker";
 import PageHeader from "@/components/pageHeader";
 import AdviceView from "@/components/adviceView";
 import { getProfileProgress } from "@/lib/profileProgress";
@@ -37,38 +38,42 @@ import { useDialog } from "@/context/dialogContext";
 import { usePathname } from "next/navigation";
 import { authFetch } from "@/lib/authFetch";
 
-const VALID_SECTIONS = ["contact", "objective", "skills", "jobs", "education", "projects", "internships"] as const;
+const VALID_SECTIONS = ["contact", "objective", "skills", "jobs", "education", "projects", "internships", "links", "languages"] as const;
 type SectionKey = (typeof VALID_SECTIONS)[number];
 
 /** Each section gets its own color so people can find their place at a glance. */
 const META: Record<
   SectionKey,
-  { label: string; blurb: string; icon: LucideIcon; tile: string; ring: string }
+  { label: string; blurb: string; icon: LucideIcon; tile: string; ring: string; title?: string }
 > = {
   contact: {
     label: "Contact",
-    blurb: "How employers can reach you.",
+    blurb: "Your name and where to find you. It only goes on the resumes you make.",
+    title: "How can employers reach you?",
     icon: Mail,
     tile: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
     ring: "ring-blue-300",
   },
   objective: {
     label: "Objective",
-    blurb: "Two lines about the role you want.",
+    blurb: "The job you want and a few lines about you. This is the first thing people read.",
+    title: "Tell your story",
     icon: Target,
     tile: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
     ring: "ring-violet-300",
   },
   skills: {
     label: "Skills",
-    blurb: "What you're good at. Add at least three.",
+    blurb: "Add what you do well. The first ones are the ones people see first.",
+    title: "What are you good at?",
     icon: Wrench,
     tile: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
     ring: "ring-amber-300",
   },
   jobs: {
     label: "Jobs",
-    blurb: "Where you've worked, newest first.",
+    blurb: "Your jobs, newest first. Short bullets with results work best.",
+    title: "Where have you worked?",
     icon: Building2,
     tile: "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
     ring: "ring-teal-300",
@@ -76,20 +81,39 @@ const META: Record<
   education: {
     label: "Education",
     blurb: "Schools, degrees and courses.",
+    title: "Where did you study?",
     icon: GraduationCap,
     tile: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
     ring: "ring-rose-300",
   },
   projects: {
     label: "Projects",
-    blurb: "Things you've built, for school or for fun.",
+    blurb: "Class, personal or open-source projects. Great when you have little work experience.",
+    title: "What have you built?",
     icon: FolderKanban,
     tile: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
     ring: "ring-sky-300",
   },
+  links: {
+    label: "Links",
+    blurb: "Your portfolio, LinkedIn, GitHub, and any certifications.",
+    title: "Where can people see your work?",
+    icon: Globe,
+    tile: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
+    ring: "ring-indigo-300",
+  },
+  languages: {
+    label: "Languages",
+    blurb: "Add them with your level in each.",
+    title: "Which languages do you speak?",
+    icon: Languages,
+    tile: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-300",
+    ring: "ring-fuchsia-300",
+  },
   internships: {
     label: "Internships",
-    blurb: "Formal internships at a company.",
+    blurb: "Formal internships, co-ops or traineeships.",
+    title: "Any internships?",
     icon: Sprout,
     tile: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
     ring: "ring-emerald-300",
@@ -191,7 +215,7 @@ function ResumeAdviceSection() {
 }
 
 export default function ProfilePage() {
-  const { hasUnsavedChanges, saveChanges, activeProfile, parseFile } = useProfile();
+  const { hasUnsavedChanges, saveChanges, activeProfile, parseFile, updateSkillLevels, updateLanguages } = useProfile();
   const dialog = useDialog();
   const [isReParsing, setIsReParsing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -202,10 +226,9 @@ export default function ProfilePage() {
   const doneMap: Record<string, boolean> = Object.fromEntries(progress.sections.map((s) => [s.key, s.done]));
   doneMap.internships = (activeProfile.internships?.length ?? 0) > 0;
   doneMap.projects = (activeProfile.projects?.length ?? 0) > 0;
+  doneMap.links = (activeProfile.links?.length ?? 0) + (activeProfile.certifications?.length ?? 0) > 0;
+  doneMap.languages = (activeProfile.languages?.length ?? 0) > 0;
 
-  const onTabChange = useCallback((val: string) => {
-    window.location.hash = val;
-  }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -257,118 +280,84 @@ export default function ProfilePage() {
     }
   };
 
+
   const meta = META[activeTab];
   const ActiveIcon = meta.icon;
 
   return (
-    <div className="mx-auto max-w-6xl pb-24">
+    <div className="mx-auto max-w-[1600px] pb-24">
       <PageHeader
         title="Your profile"
-        subtitle="Everything a resume is built from. Fill it in once, reuse it for every job."
-        tip="Pick a section on the left, edit it, then press Save."
+        subtitle="Tell us about yourself once and we will use it for every resume you make. Pick a section on the left."
         actions={
-          <Button variant="outline" onClick={handleReParse} disabled={isReParsing} className="gap-2">
-            <RefreshCw className={`h-4 w-4 ${isReParsing ? "animate-spin" : ""}`} />
-            Re-read my latest upload
-          </Button>
+          // how complete the profile is: a plain figure with a thin line, no box around it
+          <div className="min-w-[15rem] text-right">
+            <p className="flex items-baseline justify-end gap-2 leading-none">
+              <span className="text-5xl font-black tabular-nums tracking-tight">{progress.percent}</span>
+              <span className="text-xl font-bold text-muted-foreground">%</span>
+              <span className="ml-1 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{progress.percent === 100 ? "complete" : "done"}</span>
+            </p>
+            <div className="mt-3 flex gap-1" aria-hidden>
+              {progress.sections.map((sec) => (
+                <span key={sec.key} title={sec.label} className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${sec.done ? "bg-blue-600" : "bg-border"}`} />
+              ))}
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {progress.next ? <>Next: {progress.next.hint.toLowerCase()}</> : "Everything a resume needs is here."}
+            </p>
+            <button
+              type="button"
+              onClick={handleReParse}
+              disabled={isReParsing}
+              title="Reads the newest file you uploaded again and refreshes this profile with it (it replaces what you edited by hand)"
+              className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-60"
+            >
+              <RefreshCw className={`h-3 w-3 ${isReParsing ? "animate-spin" : ""}`} />
+              {isReParsing ? "Reading your upload…" : "Refresh from my latest upload"}
+            </button>
+          </div>
         }
       />
 
-      {/* overall progress */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="mb-6 rounded-lg border bg-card p-4"
-      >
-        <div className="mb-2 flex items-center justify-between text-sm">
-          <span className="font-semibold">
-            {progress.percent === 100 ? "Profile complete. Nice work!" : `Profile ${progress.percent}% complete`}
-          </span>
-          {progress.next && <span className="text-muted-foreground">Next: {progress.next.hint.toLowerCase()}</span>}
-        </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-border">
-          <div
-            className="progress-fill h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-[width] duration-700"
-            style={{ width: `${progress.percent}%` }}
-          />
-        </div>
-      </motion.div>
-
-      <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
-        {/* Section list */}
-        <nav aria-label="Profile sections" className="lg:sticky lg:top-24 lg:self-start">
-          <ul className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
-            {VALID_SECTIONS.map((key) => {
-              const m = META[key];
-              const Icon = m.icon;
-              const active = key === activeTab;
-              return (
-                <li key={key} className="shrink-0 lg:shrink">
-                  <button
-                    onClick={() => onTabChange(key)}
-                    aria-current={active ? "page" : undefined}
-                    className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-all ${
-                      active
-                        ? `bg-card shadow-md ring-2 ${m.ring}`
-                        : "border-transparent hover:border-border hover:bg-card"
-                    }`}
-                  >
-                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${m.tile}`}>
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold">{m.label}</span>
-                      <span className="hidden truncate text-xs text-muted-foreground lg:block">{m.blurb}</span>
-                    </span>
-                    {doneMap[key] && (
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-500 text-white">
-                        <Check className="h-3 w-3" strokeWidth={3} />
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+      <div className="grid gap-6 lg:grid-cols-1">
 
         {/* Active section */}
-        <div className="min-w-0">
-          <Card>
-            <CardContent className="p-6">
-              <div className="mb-6 flex items-center gap-3 border-b pb-5">
-                <span className={`flex h-12 w-12 items-center justify-center rounded-md ${meta.tile}`}>
-                  <ActiveIcon className="h-6 w-6" />
+        <div className="w-full min-w-0">
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-6 sm:p-8">
+              {/* header and content change together as one piece: one short fade, no empty gap in between */}
+              <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
+              <div className="mb-7 flex items-center gap-4">
+                <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${meta.tile}`}>
+                  <ActiveIcon className="h-7 w-7" />
                 </span>
-                <div>
-                  <h2 className="text-xl font-bold">{meta.label}</h2>
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-extrabold leading-tight">{meta.title ?? meta.label}</h2>
                   <p className="text-sm text-muted-foreground">{meta.blurb}</p>
                 </div>
               </div>
 
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeTab}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  {activeTab === "contact" && <ContactInfoSection />}
+                {activeTab === "contact" && <ContactInfoSection />}
                   {activeTab === "objective" && <CareerObjectiveSection />}
-                  {activeTab === "skills" && <SkillsSection />}
+                  {activeTab === "skills" && (
+                    <>
+                      <SkillsSection />
+                      <SkillLevelPicker skills={activeProfile.skills ?? []} levels={activeProfile.skillLevels ?? {}} onChange={updateSkillLevels} />
+                    </>
+                  )}
                   {activeTab === "jobs" && <JobHistorySection />}
                   {activeTab === "education" && <EducationSection />}
-                  {activeTab === "projects" && <ProjectsSection />}
-                  {activeTab === "internships" && <InternshipSection />}
-                </motion.div>
-              </AnimatePresence>
+                  {activeTab === "projects" && <ExtrasEditor only={["projects"]} />}
+                  {activeTab === "internships" && <ExtrasEditor only={["internships"]} />}
+                  {activeTab === "links" && <ExtrasEditor only={["links", "certifications"]} />}
+                  {activeTab === "languages" && <ExtrasEditor only={["languages"]} languages={activeProfile.languages ?? []} onLanguagesChange={updateLanguages} />}
+              </motion.div>
             </CardContent>
           </Card>
 
           <ResumeAdviceSection />
         </div>
+
       </div>
 
       {/* Save bar appears only when there is something to save */}

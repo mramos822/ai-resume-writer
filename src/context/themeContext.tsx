@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { flushSync } from "react-dom";
+import { usePathname } from "next/navigation";
+import PageLoader from "@/components/pageLoader";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -14,10 +17,22 @@ const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [theme, setThemeState] = useState<ThemeType>("system");
     const [authChecked, setAuthChecked] = useState(false);
+    // the landing page and the log in screen show themselves right away, with no loading screen in front
+    const pathname = usePathname();
+    const isPublic = pathname === "/" || pathname === "/login";
 
     // Save theme to Firestore when changed by the user
     const setTheme = async (newTheme: ThemeType) => {
-        setThemeState(newTheme);
+        const root = document.documentElement;
+        const dark = newTheme === "dark" || (newTheme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        const apply = () => {
+            root.classList.toggle("dark", dark);
+            flushSync(() => setThemeState(newTheme));
+        };
+        // one cross-fade of the whole page (GPU) instead of animating every element's colors
+        const start = (document as Document & { startViewTransition?: (cb: () => void) => unknown }).startViewTransition;
+        if (start && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) start.call(document, apply);
+        else apply();
         localStorage.setItem("theme", newTheme);
 
         const auth = getAuth();
@@ -45,13 +60,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     if (userSnap.exists()) {
                         const data = userSnap.data();
                         if (data.theme) {
-                            setTheme(data.theme);
+                            setThemeState(data.theme);
                             localStorage.setItem("theme", data.theme); // Keep localStorage in sync
                         }
                     } else {
                         // First-time user: create document with default theme
                         await setDoc(userRef, { theme: "system" });
-                        setTheme("system");
+                        setThemeState("system");
                         localStorage.setItem("theme", "system");
                     }
                 } catch (err) {
@@ -60,7 +75,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             } else {
                 // Not signed in, fall back to localStorage or system
                 const savedTheme = (localStorage.getItem("theme") as ThemeType) || "system";
-                setTheme(savedTheme);
+                setThemeState(savedTheme);
             }
             setAuthChecked(true); // <-- Set to true after auth check
         });
@@ -109,8 +124,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
     }, [theme]);
 
-    if (!authChecked) {
-        return <div>Loading...</div>; // Or your preferred loading UI
+    // Images stay where they are: no dragging them out (Firefox ignores the CSS rule) and no right-click menu on them
+    // ("Save image as", "Copy image"). The rest of the page keeps its normal right-click menu.
+    useEffect(() => {
+        const stop = (e: Event) => {
+            if (e.target instanceof HTMLImageElement) e.preventDefault();
+        };
+        document.addEventListener("dragstart", stop);
+        document.addEventListener("contextmenu", stop);
+        return () => {
+            document.removeEventListener("dragstart", stop);
+            document.removeEventListener("contextmenu", stop);
+        };
+    }, []);
+
+    if (!authChecked && !isPublic) {
+        // suppressHydrationWarning: browser extensions inject attributes (e.g. bis_skin_checked) into this div before hydration
+        return <PageLoader />;
     }
 
     return (

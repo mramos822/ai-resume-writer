@@ -17,7 +17,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            if (currentUser && currentUser.emailVerified) {
+            // guests (sessions from /start) have no email to verify; see the TODO in app/start/page.tsx
+            if (currentUser && (currentUser.emailVerified || currentUser.uid.startsWith("guest-"))) {
                 setUser(currentUser);
             } else {
                 setUser(null);

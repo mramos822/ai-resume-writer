@@ -22,6 +22,19 @@ jest.mock("@/components/guidedTour", () => ({
     default: () => <div data-testid="tour" />,
 }));
 
+jest.mock("@/components/onboarding", () => ({
+    __esModule: true,
+    default: () => <div data-testid="onboarding" />,
+}));
+
+jest.mock("@/context/authContext", () => ({
+    useAuth: () => ({ user: { uid: "u1" }, loading: false }),
+}));
+jest.mock("next/navigation", () => ({
+    useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+    usePathname: () => "/home",
+}));
+
 // Providers are exercised elsewhere; here they just pass children through
 jest.mock("@/context/toastContext", () => ({
     ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,

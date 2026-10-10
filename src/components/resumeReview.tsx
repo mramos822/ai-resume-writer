@@ -1,0 +1,591 @@
+"use client";
+
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertTriangle, Check, ChevronDown, Loader2, Pencil, RotateCcw, Sparkles, Undo2, Wand2 } from "lucide-react";
+import { useProfile } from "@/context/profileContext";
+import { useToast } from "@/context/toastContext";
+import { authFetch } from "@/lib/authFetch";
+import { Button } from "@/components/ui/button";
+import {
+  applyFixes,
+  reviewForTemplate,
+  scoreLabel,
+  snapshotFor,
+  type CriterionResult,
+  type ProfilePatch,
+  type ReviewFix,
+  type ReviewIssue,
+  type ReviewResult,
+} from "@/lib/resumeReview";
+
+const LOADING_MESSAGES = [
+  "Reading your resume…",
+  "Checking your summary and skills…",
+  "Looking at your bullet points…",
+  "Seeing what recruiters scan first…",
+  "Scoring it and writing your tips…",
+];
+
+const IMPACT_STRIPE: Record<ReviewIssue["impact"], string> = {
+  high: "bg-red-500",
+  medium: "bg-amber-500",
+  low: "bg-neutral-400 dark:bg-neutral-600",
+};
+const IMPACT_TEXT: Record<ReviewIssue["impact"], string> = {
+  high: "text-red-500",
+  medium: "text-amber-500",
+  low: "text-muted-foreground",
+};
+const IMPACT_LABEL: Record<ReviewIssue["impact"], string> = { high: "Big impact", medium: "Worth doing", low: "Nice to have" };
+
+/** Counts up to `value` so the score feels earned. */
+function useCountUp(value: number, ms = 1100) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / ms);
+      setN(Math.round(value * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, ms]);
+  return n;
+}
+
+function ScoreRing({ score }: { score: number }) {
+  const shown = useCountUp(score);
+  const r = 52;
+  const c = 2 * Math.PI * r;
+  const color = score >= 85 ? "#22c55e" : score >= 70 ? "#3b82f6" : score >= 50 ? "#f59e0b" : "#ef4444";
+  return (
+    <div className="relative h-32 w-32 shrink-0">
+      <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+        <circle cx="60" cy="60" r={r} fill="none" strokeWidth="10" className="stroke-border" />
+        <circle
+          cx="60"
+          cy="60"
+          r={r}
+          fill="none"
+          strokeWidth="10"
+          strokeLinecap="round"
+          stroke={color}
+          strokeDasharray={c}
+          strokeDashoffset={c - (c * score) / 100}
+          style={{ transition: "stroke-dashoffset 1.1s cubic-bezier(0.22,1,0.36,1)" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-4xl font-extrabold leading-none tabular-nums">{shown}</span>
+        <span className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground">out of 100</span>
+      </div>
+    </div>
+  );
+}
+
+/** Guidelines only the person can resolve (a fact nobody else knows): the button takes them to the form. */
+const NEEDS_YOU = new Set(["contact", "education", "experience", "dates", "gaps", "recentExperience"]);
+
+function FixPreview({ fix, jobLabel }: { fix: ReviewFix; jobLabel: string }) {
+  const box = "mt-2 rounded-lg border bg-muted/40 p-3 text-xs leading-relaxed";
+  if (fix.type === "removeJob") {
+    return (
+      <div className={box}>
+        <p className="mb-1 font-semibold text-muted-foreground">Remove this job</p>
+        <p className="line-through opacity-70">{jobLabel || "The oldest job"}</p>
+      </div>
+    );
+  }
+  if (fix.type === "removeJobs") {
+    return (
+      <div className={box}>
+        <p className="mb-1 font-semibold text-muted-foreground">Remove {fix.jobIds.length} old or unrelated job{fix.jobIds.length > 1 ? "s" : ""}</p>
+        <p className="opacity-70">Your 3 most recent jobs always stay.</p>
+      </div>
+    );
+  }
+  if (fix.type === "atsClean") {
+    return (
+      <div className={box}>
+        <p className="font-semibold text-muted-foreground">Remove the photo and skill ratings, and use the plain Classic look</p>
+      </div>
+    );
+  }
+  if (fix.type === "removeSkills") {
+    return (
+      <div className={box}>
+        <p className="mb-1.5 font-semibold text-muted-foreground">Remove these skills</p>
+        <ul className="flex flex-wrap gap-1.5">
+          {fix.skills.map((s) => (
+            <li key={s} className="rounded-md bg-accent px-2 py-0.5 line-through opacity-70">
+              {s}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (fix.type === "objective" || fix.type === "jobTitle") {
+    return (
+      <div className={box}>
+        <p className="mb-1 font-semibold text-muted-foreground">{fix.type === "objective" ? "New summary" : "New target job"}</p>
+        <p>{fix.text}</p>
+      </div>
+    );
+  }
+  if (fix.type === "bullets") {
+    return (
+      <div className={box}>
+        <p className="mb-1 font-semibold text-muted-foreground">Rewritten bullets{jobLabel ? ` for ${jobLabel}` : ""}</p>
+        <ul className="space-y-1">
+          {fix.bullets.map((b, i) => (
+            <li key={i}>• {b}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (fix.type === "sortJobs") {
+    return (
+      <div className={box}>
+        <p className="font-semibold text-muted-foreground">Put your jobs in order, newest first</p>
+      </div>
+    );
+  }
+  return (
+    <div className={box}>
+      <p className="mb-1.5 font-semibold text-muted-foreground">Skills to add</p>
+      <ul className="flex flex-wrap gap-1.5">
+        {fix.skills.map((s) => (
+          <li key={s} className="rounded-md bg-accent px-2 py-0.5">
+            {s}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** The menu of guidelines the score comes from: each one with its verdict and points, so the number is never a mystery. */
+function Breakdown({ criteria }: { criteria: CriterionResult[] }) {
+  const [open, setOpen] = useState(false);
+  if (criteria.length === 0) return null;
+  const mark = (v: CriterionResult["verdict"]) => (v === "pass" ? "✓" : v === "partial" ? "~" : "✗");
+  const tone = (v: CriterionResult["verdict"]) => (v === "pass" ? "text-green-500" : v === "partial" ? "text-amber-500" : "text-red-500");
+  return (
+    <div className="mt-4 rounded-xl border bg-card">
+      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold">
+        <span className="flex-1">How this score is calculated</span>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.ul
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            style={{ overflow: "hidden" }}
+            className="divide-y border-t text-sm"
+          >
+            {criteria.map((c) => (
+              <li key={c.id} className="flex items-start gap-3 px-4 py-2.5">
+                <span className={`w-4 shrink-0 text-center font-bold ${tone(c.verdict)}`}>{mark(c.verdict)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">{c.label}</span>
+                  <span className="block text-xs text-muted-foreground">{c.reason}</span>
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {Number.isInteger(c.earned) ? c.earned : c.earned.toFixed(1)}/{c.weight}
+                </span>
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * The AI looks at the saved profile, gives it a score, lists what to improve and can apply the fixes for the person.
+ * Fixes are written to the profile (so the preview next to this panel updates) and saved right away.
+ */
+// The last review is kept while the page stays open: opening "Customize" and coming back, or switching look, never asks
+// the AI again. Only "Check again" does.
+type Kept = {
+  profileId: string;
+  review: ReviewResult;
+  history: { ids: string[]; snap: ProfilePatch }[];
+  removedLabels: Record<string, string>;
+  previous?: { verdicts: { id: string; verdict: string }[]; applied: string[] };
+};
+let kept: Kept | null = null;
+/** Forget the kept review (the details were edited elsewhere, so a new one is needed). */
+export const forgetReview = () => {
+  kept = null;
+};
+
+export default function ResumeReview({
+  ready = true,
+  template = "classic",
+  onProfileChanged,
+  onTemplateChange,
+}: {
+  ready?: boolean;
+  template?: string;
+  onProfileChanged?: () => void;
+  onTemplateChange?: (id: string) => void;
+}) {
+  const {
+    activeProfile: profile,
+    activeProfileId,
+    saveChanges,
+    updateCareerObjective,
+    updateJobTitle,
+    updateSkills,
+    setJobHistory,
+    updatePhoto,
+    updateSkillLevels,
+  } = useProfile();
+
+  const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
+  const [review, setReview] = useState<ReviewResult | null>(null);
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState(0);
+  // each entry is one apply (a single fix or "fix all") with what it replaced, so it can be undone
+  const [history, setHistory] = useState<{ ids: string[]; snap: ProfilePatch }[]>([]);
+  const [saveTick, setSaveTick] = useState(0);
+  // names of removed jobs, kept so the card still says which job it was after the job is gone
+  const [removedLabels, setRemovedLabels] = useState<Record<string, string>>({});
+  const toast = useToast();
+
+  const saveRef = useRef(saveChanges);
+  saveRef.current = saveChanges;
+  useEffect(() => {
+    if (saveTick > 0) saveRef.current().catch(() => {});
+  }, [saveTick]);
+
+  // rotate the loading message
+  useEffect(() => {
+    if (phase !== "loading") return;
+    const t = setInterval(() => setMsg((m) => Math.min(m + 1, LOADING_MESSAGES.length - 1)), 2200);
+    return () => clearInterval(t);
+  }, [phase]);
+
+  // what the last review said and which fixes were applied since, so a re-check stays consistent
+  const previousRef = useRef<{ verdicts: { id: string; verdict: string }[]; applied: string[] } | undefined>(undefined);
+  const run = useCallback(async () => {
+    if (!activeProfileId) return;
+    setPhase("loading");
+    setMsg(0);
+    setHistory([]);
+    setError("");
+    try {
+      // the review reads the saved profile, so make sure what is on screen is saved first
+      await saveRef.current().catch(() => {});
+      const res = await authFetch("/api/review-resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: activeProfileId, template, previous: previousRef.current }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "We couldn't review your resume right now.");
+      setReview(data as ReviewResult);
+      previousRef.current = {
+        verdicts: ((data as ReviewResult).criteria ?? []).map((c) => ({ id: c.id, verdict: c.verdict })),
+        applied: [],
+      };
+      setPhase("ready");
+    } catch (err) {
+      setError((err as Error).message);
+      setPhase("error");
+    }
+  }, [activeProfileId, template]);
+
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || !activeProfileId || !ready) return;
+    started.current = true;
+    if (kept && kept.profileId === activeProfileId) {
+      // coming back (for example from "Customize"): show the same review, nothing is requested
+      setReview(reviewForTemplate(kept.review, profile, template ?? "classic"));
+      setHistory(kept.history);
+      setRemovedLabels(kept.removedLabels);
+      previousRef.current = kept.previous;
+      setPhase("ready");
+      return;
+    }
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProfileId, ready, run]);
+
+  // remember the review (with what was applied) for when this panel is shown again
+  useEffect(() => {
+    if (review && activeProfileId) kept = { profileId: activeProfileId, review, history, removedLabels, previous: previousRef.current };
+  }, [review, history, removedLabels, activeProfileId]);
+
+  // switching look: same review, only the "easy for ATS" guideline is re-measured (no request)
+  const lastTemplate = useRef(template);
+  useEffect(() => {
+    if (lastTemplate.current === template) return;
+    lastTemplate.current = template;
+    setReview((r) => (r ? reviewForTemplate(r, profile, template ?? "classic") : r));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template]);
+
+  const write = (patch: ProfilePatch) => {
+    if (patch.careerObjective !== undefined) updateCareerObjective(patch.careerObjective);
+    if (patch.jobTitle !== undefined) updateJobTitle(patch.jobTitle);
+    if (patch.skills !== undefined) updateSkills(patch.skills);
+    if (patch.jobHistory !== undefined) setJobHistory(patch.jobHistory);
+    if (patch.photo !== undefined) updatePhoto(patch.photo);
+    if (patch.skillLevels !== undefined) updateSkillLevels(patch.skillLevels);
+    onProfileChanged?.();
+    setSaveTick((t) => t + 1);
+  };
+
+  // issues the first review left without a ready-made fix: the AI writes it now, for that guideline only
+  const [working, setWorking] = useState<string[]>([]);
+  const resolveFix = async (issue: ReviewIssue): Promise<ReviewIssue> => {
+    if (issue.fix || !issue.criterionId) return issue;
+    await saveRef.current().catch(() => {});
+    const res = await authFetch("/api/review-resume/fix", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId: activeProfileId, template, criterionId: issue.criterionId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !Array.isArray(data.fixes) || data.fixes.length === 0) throw new Error(data.error || "I couldn't write that fix. Try again in a moment.");
+    return { ...issue, fixes: data.fixes as ReviewFix[], fix: data.fixes[0] as ReviewFix };
+  };
+  const apply = async (picked: ReviewIssue[]) => {
+    const pending = picked.filter((i) => !isApplied(i.id));
+    if (pending.length === 0) return;
+    let todo: ReviewIssue[] = [];
+    try {
+      setWorking((w) => [...w, ...pending.map((i) => i.id)]);
+      const settled = await Promise.allSettled(pending.map(resolveFix));
+      todo = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+      const failed = settled.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+      if (failed.length && todo.length === 0) throw failed[0].reason;
+    } catch (err) {
+      toast.error((err as Error).message || "We couldn't apply that. Please try again.");
+      return;
+    } finally {
+      setWorking((w) => w.filter((id) => !pending.some((i) => i.id === id)));
+    }
+    if (todo.length === 0) return;
+    try {
+      const patch = applyFixes(profile, todo.flatMap((i) => (i.fixes ?? [i.fix!])) as ReviewFix[]);
+      if (todo.some((i) => (i.fixes ?? [i.fix]).some((f) => f?.type === "atsClean"))) onTemplateChange?.("classic");
+      const labels: Record<string, string> = {};
+      for (const i of todo) if (i.fix?.type === "removeJob") labels[i.id] = jobLabel(i.fix.jobId);
+      setRemovedLabels((l) => ({ ...l, ...labels }));
+      setHistory((h) => [...h, { ids: todo.map((i) => i.id), snap: snapshotFor(profile, patch) }]);
+      if (previousRef.current) previousRef.current = { ...previousRef.current, applied: [...previousRef.current.applied, ...todo.map((i) => i.title)] };
+      write(patch);
+      toast.success(todo.length === 1 ? "Fix applied and saved." : `${todo.length} fixes applied and saved. Check your new score when you are ready.`);
+    } catch (err) {
+      console.error("Applying the fixes failed", err);
+      toast.error("We couldn't apply that. Please try again.");
+    }
+  };
+  const undo = (id: string) => {
+    const entry = history.find((h) => h.ids.includes(id));
+    if (!entry) return;
+    write(entry.snap);
+    setHistory((h) => h.filter((x) => x !== entry));
+  };
+  const isApplied = (id: string) => history.some((h) => h.ids.includes(id));
+
+  const fixable = (review?.issues ?? []).filter((i) => !isApplied(i.id) && (i.fix || !NEEDS_YOU.has(i.criterionId ?? "")));
+  // issues that only the person can resolve (a phone number...) take them to the form where it goes
+  const goTo = (criterionId: string) => {
+    const title =
+      criterionId === "contact" ? "Contact info and photo"
+      : ["role", "summaryLength", "summaryFit"].includes(criterionId) ? "Job you want and summary"
+      : criterionId.startsWith("skills") || criterionId.startsWith("keyword") ? "Skills"
+      : criterionId === "education" ? "Education"
+      : ["experience", "recentExperience", "gaps", "dates", "bulletsPerJob", "bulletLength", "numbers", "strongVerbs", "bulletsQuality"].includes(criterionId) ? "Professional experience"
+      : "More to add (optional)";
+    const el = document.querySelector(`[data-block="${title}"]`);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const jobLabel = (jobId: string) => {
+    const j = profile.jobHistory?.find((x) => x.id === jobId);
+    return j ? [j.title, j.company].filter(Boolean).join(" · ") : "";
+  };
+
+  return (
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-500">AI resume review</p>
+          <h1 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl">How strong is your resume?</h1>
+        </div>
+        {/* the main action of this panel, always at the top */}
+        <Button
+          onClick={run}
+          disabled={phase === "loading"}
+          className="h-12 gap-2.5 bg-blue-600 px-6 text-base font-bold shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/35"
+        >
+          <RotateCcw className={`h-5 w-5 ${phase === "loading" ? "animate-spin" : ""}`} />
+          {phase === "loading" ? "Checking…" : history.length > 0 ? "Check my new score" : "Check again"}
+        </Button>
+      </div>
+
+      <AnimatePresence mode="wait" initial={false}>
+        {phase === "loading" && (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="mt-6 rounded-lg border bg-card p-6"
+          >
+            <div className="flex items-center gap-5">
+              <div className="relative flex h-24 w-24 shrink-0 items-center justify-center">
+                <span className="absolute inset-0 animate-ping rounded-full bg-blue-500/15" />
+                <span className="absolute inset-2 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin" />
+                <Sparkles className="h-7 w-7 text-blue-500" />
+              </div>
+              <div className="min-w-0">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={msg}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25 }}
+                    className="text-lg font-semibold"
+                  >
+                    {LOADING_MESSAGES[msg]}
+                  </motion.p>
+                </AnimatePresence>
+                <p className="mt-1 text-sm text-muted-foreground">This takes a few seconds. We read your saved resume and look for what to improve.</p>
+              </div>
+            </div>
+            <div className="mt-6 space-y-3">
+              {[90, 75, 82, 60].map((w, i) => (
+                <div key={i} className="shimmer h-3 rounded bg-muted" style={{ width: `${w}%` }} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {phase === "error" && (
+          <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6 rounded-lg border border-red-500/30 bg-red-500/5 p-6">
+            <p className="flex items-center gap-2 font-semibold text-red-500">
+              <AlertTriangle className="h-5 w-5" /> We couldn&apos;t review it
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+            <Button onClick={run} variant="outline" className="mt-4 gap-2">
+              <RotateCcw className="h-4 w-4" /> Try again
+            </Button>
+          </motion.div>
+        )}
+
+        {phase === "ready" && review && (
+          <motion.div key="ready" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6">
+            <div className="flex flex-wrap items-center gap-x-10 gap-y-5 rounded-lg border bg-card p-6">
+              <ScoreRing score={review.score} />
+              <div className="min-w-0 flex-1 basis-60">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Your level</p>
+                <p className="mt-1 text-2xl font-extrabold">{scoreLabel(review.score)}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{review.headline}</p>
+                {review.strengths.length > 0 && (
+                  <ul className="mt-4 space-y-1.5 border-t pt-4">
+                    {review.strengths.map((st) => (
+                      <li key={st} className="flex items-start gap-2.5 text-sm">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" strokeWidth={3} /> {st}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {review.target && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                {review.target.kind === "job"
+                  ? `Judged against the requirements of this job: ${review.target.role}.`
+                  : `Judged against a general ${review.target.role || review.target.field} resume. When you apply to a specific job, its requirements will be used instead.`}
+              </p>
+            )}
+
+            <Breakdown criteria={review.criteria ?? []} />
+
+            {review.source === "basic" && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                The AI is busy right now, so this is a quick automatic check. Try again in a moment for personalized tips.
+              </p>
+            )}
+
+            <div className="mb-3 mt-8 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-extrabold">
+                {review.issues.length === 0 ? "Nothing to fix. Nice work." : `${review.issues.length} thing${review.issues.length > 1 ? "s" : ""} to improve`}
+              </h2>
+              {fixable.length > 0 && (
+                <Button onClick={() => apply(fixable)} variant="outline" className="h-10 gap-2 border-2 border-blue-600 px-4 font-bold text-blue-600 hover:bg-blue-600 hover:text-white">
+                  <Wand2 className="h-4 w-4" /> Fix all ({fixable.length})
+                </Button>
+              )}
+            </div>
+
+            {review.issues.length > 0 && (
+              <ul className="divide-y overflow-hidden rounded-lg border bg-card">
+                {review.issues.map((issue) => {
+                  const done = isApplied(issue.id);
+                  return (
+                    <motion.li key={issue.id} layout="position" className={`relative py-4 pl-6 pr-4 transition-colors ${done ? "bg-green-500/5" : ""}`}>
+                      <span className={`absolute inset-y-0 left-0 w-1.5 ${done ? "bg-green-500" : IMPACT_STRIPE[issue.impact]}`} aria-hidden />
+                      <div className="flex items-start gap-4">
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-[11px] font-bold uppercase tracking-[0.14em] ${done ? "text-green-500" : IMPACT_TEXT[issue.impact]}`}>
+                            {done ? "Done" : IMPACT_LABEL[issue.impact]}
+                          </p>
+                          <p className="mt-0.5 font-bold leading-snug">{issue.title}</p>
+                          {issue.detail && <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{issue.detail}</p>}
+                          {issue.fix && <FixPreview fix={issue.fix} jobLabel={issue.fix.type === "bullets" || issue.fix.type === "removeJob" ? removedLabels[issue.id] || jobLabel(issue.fix.jobId) : ""} />}
+                        </div>
+                        {done ? (
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            <span className="inline-flex items-center gap-1 text-sm font-semibold text-green-500">
+                              <Check className="h-4 w-4" /> Applied
+                            </span>
+                            <button onClick={() => undo(issue.id)} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                              <Undo2 className="h-3 w-3" /> Undo
+                            </button>
+                          </div>
+                        ) : !issue.fix && NEEDS_YOU.has(issue.criterionId ?? "") ? (
+                          <Button size="sm" variant="outline" onClick={() => goTo(issue.criterionId ?? "")} className="shrink-0 gap-1.5">
+                            <Pencil className="h-3.5 w-3.5" /> Add it
+                          </Button>
+                        ) : (
+                          <Button size="sm" onClick={() => apply([issue])} disabled={working.includes(issue.id)} className="shrink-0 gap-1.5">
+                            {working.includes(issue.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                            {working.includes(issue.id) ? "Writing…" : "Fix it for me"}
+                          </Button>
+                        )}
+                      </div>
+                    </motion.li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {history.length > 0 && (
+              <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Check className="h-3.5 w-3.5 text-green-500" /> Changes are saved. Press &quot;Check my new score&quot; at the top when you are ready.
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

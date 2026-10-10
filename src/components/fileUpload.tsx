@@ -66,6 +66,9 @@ const FileUpload: React.FC = () => {
           type: string;
         };
 
+        // tell the uploads list, so the file is read into the profile right away (no Parse button needed)
+        window.dispatchEvent(new CustomEvent("kaizo:file-uploaded", { detail: { fileId } }));
+
         // record upload in Firestore
         await addDoc(
           collection(db, "users", user.uid, "uploadedFiles"),

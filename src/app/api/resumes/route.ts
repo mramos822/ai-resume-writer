@@ -80,6 +80,8 @@ export async function DELETE(req: NextRequest) {
     const uid = await authUid(req);
     await assertResumeOwner(uid, fileId);
     await bucket.delete(new ObjectId(fileId));
+    // an application that used this file must not keep pointing at it
+    await db.collection('applications').updateMany({ userId: uid, fileId }, { $set: { fileId: null } });
 
     return NextResponse.json({ message: 'Resume deleted successfully' }, { status: 200 });
   } catch (error) {

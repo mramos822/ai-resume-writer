@@ -1,5 +1,6 @@
 // src/app/api/profiles/[id]/parse/route.ts
 
+import { limited } from "@/lib/rateLimit";
 import fs from "fs";
 import { NextResponse } from "next/server";
 import admin from "firebase-admin";
@@ -8,6 +9,7 @@ import { db, bucket } from "@/lib/mongodb";
 import mammoth from "mammoth";
 import type { ProfileData } from "@/context/profileContext";
 import { getChatCompletion, MODEL } from "@/lib/openai";
+import { cleanParsedProfile } from "@/lib/parseCleanup";
 
 // === Stub out pdf-parse's test-data loader ===
 const originalReadFileSync = fs.readFileSync;
@@ -58,6 +60,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const tooMany = limited(request, "ai", 40, 10 * 60 * 1000);
+  if (tooMany) return tooMany;
   const { id: profileId } = await params;
 
   // 1) Auth
@@ -126,11 +130,24 @@ interface ProfileData {
   contactInfo: { email: string; phone: string; address: string; additionalEmails?: string[]; additionalPhones?: string[] };
   careerObjective: string;
   skills: string[];
-  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
-  education: { school: string; degree: string; startDate: string; endDate: string; current: boolean; gpa?: string }[];
-  internships: { company: string; title: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
+  jobHistory: { company: string; title: string; location: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
+  education: { school: string; degree: string; location: string; startDate: string; endDate: string; current: boolean; gpa?: string; honors?: string; coursework?: string }[];
+  internships: { company: string; title: string; location: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
   projects: { name: string; description: string; link?: string; technologies: string[]; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
+  languages: { name: string; level: "Native" | "Fluent" | "Advanced" | "Intermediate" | "Basic" }[];
+  links: { label: string; url: string }[];
+  certifications: { name: string; issuer: string; year: string }[];
 }
+
+Field rules (important, follow exactly):
+- "title" is ONLY the role or position (e.g. "Barista"). "company" is ONLY the employer name (e.g. "Starbucks"). Never combine them in one field.
+- "location" is ONLY the city and state or country of that job or school (e.g. "Newark, NJ" or "Remote"). Put it in "location", NEVER inside "company", "school", "description" or "accomplishments". Use "" when the resume does not give one.
+- "accomplishments" holds ONLY what the person did or achieved: one short sentence per bullet point written in the resume. NEVER put the job title, the company, the location, the dates or a heading into "accomplishments". If a job has no bullet points, use [].
+- "school" is ONLY the name of the institution, without city, state or address ("New Jersey Institute of Technology", not "New Jersey Institute of Technology, Newark, NJ"). The place goes in "location".
+- "degree" is the degree and major (e.g. "B.S. Computer Science"). Put GPA in "gpa", honors like Dean's List in "honors", and listed relevant classes in "coursework" (comma separated). Use "" when absent.
+- "languages" are spoken languages only (not programming languages); map the level to Native, Fluent, Advanced, Intermediate or Basic.
+- "links" are LinkedIn, GitHub, portfolio or website URLs found on the resume, with a short label.
+- "certifications" are certifications, licenses and awards.
 
 Sorting rules (important):
 - "internships" is ONLY for formal internships, co-ops or traineeships done at a company or organization.
@@ -163,7 +180,8 @@ Output only the JSON, no explanation.
     const cleanedRaw = raw.replace(/^```json\s*|^```\s*|```$/gm, "").trim();
     const match = cleanedRaw.match(/\{[\s\S]*\}$/);
     if (!match) throw new Error("Invalid JSON from parser");
-    parsed = JSON.parse(match[0]) as Partial<ProfileData>;
+    // the AI sometimes still puts a place or the role in the bullets, or glues an address onto a name: fix that for sure
+    parsed = cleanParsedProfile(JSON.parse(match[0]) as Partial<ProfileData>);
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },
@@ -186,16 +204,20 @@ Output only the JSON, no explanation.
     })),
   } as Partial<ProfileData>;
 
-  // 8) Save to Mongo
+  // 8) Save to Mongo (keep the photo, which the resume text can't contain)
+  const previous = await db
+    .collection("profiles")
+    .findOne<{ data?: { photo?: string } }>({ _id: new ObjectId(profileId), userId: decoded.uid });
+  if (previous?.data?.photo) parsed = { ...parsed, photo: previous.data.photo };
   const update: Record<string, unknown> = { data: parsed, updatedAt: new Date() };
   // Use the name from the resume, unless the user already renamed the profile
-  // (i.e. only replace auto-generated names like "Profile 1")
+  // (i.e. only replace auto-generated names like "Profile 2" or the sample "John Doe")
   const cvName = typeof parsed.name === "string" ? parsed.name.trim() : "";
   if (cvName) {
     const existing = await db
       .collection("profiles")
       .findOne<{ name?: string }>({ _id: new ObjectId(profileId), userId: decoded.uid });
-    if (!existing?.name || /^Profile \d+$/.test(existing.name)) {
+    if (!existing?.name || /^(Profile \d+|John Doe)$/.test(existing.name)) {
       update.name = cvName;
     }
   }

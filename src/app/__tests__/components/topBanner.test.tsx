@@ -32,6 +32,9 @@ jest.mock("@/context/authContext", () => ({
 // The guided tour opener is just a function; the real one dispatches a window event
 jest.mock("@/components/guidedTour", () => ({ openTour: jest.fn() }));
 
+// the day / night switch needs the app's theme provider, which is exercised elsewhere
+jest.mock("@/components/themeSwitch", () => ({ __esModule: true, default: () => <div data-testid="theme-toggle" /> }));
+
 describe("TopBanner", () => {
     beforeEach(() => {
         mockUser = { displayName: "Jane Doe", email: "jane@example.com" };
@@ -44,7 +47,7 @@ describe("TopBanner", () => {
 
     it("has a quick 'New resume' shortcut", () => {
         render(<TopBanner toggleSidePanel={() => {}} />);
-        expect(screen.getByRole("link", { name: /new resume/i })).toHaveAttribute("href", "/home/job-ads");
+        expect(screen.getByRole("link", { name: /new resume/i })).toHaveAttribute("href", "/home/resumes/new");
     });
 
     it("calls toggleSidePanel when the menu button is clicked", () => {
