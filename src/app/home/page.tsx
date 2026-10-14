@@ -269,16 +269,17 @@ export default function HomePage() {
         <p className="mt-2 text-base text-muted-foreground sm:mt-3 sm:text-lg">{tr("What do you want to do today?")}</p>
 
         {/* the goal: three paths, the first one is the main one */}
-        <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-y-2">
+        <div className="no-scrollbar -mx-4 mt-5 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pb-1 text-left sm:mx-0 sm:mt-6 sm:flex-wrap sm:items-center sm:justify-center sm:gap-y-2 sm:overflow-visible sm:px-0 sm:pb-0 sm:text-center">
           {GOALS.map((g, i) => (
             <React.Fragment key={g.id}>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.currentTarget.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
                   setDir(GOALS.findIndex((x) => x.id === g.id) >= GOALS.findIndex((x) => x.id === goal) ? 1 : -1);
                   setGoal(g.id);
                 }}
                 aria-pressed={goal === g.id}
-                className={`relative inline-flex items-center justify-center gap-2 rounded-2xl border px-2 py-3 text-center text-xs font-semibold leading-tight transition-colors duration-300 sm:rounded-full sm:px-5 sm:py-2.5 sm:text-[15px] ${
+                className={`relative inline-flex w-[42%] shrink-0 snap-start items-center justify-center gap-2 rounded-2xl border px-3 py-4 text-center text-sm font-semibold leading-tight transition-colors duration-300 sm:w-auto sm:rounded-full sm:px-5 sm:py-2.5 sm:text-[15px] ${
                   goal === g.id ? "border-transparent text-blue-500" : "bg-card text-muted-foreground hover:border-blue-500/40 hover:text-foreground"
                 }`}
               >
@@ -297,20 +298,20 @@ export default function HomePage() {
       {/* ---------- progress and what comes next ---------- */}
       <div className="mt-6 grid items-stretch gap-4 sm:mt-9 sm:gap-5 md:grid-cols-[21rem_1fr]">
         <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="rounded-2xl border bg-card p-3 shadow-sm sm:p-5 max-md:order-last">
-          <p className="mb-2 text-center text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{tr("Your progress")}</p>
-          <ul className="grid grid-cols-2 gap-1 md:block">
+          <p className="mb-2 hidden text-center text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground md:block">{tr("Your progress")}</p>
+          <ul className="grid grid-cols-4 gap-1 md:block">
             {progressRows.map((r) => (
               <li key={r.label}>
-                <Link href={r.href} className="group flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors hover:bg-accent/50 sm:gap-3.5 sm:py-2.5">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600 sm:h-10 sm:w-10">
+                <Link href={r.href} className="group flex flex-col items-center gap-1 rounded-xl px-1 py-1 text-center transition-colors hover:bg-accent/50 md:flex-row md:gap-3.5 md:px-2 md:py-2.5 md:text-left">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600 md:h-10 md:w-10">
                     <r.icon className="h-5 w-5" />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between">
-                      <span className="text-[15px] font-medium">{tr(r.label)}</span>
-                      <span className="text-sm font-bold tabular-nums">{r.value}</span>
+                  <span className="min-w-0 md:flex-1">
+                    <span className="flex flex-col-reverse items-center md:flex-row md:items-baseline md:justify-between">
+                      <span className="truncate text-[11px] font-medium text-muted-foreground md:text-[15px] md:text-foreground">{tr(r.label)}</span>
+                      <span className="text-base font-bold tabular-nums md:text-sm">{r.value}</span>
                     </span>
-                    <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
+                    <span className="mt-1.5 hidden h-1 overflow-hidden rounded-full bg-border md:block">
                       <span className="block h-full rounded-full bg-blue-500 transition-[width] duration-700" style={{ width: `${r.pct}%` }} />
                     </span>
                   </span>
@@ -323,18 +324,18 @@ export default function HomePage() {
         {!panel ? (
           <div className="shimmer rounded-3xl bg-muted" aria-hidden />
         ) : (
-        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`relative flex items-center overflow-hidden rounded-3xl bg-gradient-to-br p-5 sm:p-8 ${panel.tone}`}>
-          <div className="relative z-10 max-w-sm">
-            <h2 className="text-xl font-extrabold leading-tight sm:text-2xl">{tr(panel.title)}</h2>
-            <p className="mt-2 leading-relaxed text-foreground/70">{tr(panel.text)}</p>
+        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`relative flex items-center overflow-hidden rounded-3xl bg-gradient-to-br p-4 sm:p-8 ${panel.tone}`}>
+          <div className="relative z-10 w-full max-w-sm">
+            <h2 className="text-lg font-extrabold leading-tight sm:text-2xl">{tr(panel.title)}</h2>
+            <p className="mt-2 hidden leading-relaxed text-foreground/70 sm:block">{tr(panel.text)}</p>
             {panel.href ? (
-              <Button asChild className="mt-4 h-12 w-full justify-between gap-6 rounded-xl bg-background px-5 text-base font-semibold text-foreground shadow-md hover:bg-background/90 sm:w-auto">
+              <Button asChild className="mt-3 h-11 w-full justify-between gap-6 sm:mt-6 sm:h-12 rounded-xl bg-background px-5 text-base font-semibold text-foreground shadow-md hover:bg-background/90 sm:w-auto">
                 <Link href={panel.href}>
                   {panel.cta} <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
             ) : (
-              <Button onClick={() => setGoal(panel.goal ?? "resumes")} className="mt-4 h-12 w-full justify-between gap-6 rounded-xl bg-background px-5 text-base font-semibold text-foreground shadow-md hover:bg-background/90 sm:w-auto">
+              <Button onClick={() => setGoal(panel.goal ?? "resumes")} className="mt-3 h-11 w-full justify-between gap-6 sm:mt-6 sm:h-12 rounded-xl bg-background px-5 text-base font-semibold text-foreground shadow-md hover:bg-background/90 sm:w-auto">
                 {panel.cta} <ArrowRight className="h-4 w-4" />
               </Button>
             )}
