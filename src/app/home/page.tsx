@@ -20,12 +20,10 @@ import { aboveLevel } from "@/lib/jobLevel";
 import { ago, skillsForFit } from "@/lib/jobFit";
 import { jobScore, profileBasics } from "@/lib/jobScore";
 import { yearsFor } from "@/lib/experienceLevel";
-import { previewFromProfile } from "@/lib/previewData";
 import type { JobListing } from "@/lib/jobSearch";
 import CompanyLogo from "@/components/companyLogo";
 import JobDetail from "@/components/jobDetail";
 import ApplicationKit, { type Application } from "@/components/applicationKit";
-import LivePreview from "@/components/livePreview";
 import FileUpload from "@/components/fileUpload";
 import LinkedInImport from "@/components/linkedinImport";
 import BiographyForm from "@/components/biographyForm";
@@ -103,7 +101,7 @@ function Illustration() {
 }
 
 export default function HomePage() {
-  const { tr, locale: uiLocale } = useT();
+  const { tr } = useT();
   const { user, loading } = useAuth();
   const router = useRouter();
   const toast = useToast();
@@ -186,8 +184,6 @@ export default function HomePage() {
       toast.error(tr("We couldn't update your saved jobs. Try again."));
     }
   };
-
-  const previewData = useMemo(() => previewFromProfile(profile, uiLocale === "es" ? "es" : "en"), [profile, uiLocale]);
 
   if (loading || profiles.length === 0) {
     return (
@@ -401,7 +397,8 @@ export default function HomePage() {
                     return (
                       <article key={r.id} className="flex gap-4 sm:gap-6">
                         <button onClick={() => setPreviewId(r.id)} className="w-28 shrink-0 self-start overflow-hidden rounded-md shadow-md sm:w-[10.5rem] ring-1 ring-black/10 transition-transform duration-300 hover:-translate-y-1 hover:shadow-xl" aria-label={tr("Open this resume")}>
-                          <LivePreview d={previewData} template={tpl} active={null} inline bare />
+                          {/* the sample sheet of the look: nothing to draw, so the dashboard opens at once (the real resume opens when you click it) */}
+                          <img src={`/templates/${tpl}.png`} alt="" width={802} height={1135} loading="lazy" decoding="async" className="block h-auto w-full bg-white" />
                         </button>
                         <div className="min-w-0 flex-1">
                           <h3 className="truncate text-base font-bold sm:text-xl">{r.filename.replace(/\.pdf$/i, "").replace(/_/g, " ")}</h3>
