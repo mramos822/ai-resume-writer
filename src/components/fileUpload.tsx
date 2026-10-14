@@ -125,19 +125,22 @@ const FileUpload: React.FC = () => {
           <motion.div key="box" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+            className={`cursor-pointer rounded-2xl border-2 border-dashed transition-all ${
               isDragActive
-                ? "border-blue-400 bg-card"
-                : "border-border hover:border-blue-500 hover:bg-muted"
+                ? "border-blue-400 bg-blue-600/10"
+                : "border-border bg-card/40 hover:border-blue-500 hover:bg-blue-600/5"
             }`}
           >
             <input {...getInputProps()} />
-            <motion.div className="p-8 text-center">
-              <Upload className={`h-12 w-12 mb-4 mx-auto ${isDragActive ? "text-blue-600" : "text-muted-foreground"}`} />
-              <h3 className="text-lg font-semibold text-foreground mb-2">
+            <motion.div className="flex flex-col items-center px-4 py-6 text-center sm:p-10">
+              <span className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full sm:h-14 sm:w-14 ${isDragActive ? "bg-blue-600 text-white" : "bg-blue-600/10 text-blue-500"}`}>
+                <Upload className="h-6 w-6" />
+              </span>
+              <h3 className="mb-1 text-base font-semibold text-foreground sm:text-lg">
                 {isDragActive ? tr("Drop files here") : tr("Upload your documents")}
               </h3>
-              <p className="text-muted-foreground mb-4">{tr("Drag & drop PDF, DOCX, TXT, or MD (max 10 MB)")}</p>
+              <p className="hidden text-sm text-muted-foreground sm:block">{tr("Drag & drop PDF, DOCX, TXT, or MD (max 10 MB)")}</p>
+              <p className="text-sm text-muted-foreground sm:hidden">{tr("Tap to choose a file. PDF, DOCX, TXT or MD (max 10 MB).")}</p>
             </motion.div>
           </div>
           </motion.div>

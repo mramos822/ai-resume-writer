@@ -516,30 +516,31 @@ export default function HomePage() {
 
           {goal === "import" && (
             <motion.section key="import" id="import" custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="mx-auto max-w-3xl">
-              <h2 className="text-2xl font-extrabold">{tr("Tell Kaizo about you")}</h2>
-              <p className="mb-5 mt-1 text-muted-foreground">{tr("Bring in an old resume, or just write about yourself. Either way your profile fills itself.")}</p>
-              <div role="tablist" className="mb-6 inline-flex rounded-full border bg-card p-1 shadow-sm">
+              <h2 className="text-xl font-extrabold sm:text-2xl">{tr("Tell Kaizo about you")}</h2>
+              <p className="mb-4 mt-1 text-sm text-muted-foreground sm:mb-5 sm:text-base">{tr("Bring in an old resume, or just write about yourself. Either way your profile fills itself.")}</p>
+              <div role="tablist" className="mb-5 grid grid-cols-3 gap-2.5 sm:mb-6 sm:max-w-xl">
                 {[
                   { id: "upload" as const, label: "Upload a file", icon: UploadCloud },
-                  { id: "linkedin" as const, label: "From LinkedIn", icon: Linkedin },
-                  { id: "write" as const, label: "Write about yourself", icon: Pen },
+                  { id: "linkedin" as const, label: "LinkedIn", icon: Linkedin },
+                  { id: "write" as const, label: "Write", icon: Pen },
                 ].map((t) => (
                   <button
                     key={t.id}
                     role="tab"
                     aria-selected={way === t.id}
                     onClick={() => setWay(t.id)}
-                    className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition-all ${way === t.id ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground hover:text-foreground"}`}
+                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-[13px] font-semibold leading-tight transition-colors sm:flex-row sm:gap-2 sm:px-4 sm:text-sm ${way === t.id ? "border-blue-500 bg-blue-600/10 text-blue-500" : "bg-card text-muted-foreground hover:border-blue-500/40 hover:text-foreground"}`}
                   >
-                    <t.icon className="h-4 w-4" /> {tr(t.label)}
+                    <t.icon className="h-5 w-5 sm:h-4 sm:w-4" /> {tr(t.label)}
                   </button>
                 ))}
               </div>
               {way === "upload" ? (
                 <>
                   <FileUpload />
-                  <h3 className="mb-3 mt-10 text-lg font-extrabold">{tr("Files you imported")}</h3>
-                  <UploadedItems />
+                  <div className="mt-8 sm:mt-10">
+                    <UploadedItems />
+                  </div>
                 </>
               ) : way === "linkedin" ? (
                 <LinkedInImport />

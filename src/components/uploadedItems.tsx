@@ -131,26 +131,21 @@ function SortableTile(props: {
         {...listeners}
         onClick={() => onClick(it)}
         style={style}
-        className="flex items-center justify-between p-2.5 bg-card rounded hover:bg-muted cursor-pointer"
+        className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-3 transition-colors hover:bg-muted"
       >
-        <div {...attributes} {...listeners} className="p-1 cursor-grab hover:text-blue-400">
+        <div {...attributes} {...listeners} className="hidden cursor-grab p-1 hover:text-blue-400 sm:block">
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
-        <div className="flex items-center space-x-2 flex-1 min-w-0">
-          {it.type.startsWith("text/") ? (
-            <FileText className="h-5 w-5 text-foreground flex-shrink-0" />
-          ) : (
-            <FileIcon className="h-5 w-5 text-foreground flex-shrink-0" />
-          )}
-          <span className="text-foreground truncate">{it.filename}</span>
-          <span className="ml-2 text-xs uppercase bg-muted text-muted-foreground px-1 rounded truncate">
-            {getTypeLabel(it.type, it.filename)}
-          </span>
-        </div>
-        <span className="ml-4 text-sm text-muted-foreground whitespace-nowrap flex-shrink-0">
-          {fmt(it.createdAt)}
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600/10 text-blue-500">
+          {it.type.startsWith("text/") ? <FileText className="h-5 w-5" /> : <FileIcon className="h-5 w-5" />}
         </span>
-        <div className="ml-4 flex items-center space-x-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-foreground">{it.filename}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            <span className="uppercase">{getTypeLabel(it.type, it.filename)}</span> · {fmt(it.createdAt)}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
           {parseBtn}
           {deleteBtn}
         </div>
@@ -396,9 +391,9 @@ export default function UploadedItems() {
   return (
     <div>
       {/* header + toggle */}
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="text-lg font-semibold text-foreground">{tr("Your Uploads")}</h4>
-        <div className="flex space-x-2">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-base font-bold text-foreground sm:text-lg">{tr("Your Uploads")}</h4>
+        <div className="hidden space-x-2 sm:flex">
           <Button variant="ghost" size="icon" onClick={() => setViewMode("list")}>
             <List className={`h-5 w-5 ${viewMode === "list" ? "text-blue-600" : "text-muted-foreground"}`} />
           </Button>
@@ -409,7 +404,7 @@ export default function UploadedItems() {
       </div>
 
       {/* SORT BAR */}
-      <div className="flex items-center space-x-2 mb-4">
+      <div className="mb-4 hidden items-center space-x-2 sm:flex">
         <span className="text-sm text-muted-foreground">{tr("Sort by:")}</span>
         <select
           value={sortBy}

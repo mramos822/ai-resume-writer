@@ -401,4 +401,6 @@ export const PART5: Record<string, string> = {
   "Based on your target job.": "Según el empleo que buscas.",
   "Change it": "Cámbialo",
   "Remove from favorites": "Quitar de favoritos",
+  "Write": "Escribir",
+  "Tap to choose a file. PDF, DOCX, TXT or MD (max 10 MB).": "Toca para elegir un archivo. PDF, DOCX, TXT o MD (máx. 10 MB).",
 };
