@@ -219,6 +219,9 @@ export default function HomePage() {
     ? { tone: "from-emerald-100 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/20", title: tr("Profile complete!"), text: tr("Nice work. Pick a look and your first resume is ready in a minute."), cta: tr("Make my first resume"), href: "/home/resumes/new" }
     : { tone: "from-emerald-100 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/20", title: tr("Resume ready!"), text: tr("Your profile is complete. Try a new look, or tailor a resume to a job you like."), cta: tr("Make another resume"), href: "/home/resumes/new" };
 
+  // on a phone the "all done" message only repeats the resume list below, so it is hidden there; the ones that ask for a step stay
+  const allDone = !empty && !progress.next && nResumes > 0;
+
   const progressRows = [
     { icon: User, label: "Profile", value: `${progress.percent}%`, pct: progress.percent, href: "/home/profile" },
     { icon: FileText, label: "Resumes", value: String(nResumes), pct: Math.min(100, nResumes * 34), href: "/home/resumes" },
@@ -269,17 +272,16 @@ export default function HomePage() {
         <p className="mt-2 text-base text-muted-foreground sm:mt-3 sm:text-lg">{tr("What do you want to do today?")}</p>
 
         {/* the goal: three paths, the first one is the main one */}
-        <div className="no-scrollbar -mx-4 mt-5 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pb-1 text-left sm:mx-0 sm:mt-6 sm:flex-wrap sm:items-center sm:justify-center sm:gap-y-2 sm:overflow-visible sm:px-0 sm:pb-0 sm:text-center">
+        <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-y-2">
           {GOALS.map((g, i) => (
             <React.Fragment key={g.id}>
               <button
-                onClick={(e) => {
-                  e.currentTarget.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+                onClick={() => {
                   setDir(GOALS.findIndex((x) => x.id === g.id) >= GOALS.findIndex((x) => x.id === goal) ? 1 : -1);
                   setGoal(g.id);
                 }}
                 aria-pressed={goal === g.id}
-                className={`relative inline-flex w-[42%] shrink-0 snap-start items-center justify-center gap-2 rounded-2xl border px-3 py-4 text-center text-sm font-semibold leading-tight transition-colors duration-300 sm:w-auto sm:rounded-full sm:px-5 sm:py-2.5 sm:text-[15px] ${
+                className={`relative inline-flex items-center justify-center gap-2 rounded-2xl border px-2 py-3 text-center text-xs font-semibold leading-tight transition-colors duration-300 sm:rounded-full sm:px-5 sm:py-2.5 sm:text-[15px] ${
                   goal === g.id ? "border-transparent text-blue-500" : "bg-card text-muted-foreground hover:border-blue-500/40 hover:text-foreground"
                 }`}
               >
@@ -324,7 +326,7 @@ export default function HomePage() {
         {!panel ? (
           <div className="shimmer rounded-3xl bg-muted" aria-hidden />
         ) : (
-        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`relative flex items-center overflow-hidden rounded-3xl bg-gradient-to-br p-4 sm:p-8 ${panel.tone}`}>
+        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`relative flex items-center overflow-hidden rounded-3xl bg-gradient-to-br p-4 sm:p-8 ${allDone ? "max-md:hidden " : ""}${panel.tone}`}>
           <div className="relative z-10 w-full max-w-sm">
             <h2 className="text-lg font-extrabold leading-tight sm:text-2xl">{tr(panel.title)}</h2>
             <p className="mt-2 hidden leading-relaxed text-foreground/70 sm:block">{tr(panel.text)}</p>
