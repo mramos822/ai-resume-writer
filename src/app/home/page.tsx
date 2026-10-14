@@ -421,7 +421,7 @@ export default function HomePage() {
                 </p>
               </div>
               {picks === null ? (
-                <div className="grid gap-4 md:grid-cols-2" aria-busy>
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2" aria-busy>
                   {[0, 1, 2, 3].map((i) => (
                     <div key={i} className="shimmer h-28 rounded-xl bg-muted" />
                   ))}
@@ -434,20 +434,19 @@ export default function HomePage() {
                   </Link>
                 </p>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
                   {picks.filter(({ job }) => { const st = (apps ?? []).find((a) => a.job.key === job.key)?.status; return !st || st === "prepared"; }).map(({ job, pct }) => ( // jobs already applied to are not suggested
-                    <button key={job.key} type="button" onClick={() => setDetailJob(job)} className="group flex gap-3 rounded-xl border bg-card p-4 text-left sm:gap-4 sm:p-5 transition-all hover:-translate-y-0.5 hover:shadow-md">
-                      <CompanyLogo company={job.company} logo={job.logo} size={52} />
+                    <button key={job.key} type="button" onClick={() => setDetailJob(job)} className="group flex items-start gap-3 rounded-2xl border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md sm:gap-4 sm:p-5">
+                      <CompanyLogo company={job.company} logo={job.logo} size={46} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-lg font-bold group-hover:text-blue-500">{tr(job.title)}</span>
-                        <span className="block truncate text-foreground/80">
-                          {job.company} · {job.remote ? tr("Remote") : job.location || "—"}
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="line-clamp-2 text-base font-bold leading-snug group-hover:text-blue-500 sm:text-lg">{tr(job.title)}</span>
+                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 70 ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"}`}>
+                            <Sparkles className="h-3 w-3" /> {pct}{tr("% fit")}</span>
                         </span>
-                        <span className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
-                          {job.postedAt && <span>{tr("Posted")}{" "}{ago(job.postedAt, tr).toLowerCase()}</span>}
-                          <span className={`inline-flex items-center gap-1 font-bold ${pct >= 70 ? "text-green-500" : "text-amber-500"}`}>
-                            <Sparkles className="h-3.5 w-3.5" /> {pct}{tr("% fit")}</span>
-                        </span>
+                        <span className="mt-0.5 block truncate text-sm text-foreground/80 sm:text-base">{job.company}</span>
+                        <span className="block truncate text-sm text-muted-foreground">{job.remote ? tr("Remote") : job.location || "—"}</span>
+                        {job.postedAt && <span className="mt-0.5 block text-xs text-muted-foreground/80">{tr("Posted")}{" "}{ago(job.postedAt, tr).toLowerCase()}</span>}
                       </span>
                     </button>
                   ))}
