@@ -4,7 +4,7 @@
 // card in the middle on a big screen) with every profile, the one in use marked, and the way to make, rename or delete them.
 // A new profile is named right there: a name that is already used is not accepted, and the person can pick another or open that one.
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Check, ChevronsUpDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { getProfileProgress } from "@/lib/profileProgress";
 import type { ProfileDoc } from "@/context/profileContext";
@@ -93,14 +93,12 @@ export default function ProfileSwitcher({
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        className="group inline-flex max-w-full items-center gap-3 rounded-2xl border bg-card py-2 pl-2 pr-3 text-left shadow-sm transition-all hover:border-blue-500/50 hover:shadow-md active:scale-[0.99]"
+        aria-label={`${tr("Profile")}: ${activeName}`}
+        className="group inline-flex max-w-full items-center gap-2 rounded-full bg-muted/60 py-1 pl-1 pr-2.5 text-sm font-semibold text-foreground/90 transition-colors hover:bg-muted active:scale-[0.98]"
       >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-base font-extrabold text-white shadow-sm">{initial}</span>
-        <span className="min-w-0 leading-tight">
-          <span className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{tr("Profile")}</span>
-          <span className="block max-w-[11rem] truncate text-sm font-bold">{activeName}</span>
-        </span>
-        <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">{initial}</span>
+        <span className="max-w-[12rem] truncate">{activeName}</span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-y-0.5" />
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
