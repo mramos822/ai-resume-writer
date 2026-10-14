@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Briefcase, Check, ChevronDown, Download, FileText, Linkedin, Pen, Pencil, Plus, Send, Sparkles, Trash2, UploadCloud, User, Wand2 } from "lucide-react";
+import { ArrowRight, Briefcase, Check, ChevronDown, Download, FileText, Heart, Linkedin, Pen, Pencil, Plus, Send, Sparkles, Trash2, UploadCloud, User, Wand2 } from "lucide-react";
 import { useAuth } from "@/context/authContext";
 import { useToast } from "@/context/toastContext";
 import { useDialog } from "@/context/dialogContext";
@@ -161,6 +161,20 @@ export default function HomePage() {
     };
   }, [role, place, country, years, skills]);
 
+  // the heart on a job match: it goes to the favorites (the Saved tab of the job search) and leaves this list
+  const savedKeys = useMemo(() => new Set((saved ?? []).map((j) => j.key)), [saved]);
+  const favorite = async (job: JobListing) => {
+    setSaved((list) => [job, ...(list ?? []).filter((x) => x.key !== job.key)]);
+    try {
+      const res = await authFetch("/api/saved-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(job) });
+      if (!res.ok) throw new Error();
+      toast.success(tr("Saved to your favorites."));
+    } catch {
+      setSaved((list) => (list ?? []).filter((x) => x.key !== job.key));
+      toast.error(tr("We couldn't update your saved jobs. Try again."));
+    }
+  };
+
   const previewData = useMemo(() => previewFromProfile(profile, uiLocale === "es" ? "es" : "en"), [profile, uiLocale]);
 
   if (loading || profiles.length === 0) {
@@ -175,6 +189,11 @@ export default function HomePage() {
     );
   }
 
+  // jobs already applied to or saved are not suggested again
+  const matches = (picks ?? []).filter(({ job }) => {
+    const st = (apps ?? []).find((a) => a.job.key === job.key)?.status;
+    return (!st || st === "prepared") && !savedKeys.has(job.key);
+  });
   const progress = getProfileProgress(profile, tr);
   const firstName = (user?.displayName || user?.email?.split("@")[0] || "").split(/[\s._-]/)[0];
   const activeName = profiles.find((p) => p.id === activeProfileId)?.name ?? profile.name;
@@ -438,24 +457,52 @@ export default function HomePage() {
                 </p>
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
-                  {picks.filter(({ job }) => { const st = (apps ?? []).find((a) => a.job.key === job.key)?.status; return !st || st === "prepared"; }).map(({ job, pct }) => ( // jobs already applied to are not suggested
-                    <button key={job.key} type="button" onClick={() => setDetailJob(job)} className="group flex items-start gap-3 rounded-2xl border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md sm:gap-4 sm:p-5">
-                      <CompanyLogo company={job.company} logo={job.logo} size={46} />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-start justify-between gap-2">
-                          <span className="line-clamp-2 text-base font-bold leading-snug group-hover:text-blue-500 sm:text-lg">{tr(job.title)}</span>
-                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 70 ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"}`}>
-                            <Sparkles className="h-3 w-3" /> {pct}{tr("% fit")}</span>
-                        </span>
-                        <span className="mt-0.5 block truncate text-sm text-foreground/80 sm:text-base">{job.company}</span>
-                        <span className="block truncate text-sm text-muted-foreground">{job.remote ? tr("Remote") : job.location || "—"}</span>
-                        {job.postedAt && <span className="mt-0.5 block text-xs text-muted-foreground/80">{tr("Posted")}{" "}{ago(job.postedAt, tr).toLowerCase()}</span>}
-                      </span>
-                    </button>
-                  ))}
+                  <AnimatePresence initial={false}>
+                    {matches.map(({ job, pct }) => (
+                      <motion.div
+                        key={job.key}
+                        layout
+                        exit={{ opacity: 0, x: 320, transition: { duration: 0.25, ease: "easeIn" } }}
+                        className="relative"
+                      >
+                        <button type="button" onClick={() => setDetailJob(job)} className="group flex w-full items-start gap-3 rounded-2xl border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md sm:gap-4 sm:p-5">
+                          <CompanyLogo company={job.company} logo={job.logo} size={46} />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-start justify-between gap-2">
+                              <span className="line-clamp-2 text-base font-bold leading-snug group-hover:text-blue-500 sm:text-lg">{tr(job.title)}</span>
+                              <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 70 ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"}`}>
+                                <Sparkles className="h-3 w-3" /> {pct}{tr("% fit")}</span>
+                            </span>
+                            <span className="mt-0.5 block truncate text-sm text-foreground/80 sm:text-base">{job.company}</span>
+                            <span className="block truncate pr-9 text-sm text-muted-foreground">{job.remote ? tr("Remote") : job.location || "—"}</span>
+                            {job.postedAt && <span className="mt-0.5 block pr-9 text-xs text-muted-foreground/80">{tr("Posted")}{" "}{ago(job.postedAt, tr).toLowerCase()}</span>}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => favorite(job)}
+                          aria-label={tr("Save to favorites")}
+                          title={tr("Save to favorites")}
+                          className="absolute bottom-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background text-muted-foreground transition-all hover:scale-110 hover:border-rose-500/50 hover:text-rose-500 active:scale-95"
+                        >
+                          <Heart className="h-3.5 w-3.5" />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                  {matches.length === 0 && (
+                    <p className="rounded-xl border border-dashed px-5 py-8 text-center text-muted-foreground md:col-span-2">
+                      {tr("You went through all of them. Your favorites are waiting, or open the full search for more.")}
+                    </p>
+                  )}
                 </div>
               )}
-              <div className="mt-6 text-center">
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-center">
+                {(saved?.length ?? 0) > 0 && (
+                  <Button asChild variant="outline" className="rounded-full px-6 font-semibold">
+                    <Link href="/home/job-ads?tab=saved"><Heart className="mr-2 h-4 w-4 text-rose-500" />{tr("My favorites")} ({saved?.length})</Link>
+                  </Button>
+                )}
                 <Button asChild variant="outline" className="rounded-full px-6 font-semibold">
                   <Link href="/home/job-ads">{tr("Open the full job search")}{" "}<ArrowRight className="ml-2 h-4 w-4" />
                   </Link>

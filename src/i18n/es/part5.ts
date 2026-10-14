@@ -394,4 +394,8 @@ export const PART5: Record<string, string> = {
   "A scholarly look: serif type, a centered name and the years in a column at the left of every entry. For teaching, research, science and the public sector.": "Un estilo académico: letra con serifa, el nombre centrado y los años en una columna a la izquierda de cada entrada. Para docencia, investigación, ciencia y el sector público.",
   "Start": "Inicio",
   "Job": "Empleo",
+  "Saved to your favorites.": "Guardado en tus favoritos.",
+  "Save to favorites": "Guardar en favoritos",
+  "My favorites": "Mis favoritos",
+  "You went through all of them. Your favorites are waiting, or open the full search for more.": "Ya los viste todos. Tus favoritos te esperan, o abre la búsqueda completa para ver más.",
 };

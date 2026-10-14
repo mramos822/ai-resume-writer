@@ -133,6 +133,11 @@ export default function JobSearchPage() {
   const [where, setWhere] = useState("");
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [tab, setTab] = useState<"results" | "saved" | "applications">("results");
+  // the heart on the dashboard sends people straight to their favorites (?tab=saved); the first search must not undo that
+  const openSaved = useRef(typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "saved");
+  useEffect(() => {
+    if (openSaved.current) setTab("saved");
+  }, []);
   // applications: the tailored resume and letter prepared for a job, and where each one stands
   const [apps, setApps] = useState<Application[]>([]);
   const [kitJob, setKitJob] = useState<JobListing | null>(null);
@@ -170,7 +175,8 @@ export default function JobSearchPage() {
     async (query = q, place = where, remote = remoteOnly) => {
       setLoading(true);
       setError("");
-      setTab("results");
+      if (openSaved.current) openSaved.current = false;
+      else setTab("results");
       try {
         const params = new URLSearchParams({ q: query.trim(), location: place.trim(), country });
         if (remote) params.set("remote", "1");
