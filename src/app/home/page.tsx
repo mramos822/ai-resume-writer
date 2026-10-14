@@ -438,8 +438,8 @@ export default function HomePage() {
             <motion.section key="jobs" custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
               <div className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
                 <h2 className="text-2xl font-extrabold">{tr("Your job matches")}</h2>
-                <p className="text-sm text-muted-foreground">{tr("Not right? Update your")}{" "}
-                  <Link href="/home/profile#objective" className="font-semibold text-blue-500 hover:underline">{tr("profile")}</Link>
+                <p className="text-sm text-muted-foreground">{tr("Based on your target job.")}{" "}
+                  <Link href="/home/profile#objective" className="font-semibold text-blue-500 hover:underline">{tr("Change it")}</Link>
                 </p>
               </div>
               {picks === null ? (

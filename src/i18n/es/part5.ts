@@ -398,4 +398,6 @@ export const PART5: Record<string, string> = {
   "Save to favorites": "Guardar en favoritos",
   "My favorites": "Mis favoritos",
   "You went through all of them. Your favorites are waiting, or open the full search for more.": "Ya los viste todos. Tus favoritos te esperan, o abre la búsqueda completa para ver más.",
+  "Based on your target job.": "Según el empleo que buscas.",
+  "Change it": "Cámbialo",
 };
