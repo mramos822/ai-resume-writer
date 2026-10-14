@@ -437,9 +437,9 @@ export default function HomePage() {
                   </Link>
                 </p>
               ) : (
-                <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-pl-4 gap-3 overflow-x-auto px-4 pb-2 sm:-mx-5 sm:scroll-pl-5 sm:px-5 md:mx-0 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:px-0 md:pb-0">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
                   {picks.filter(({ job }) => { const st = (apps ?? []).find((a) => a.job.key === job.key)?.status; return !st || st === "prepared"; }).map(({ job, pct }) => ( // jobs already applied to are not suggested
-                    <button key={job.key} type="button" onClick={() => setDetailJob(job)} className="group flex w-[82%] shrink-0 snap-start items-start gap-3 rounded-2xl border bg-card p-4 text-left sm:w-[55%] md:w-auto transition-all hover:-translate-y-0.5 hover:shadow-md sm:gap-4 sm:p-5">
+                    <button key={job.key} type="button" onClick={() => setDetailJob(job)} className="group flex items-start gap-3 rounded-2xl border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md sm:gap-4 sm:p-5">
                       <CompanyLogo company={job.company} logo={job.logo} size={46} />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-start justify-between gap-2">
