@@ -114,6 +114,7 @@ export default function HomePage() {
   const [apps, setApps] = useState<AppRow[] | null>(null);
   const [saved, setSaved] = useState<JobListing[] | null>(null);
   const [picks, setPicks] = useState<{ job: JobListing; pct: number }[] | null>(null);
+  const [savedAtLoad, setSavedAtLoad] = useState<Set<string> | null>(null); // the favorites that were already there when the page opened
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [goal, setGoal] = useState<Goal>("resumes");
   const [detailJob, setDetailJob] = useState<JobListing | null>(null); // the page of one job
@@ -128,7 +129,16 @@ export default function HomePage() {
     if (!activeProfileId) return;
     authFetch(`/api/resumes?profileId=${activeProfileId}`).then((r) => (r.ok ? r.json() : [])).then(setResumes).catch(() => setResumes([]));
     authFetch(`/api/applications?profileId=${activeProfileId}`).then((r) => (r.ok ? r.json() : [])).then(setApps).catch(() => setApps([]));
-    authFetch("/api/saved-jobs").then((r) => (r.ok ? r.json() : [])).then(setSaved).catch(() => setSaved([]));
+    authFetch("/api/saved-jobs")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: JobListing[]) => {
+        setSaved(list);
+        setSavedAtLoad(new Set(list.map((j) => j.key)));
+      })
+      .catch(() => {
+        setSaved([]);
+        setSavedAtLoad(new Set());
+      });
   }, [activeProfileId]);
 
   // jobs that fit: the role from the profile, without roles far above the person's experience
@@ -164,13 +174,15 @@ export default function HomePage() {
   // the heart on a job match: it goes to the favorites (the Saved tab of the job search) and leaves this list
   const savedKeys = useMemo(() => new Set((saved ?? []).map((j) => j.key)), [saved]);
   const favorite = async (job: JobListing) => {
-    setSaved((list) => [job, ...(list ?? []).filter((x) => x.key !== job.key)]);
+    const isSaved = savedKeys.has(job.key);
+    setSaved((list) => (isSaved ? (list ?? []).filter((x) => x.key !== job.key) : [job, ...(list ?? []).filter((x) => x.key !== job.key)]));
     try {
-      const res = await authFetch("/api/saved-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(job) });
+      const res = isSaved
+        ? await authFetch(`/api/saved-jobs?key=${encodeURIComponent(job.key)}`, { method: "DELETE" })
+        : await authFetch("/api/saved-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(job) });
       if (!res.ok) throw new Error();
-      toast.success(tr("Saved to your favorites."));
     } catch {
-      setSaved((list) => (list ?? []).filter((x) => x.key !== job.key));
+      setSaved((list) => (isSaved ? [job, ...(list ?? [])] : (list ?? []).filter((x) => x.key !== job.key)));
       toast.error(tr("We couldn't update your saved jobs. Try again."));
     }
   };
@@ -189,10 +201,10 @@ export default function HomePage() {
     );
   }
 
-  // jobs already applied to or saved are not suggested again
+  // jobs already applied to, or saved before this visit, are not suggested again (a heart pressed now just fills in)
   const matches = (picks ?? []).filter(({ job }) => {
     const st = (apps ?? []).find((a) => a.job.key === job.key)?.status;
-    return (!st || st === "prepared") && !savedKeys.has(job.key);
+    return (!st || st === "prepared") && !(savedAtLoad?.has(job.key));
   });
   const progress = getProfileProgress(profile, tr);
   const firstName = (user?.displayName || user?.email?.split("@")[0] || "").split(/[\s._-]/)[0];
@@ -457,14 +469,9 @@ export default function HomePage() {
                 </p>
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
-                  <AnimatePresence initial={false}>
+                  <>
                     {matches.map(({ job }) => (
-                      <motion.div
-                        key={job.key}
-                        layout
-                        exit={{ opacity: 0, x: 320, transition: { duration: 0.25, ease: "easeIn" } }}
-                        className="relative"
-                      >
+                      <div key={job.key} className="relative">
                         <button type="button" onClick={() => setDetailJob(job)} className="group flex w-full items-start gap-3 rounded-2xl border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md sm:gap-4 sm:p-5">
                           <CompanyLogo company={job.company} logo={job.logo} size={46} />
                           <span className="min-w-0 flex-1">
@@ -478,15 +485,16 @@ export default function HomePage() {
                         <button
                           type="button"
                           onClick={() => favorite(job)}
-                          aria-label={tr("Save to favorites")}
-                          title={tr("Save to favorites")}
+                          aria-label={savedKeys.has(job.key) ? tr("Remove from favorites") : tr("Save to favorites")}
+                          aria-pressed={savedKeys.has(job.key)}
+                          title={savedKeys.has(job.key) ? tr("Remove from favorites") : tr("Save to favorites")}
                           className="absolute right-2 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-all hover:scale-110 hover:text-rose-500 active:scale-95"
                         >
-                          <Heart className="h-6 w-6" />
+                          <Heart className={`h-6 w-6 transition-colors ${savedKeys.has(job.key) ? "fill-rose-500 text-rose-500" : ""}`} />
                         </button>
-                      </motion.div>
+                      </div>
                     ))}
-                  </AnimatePresence>
+                  </>
                   {matches.length === 0 && (
                     <p className="rounded-xl border border-dashed px-5 py-8 text-center text-muted-foreground md:col-span-2">
                       {tr("You went through all of them. Your favorites are waiting, or open the full search for more.")}
