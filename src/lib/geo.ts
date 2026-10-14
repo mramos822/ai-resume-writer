@@ -37,4 +37,4 @@ const LABELS: Record<string, string> = {
   GB: "County", IE: "County", PT: "District", JP: "Prefecture", CH: "Canton", AT: "State",
 };
 /** What this country calls its regions, for the field label. */
-export const regionLabel = (iso?: string) => LABELS[iso ?? ""] ?? "State / Province";
+export const regionLabel = (iso?: string, tr: (s: string) => string = (s) => s) => tr(LABELS[iso ?? ""] ?? "State / Province");

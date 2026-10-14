@@ -35,13 +35,14 @@ export async function GET(req: Request) {
 
 // DELETE: removes the account and everything in it, for good. Needs a recent sign-in and the word DELETE as confirmation.
 export async function DELETE(req: Request) {
-  const tooMany = limited(req, "account-delete", 5, 60 * 60 * 1000);
+  const tooMany = limited(req, "account-delete", 20, 60 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const user = await who(req);
     const { confirm } = (await req.json().catch(() => ({}))) as { confirm?: string };
     if (confirm !== "DELETE") throw new HttpError(400, "Type DELETE to confirm.");
-    if (!user.auth_time || Date.now() / 1000 - user.auth_time > RECENT_LOGIN_SECONDS) {
+    const isGuest = user.uid.startsWith("guest-"); // no password to protect: a guest can always clear their own data
+    if (!isGuest && (!user.auth_time || Date.now() / 1000 - user.auth_time > RECENT_LOGIN_SECONDS)) {
       return NextResponse.json({ error: "For your security, log in again and then delete your account.", code: "reauth" }, { status: 401 });
     }
     await deleteAccount(user.uid, user.email);

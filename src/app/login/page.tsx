@@ -1,15 +1,17 @@
 "use client";
 
+import LanguageSwitch from "@/components/languageSwitch";
 import LiveResumeCount from "@/components/liveResumeCount";
 import { useAuth } from "@/context/authContext";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useEffect, useState } from "react";
 import { LoginForm } from "@/components/forms/loginForm";
 import { RegistrationForm } from "@/components/forms/registrationForm";
 import { ResetPasswordForm } from "@/components/forms/resetPasswordForm";
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/i18n/navigation";
 import { ArrowLeftIcon, CheckIcon, SparklesIcon } from "lucide-react";
+import { useT } from "@/i18n/provider";
 
 const perks = [
   "AI-written bullet points tailored to each job",
@@ -18,6 +20,7 @@ const perks = [
 ];
 
 export default function Page() {
+  const { tr } = useT();
   const { user, loading } = useAuth();
   const router = useRouter();
   const [view, setView] = useState<"login" | "register" | "resetPassword">("login");
@@ -87,23 +90,19 @@ export default function Page() {
           href="/"
           className="relative inline-flex items-center gap-2 text-sm font-medium text-white/80 hover:text-white w-fit"
         >
-          <ArrowLeftIcon className="w-4 h-4" /> Back to home
-        </Link>
+          <ArrowLeftIcon className="w-4 h-4" />{" "}{tr("Back to home")}</Link>
 
         <div className="relative max-w-md">
           <span className="inline-flex items-center gap-2 bg-white/15 border border-white/25 text-sm font-semibold px-3 py-1 rounded-md mb-6">
-            <SparklesIcon className="w-4 h-4" /> AI-powered resume builder
-          </span>
-          <h2 className="text-4xl xl:text-5xl font-extrabold leading-[1.1] tracking-tight mb-6">
-            Build a resume that gets you hired.
-          </h2>
+            <SparklesIcon className="w-4 h-4" />{" "}{tr("AI-powered resume builder")}</span>
+          <h2 className="text-4xl xl:text-5xl font-extrabold leading-[1.1] tracking-tight mb-6">{tr("Build a resume that gets you hired.")}</h2>
           <ul className="space-y-3 mb-10">
             {perks.map((p) => (
               <li key={p} className="flex items-start gap-3 text-blue-50">
                 <span className="mt-0.5 w-5 h-5 rounded bg-white/20 flex items-center justify-center shrink-0">
                   <CheckIcon className="w-3.5 h-3.5" strokeWidth={3} />
                 </span>
-                {p}
+                {tr(p)}
               </li>
             ))}
           </ul>
@@ -115,22 +114,23 @@ export default function Page() {
         </div>
 
         <p className="relative text-sm text-blue-100/80">
-          © {new Date().getFullYear()} Kaizo Resume Builder
-        </p>
+          © {new Date().getFullYear()}{" "}{tr("Kaizo Resume Builder")}</p>
       </aside>
 
       {/* ============ Form panel ============ */}
       <main id="main" tabIndex={-1} className="flex flex-col px-6 py-8 outline-none sm:px-12">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center">
-            <Image src="/kaizologo.png" alt="Kaizo Resume Builder" width={120} height={40} priority />
+            <Image src="/kaizologo-v2.png" unoptimized alt={tr("Kaizo Resume Builder")} width={120} height={40} priority />
           </Link>
-          <Link
-            href="/"
-            className="lg:hidden text-sm text-gray-600 hover:text-gray-900 inline-flex items-center gap-1"
-          >
-            <ArrowLeftIcon className="w-4 h-4" /> Home
-          </Link>
+          <div className="flex items-center gap-4">
+            <LanguageSwitch />
+            <Link
+              href="/"
+              className="lg:hidden text-sm text-gray-600 hover:text-gray-900 inline-flex items-center gap-1"
+            >
+              <ArrowLeftIcon className="w-4 h-4" />{" "}{tr("Home")}</Link>
+          </div>
         </div>
 
         <div className="flex-1 flex items-center justify-center py-10">
@@ -141,14 +141,9 @@ export default function Page() {
           >
             {view === "login" && (
               <>
-                <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 mb-2">
-                  Welcome back
-                </h1>
-                <p className="text-gray-600 mb-8">
-                  New to Kaizo?{" "}
-                  <button onClick={() => setView("register")} className={linkBtn}>
-                    Create a free account
-                  </button>
+                <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 mb-2">{tr("Welcome back")}</h1>
+                <p className="text-gray-600 mb-8">{tr("New to Kaizo?")}{" "}
+                  <button onClick={() => setView("register")} className={linkBtn}>{tr("Create a free account")}</button>
                 </p>
                 <LoginForm
                   onLogin={() => router.push("/home")}
@@ -159,14 +154,9 @@ export default function Page() {
 
             {view === "register" && (
               <>
-                <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 mb-2">
-                  Create your account
-                </h1>
-                <p className="text-gray-600 mb-8">
-                  Already have one?{" "}
-                  <button onClick={() => setView("login")} className={linkBtn}>
-                    Log in
-                  </button>
+                <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 mb-2">{tr("Create your account")}</h1>
+                <p className="text-gray-600 mb-8">{tr("Already have one?")}{" "}
+                  <button onClick={() => setView("login")} className={linkBtn}>{tr("Log in")}</button>
                 </p>
                 <RegistrationForm onRegister={() => setView("login")} />
               </>
@@ -174,21 +164,14 @@ export default function Page() {
 
             {view === "resetPassword" && (
               <>
-                <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 mb-2">
-                  Reset your password
-                </h1>
-                <p className="text-gray-600 mb-8">
-                  Enter your email and we&apos;ll send you a link to get back in.
-                </p>
+                <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 mb-2">{tr("Reset your password")}</h1>
+                <p className="text-gray-600 mb-8">{tr("Enter your email and we'll send you a link to get back in.")}</p>
                 <ResetPasswordForm
                   onSuccess={() => setView("login")}
                   buttonText="Send reset link"
                 />
-                <p className="text-sm text-gray-600 mt-6">
-                  Remembered it?{" "}
-                  <button onClick={() => setView("login")} className={linkBtn}>
-                    Back to log in
-                  </button>
+                <p className="text-sm text-gray-600 mt-6">{tr("Remembered it?")}{" "}
+                  <button onClick={() => setView("login")} className={linkBtn}>{tr("Back to log in")}</button>
                 </p>
               </>
             )}

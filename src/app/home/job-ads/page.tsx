@@ -2,24 +2,29 @@
 
 // Job search: find real openings, see how well they fit your profile and save the ones you like.
 // Resumes are made in the Resumes section, not here.
+import { asTemplateId } from "@/lib/templates";
 import AddJobLink from "@/components/addJobLink";
+import JobPlacePicker from "@/components/jobPlacePicker";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/i18n/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bookmark, BookmarkCheck, Briefcase, Check, Globe2, Link2, Loader2, MapPin, Search, Wallet, Wand2 } from "lucide-react";
+import { Bookmark, BookmarkCheck, Briefcase, Check, Globe2, Link2, Loader2, MapPin, Search, Trash2, Wallet, Wand2 } from "lucide-react";
 import { useProfile } from "@/context/profileContext";
 import { useToast } from "@/context/toastContext";
+import { useDialog } from "@/context/dialogContext";
 import { authFetch } from "@/lib/authFetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import PageHeader from "@/components/pageHeader";
 import CompanyLogo from "@/components/companyLogo";
 import ApplicationKit, { type Application } from "@/components/applicationKit";
 import JobDetail from "@/components/jobDetail";
 import type { JobListing } from "@/lib/jobSearch";
+import { REACH_ORDER } from "@/lib/jobReach";
 import { aboveLevel, levelOf } from "@/lib/jobLevel";
-import { ago, fitOf } from "@/lib/jobFit";
-import { seniorityOf } from "@/lib/reviewRubric";
+import { ago, fitOf, skillsForFit } from "@/lib/jobFit";
+import { jobScore, profileBasics } from "@/lib/jobScore";
+import { yearsFor } from "@/lib/experienceLevel";
+import { useT } from "@/i18n/provider";
 
 type Saved = JobListing & { savedAt?: string };
 const PAGE = 15;
@@ -27,14 +32,15 @@ const PAGE = 15;
 const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", link: "a link you added" };
 
 function Fit({ pct }: { pct: number }) {
+  const { tr } = useT();
   const color = pct >= 70 ? "#22c55e" : pct >= 40 ? "#3b82f6" : "#94a3b8";
   return (
-    <div className="w-24 shrink-0 text-right" title="How many of your skills this job mentions">
+    <div className="w-24 shrink-0 text-right" title={tr("How many of your skills this job mentions")}>
       <p className="text-2xl font-black leading-none tabular-nums" style={{ color }}>
         {pct}
         <span className="text-xs font-bold text-muted-foreground">%</span>
       </p>
-      <p className="mb-1.5 mt-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fit with you</p>
+      <p className="mb-1.5 mt-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{tr("Fit with you")}</p>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%`, background: color }} />
       </div>
@@ -42,16 +48,17 @@ function Fit({ pct }: { pct: number }) {
   );
 }
 
-function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, status }: { job: Saved; fit: { pct: number; matched: string[] }; saved: boolean; onToggle: () => void; onPrepare: () => void; onOpen: () => void; status?: Application["status"] }) {
+function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, onDelete, status }: { job: Saved; fit: { pct: number; matched: string[] }; saved: boolean; onToggle: () => void; onPrepare: () => void; onOpen: () => void; onDelete?: () => void; status?: Application["status"] }) {
+  const { tr } = useT();
   return (
     <motion.li layout="position" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-xl border bg-card p-5 transition-shadow hover:shadow-md">
       <div className="flex items-start gap-4">
         <CompanyLogo company={job.company} logo={job.logo} />
         <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-bold leading-snug"><button type="button" onClick={onOpen} className="text-left hover:text-blue-500">{job.title}</button></h3>
+          <h3 className="text-lg font-bold leading-snug"><button type="button" onClick={onOpen} className="text-left hover:text-blue-500">{tr(job.title)}</button></h3>
           <p className="text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">{job.company}</span>
-            {job.postedAt && <span> · {ago(job.postedAt)}</span>}
+            {job.postedAt && <span> · {ago(job.postedAt, tr)}</span>}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {job.location && (
@@ -61,14 +68,13 @@ function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, status }: { job
             )}
             {levelOf(job).label && (
               <span className="inline-flex items-center gap-1.5 font-semibold text-foreground/80">
-                <Briefcase className="h-3.5 w-3.5" /> {levelOf(job).label}
-                {levelOf(job).years > 0 && <span className="font-normal text-muted-foreground">· {levelOf(job).years}+ yrs</span>}
+                <Briefcase className="h-3.5 w-3.5" /> {tr(levelOf(job).label)}
+                {levelOf(job).years > 0 && <span className="font-normal text-muted-foreground">· {levelOf(job).years}{tr("+ yrs")}</span>}
               </span>
             )}
             {job.remote && (
               <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600">
-                <Globe2 className="h-3.5 w-3.5" /> Remote
-              </span>
+                <Globe2 className="h-3.5 w-3.5" />{" "}{tr("Remote")}</span>
             )}
             {job.salary && (
               <span className="inline-flex items-center gap-1.5">
@@ -79,25 +85,29 @@ function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, status }: { job
           {job.snippet && <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{job.snippet}</p>}
           {fit.matched.length > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">Matches your skills:</span> {fit.matched.join(", ")}
+              <span className="font-semibold text-foreground">{tr("Matches your skills:")}</span> {fit.matched.join(", ")}
             </p>
           )}
         </div>
         <Fit pct={fit.pct} />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-        <p className="text-xs text-muted-foreground">via {SOURCE_NAME[job.source]}</p>
+        <p className="text-xs text-muted-foreground">{tr("via")}{" "}{SOURCE_NAME[job.source]}</p>
         <div className="flex items-center gap-2">
+          {onDelete && (
+            <Button type="button" variant="ghost" size="sm" onClick={onDelete} className="gap-1.5 text-red-500 hover:bg-red-500/10 hover:text-red-600">
+              <Trash2 className="h-4 w-4" />
+              {tr("Delete")}
+            </Button>
+          )}
           <Button type="button" variant={saved ? "default" : "outline"} size="sm" onClick={onToggle} className="gap-1.5">
             {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-            {saved ? "Saved" : "Save"}
+            {saved ? tr("Saved") : tr("Save")}
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onOpen}>
-            Details
-          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={onOpen}>{tr("Details")}</Button>
           <Button type="button" size="sm" onClick={onPrepare} className="gap-1.5 bg-blue-600 font-bold hover:bg-blue-700">
             {status ? <Check className="h-4 w-4" strokeWidth={3} /> : <Wand2 className="h-4 w-4" />}
-            {status ? (status === "prepared" ? "Open application" : `Application · ${status}`) : "Prepare application"}
+            {status ? (status === "prepared" ? tr("Open application") : tr("Application · {status}", { status })) : tr("Prepare application")}
           </Button>
         </div>
       </div>
@@ -106,12 +116,18 @@ function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, status }: { job
 }
 
 export default function JobSearchPage() {
+  const { tr, trd } = useT();
   const { activeProfile: profile, activeProfileId } = useProfile();
   const toast = useToast();
+  const dialog = useDialog();
 
   const defaultRole = profile.jobTitle?.trim() || "";
+  // the first name, unless the profile still has the name it gets by default ("Profile 1")
+  const firstName = /^Profile \d+$/.test(profile.name ?? "") ? "" : (profile.name ?? "").trim().split(/\s+/)[0];
   const defaultPlace = [profile.contactInfo?.city, profile.contactInfo?.state].filter(Boolean).join(", ");
-  const country = profile.contactInfo?.countryCode || "US";
+  const homeCountry = profile.contactInfo?.countryCode || "US";
+  const [pickedCountry, setPickedCountry] = useState<string | null>(null); // the country chosen in the filter; until then, the profile's
+  const country = pickedCountry ?? homeCountry;
 
   const [q, setQ] = useState("");
   const [where, setWhere] = useState("");
@@ -125,13 +141,15 @@ export default function JobSearchPage() {
   const template = (() => {
     try {
       const t = typeof window !== "undefined" ? localStorage.getItem("kaizo_template") : null;
-      return t === "modern" || t === "creative" ? t : "classic";
+      return asTemplateId(t);
     } catch {
       return "classic";
     }
   })();
   const [jobs, setJobs] = useState<JobListing[]>([]);
   const [sources, setSources] = useState<string[]>([]);
+  const [bigCity, setBigCity] = useState(""); // the nearest big city, when the results also have its jobs
+  const [searchedPlace, setSearchedPlace] = useState(""); // the place the results are about, as the search understood it
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
@@ -161,9 +179,11 @@ export default function JobSearchPage() {
         if (profile.skills?.length) params.set("skills", profile.skills.slice(0, 3).join(","));
         const res = await authFetch(`/api/jobs/search?${params}`);
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "We couldn't search for jobs right now.");
+        if (!res.ok) throw new Error(trd(data.error) || tr("We couldn't search for jobs right now."));
         setJobs(data.jobs ?? []);
         setSources(data.sources ?? []);
+        setBigCity(typeof data.bigCity === "string" ? data.bigCity : "");
+        setSearchedPlace(typeof data.place === "string" && data.place ? data.place : place.trim());
         setShown(PAGE);
         setSearched(true);
       } catch (err) {
@@ -192,13 +212,43 @@ export default function JobSearchPage() {
   }, []);
 
   useEffect(() => {
-    authFetch("/api/applications")
+    if (!activeProfileId) return;
+    authFetch(`/api/applications?profileId=${activeProfileId}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((list: Application[]) => setApps(list))
       .catch(() => {});
-  }, []);
+  }, [activeProfileId]);
   const appByKey = useMemo(() => new Map(apps.map((a) => [a.job.key, a])), [apps]);
+  // coming back from the page where a resume was made: its application opens, with the resume and the letter
+  useEffect(() => {
+    const key = new URLSearchParams(window.location.search).get("apply");
+    if (!key || apps.length === 0) return;
+    const made = apps.find((a) => a.job.key === key);
+    if (!made) return;
+    setKitJob(made.job);
+    setTab("applications");
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [apps]);
   const onAppChanged = (a: Application) => setApps((list) => [a, ...list.filter((x) => x.job.key !== a.job.key)]);
+
+  // delete an application (in progress or not): the job, its tailored resume and its cover letter go; the job stays findable in the search
+  const deleteApplication = async (job: JobListing) => {
+    const ok = await dialog.confirm({
+      title: tr("Delete this application?"),
+      description: tr("The tailored resume and the cover letter for “{title}” will be removed. You can prepare it again whenever you want.", { title: job.title }),
+      confirmText: tr("Delete application"),
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      const res = await authFetch(`/api/applications?key=${encodeURIComponent(job.key)}&profileId=${activeProfileId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setApps((list) => list.filter((a) => a.job.key !== job.key));
+      toast.success(tr("Application deleted."));
+    } catch {
+      toast.error(tr("We couldn't delete that application."));
+    }
+  };
 
   // prepare every saved job that has no application yet, one after another
   const prepareAllSaved = async () => {
@@ -218,8 +268,8 @@ export default function JobSearchPage() {
       setPreparing({ done: i + 1, total: todo.length });
     }
     setPreparing(null);
-    if (failed) toast.error(`${failed} application${failed > 1 ? "s" : ""} could not be prepared. Open them one by one to try again.`);
-    else toast.success("All your saved jobs have an application ready.");
+    if (failed) toast.error(tr("{failed} application{v1} could not be prepared. Open them one by one to try again.", { failed, v1: failed > 1 ? "s" : "" }));
+    else toast.success(tr("All your saved jobs have an application ready."));
     setTab("applications");
   };
 
@@ -232,30 +282,54 @@ export default function JobSearchPage() {
         ? await authFetch(`/api/saved-jobs?key=${encodeURIComponent(job.key)}`, { method: "DELETE" })
         : await authFetch("/api/saved-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(job) });
       if (!res.ok) throw new Error();
-      if (!isSaved) toast.success("Job saved.");
+      if (!isSaved) toast.success(tr("Job saved."));
     } catch {
       // undo the change on screen
       setSaved((list) => (isSaved ? [{ ...job }, ...list] : list.filter((j) => j.key !== job.key)));
-      toast.error("We couldn't update your saved jobs. Try again.");
+      toast.error(tr("We couldn't update your saved jobs. Try again."));
     }
   };
 
-  const skills = useMemo(() => profile.skills ?? [], [profile.skills]);
+  const skills = useMemo(() => skillsForFit(profile), [profile]);
+  const basics = useMemo(() => profileBasics(profile), [profile]); // (how well the resume is written does not depend on the job)
   // how many years of work the profile shows, so jobs far above that are left out
-  const myYears = useMemo(() => seniorityOf(profile).years, [profile]);
+  const myYears = useMemo(() => yearsFor(profile), [profile]);
   const [showAbove, setShowAbove] = useState(false);
+  const [showSent, setShowSent] = useState(false);
+  // a job that already has an application (prepared, sent, interview, offer or rejected) is not a new opportunity: it leaves the results
+  // and stays in the Applications tab
+  const isSent = (j: JobListing) => appByKey.has(j.key);
   const list = tab === "saved" ? saved : tab === "applications" ? apps.map((a) => a.job) : jobs;
-  const hiddenAbove = useMemo(() => (tab === "results" ? list.filter((j) => aboveLevel(j, myYears)).length : 0), [list, myYears, tab]);
+  const hiddenAbove = useMemo(() => (tab === "results" ? list.filter((j) => !isSent(j) && aboveLevel(j, myYears)).length : 0), [list, myYears, tab, apps]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hiddenSent = useMemo(() => (tab === "results" ? list.filter(isSent).length : 0), [list, tab, apps]); // eslint-disable-line react-hooks/exhaustive-deps
   const ranked = useMemo(() => {
-    const visible = tab === "results" && !showAbove ? list.filter((j) => !aboveLevel(j, myYears)) : list;
-    const withFit = visible.map((j) => ({ job: j, fit: fitOf(j, skills, q || defaultRole) }));
+    const visible = tab === "results" ? list.filter((j) => (showSent || !isSent(j)) && (showAbove || !aboveLevel(j, myYears))) : list;
+    // the percentage is the number of the job (see lib/jobScore); the skills it matches come from the quick reading of the posting
+    const withFit = visible.map((j) => ({ job: j, fit: { ...fitOf(j, skills, defaultRole || q, myYears), pct: jobScore(profile, j, [], template, [], basics).score } }));
     // best fit first, newest among equals (the saved tab keeps the order they were saved in)
-    return tab !== "results" ? withFit : withFit.sort((a, b) => b.fit.pct - a.fit.pct || +new Date(b.job.postedAt || 0) - +new Date(a.job.postedAt || 0));
-  }, [list, skills, q, defaultRole, tab, myYears, showAbove]);
+    // (a search by place keeps its groups: in the place, near it, remote, the rest)
+    const group = (j: JobListing) => (j.reach ? REACH_ORDER.indexOf(j.reach) : 0);
+    return tab !== "results" ? withFit : withFit.sort((a, b) => group(a.job) - group(b.job) || b.fit.pct - a.fit.pct || +new Date(b.job.postedAt || 0) - +new Date(a.job.postedAt || 0));
+  }, [list, skills, q, defaultRole, tab, myYears, showAbove, showSent, apps, profile, basics, template]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the headings of a search by place
+  const reachTitle = (r: NonNullable<JobListing["reach"]>) =>
+    r === "here" ? tr("In {place}", { place: searchedPlace }) : r === "near" ? tr("Near {place}", { place: searchedPlace }) : r === "city" ? tr("The nearest big city: {place}", { place: bigCity }) : r === "remote" ? tr("Remote jobs") : tr("More jobs in the country");
+  const noneHere = tab === "results" && !!searchedPlace && jobs.length > 0 && !jobs.some((j) => j.reach === "here");
 
   return (
     <div className="mx-auto max-w-6xl pb-16">
-      <PageHeader title="Find your next job" subtitle="Search real openings, see how well they fit you and save the ones you like. Your resumes are made in Resumes." />
+      {/* nothing written or searched yet: a greeting for this person; it goes away as soon as they search or filter */}
+      {!searched && !loading && !q.trim() && !where.trim() && (
+        <header className="mb-6">
+          <h1 className="text-3xl font-extrabold leading-tight tracking-tight">
+            {firstName ? tr("{name}, what job are you looking for?", { name: firstName }) : tr("What job are you looking for?")}
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            {profile.jobTitle?.trim() ? tr("Search for “{role}” or any other role, and pick the place.", { role: profile.jobTitle.trim() }) : tr("Type a role or a skill and pick the place.")}
+          </p>
+        </header>
+      )}
 
       {/* search */}
       <form
@@ -265,24 +339,17 @@ export default function JobSearchPage() {
         }}
         className="mb-6 rounded-2xl border bg-card p-5 shadow-sm"
       >
-        <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_auto]">
+        <div className="grid gap-3 lg:grid-cols-[1fr_1.5fr_auto]">
           <div className="relative">
             <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Job title or skill, like “data analyst”" className="h-11 pl-10" aria-label="Job title or skill" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Job title or skill, like “data analyst”")} className="h-11 pl-10" aria-label={tr("Job title or skill")} />
           </div>
-          <div className="relative">
-            <MapPin className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-            <Input value={where} onChange={(e) => setWhere(e.target.value)} placeholder="City or country" className="h-11 pl-10" aria-label="Location" disabled={remoteOnly} />
-          </div>
+          <JobPlacePicker country={country} onCountry={setPickedCountry} homeCountry={homeCountry} value={where} onChange={setWhere} disabled={remoteOnly} />
           <Button type="submit" disabled={loading} className="h-11 gap-2 px-7 text-base font-bold">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Search
-          </Button>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}{tr("Search")}</Button>
         </div>
         <label className="mt-3 inline-flex cursor-pointer items-center gap-2.5 text-sm font-medium">
-          <input type="checkbox" checked={remoteOnly} onChange={(e) => setRemoteOnly(e.target.checked)} className="h-4 w-4 rounded" />
-          Remote jobs only
-        </label>
+          <input type="checkbox" checked={remoteOnly} onChange={(e) => setRemoteOnly(e.target.checked)} className="h-4 w-4 rounded" />{tr("Remote jobs only")}</label>
       </form>
 
       {/* tabs */}
@@ -300,31 +367,46 @@ export default function JobSearchPage() {
               onClick={() => setTab(t.id)}
               className={`rounded-full px-5 py-2 text-sm font-semibold transition-all ${tab === t.id ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground hover:text-foreground"}`}
             >
-              {t.label} <span className="opacity-70">({t.n})</span>
+              {tr(t.label)} <span className="opacity-70">({t.n})</span>
             </button>
           ))}
         </div>
         {tab === "saved" && saved.some((j) => !appByKey.has(j.key)) && (
           <Button onClick={prepareAllSaved} disabled={!!preparing} className="gap-2 bg-blue-600 font-bold hover:bg-blue-700">
             {preparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-            {preparing ? `Preparing ${preparing.done} of ${preparing.total}…` : `Prepare all saved (${saved.filter((j) => !appByKey.has(j.key)).length})`}
+            {preparing ? tr("Preparing {done} of {total}…", { done: preparing.done, total: preparing.total }) : tr("Prepare all saved ({length})", { length: saved.filter((j) => !appByKey.has(j.key)).length })}
           </Button>
         )}
         <div className="flex items-center gap-3">
-          {tab === "results" && sources.length > 0 && <p className="hidden text-xs text-muted-foreground lg:block">Sources: {sources.join(", ")}</p>}
+          {tab === "results" && sources.length > 0 && <p className="hidden text-xs text-muted-foreground lg:block">{tr("Sources:")}{" "}{sources.join(", ")}</p>}
           <Button type="button" variant="outline" onClick={() => setAdding(true)} className="gap-2 rounded-full font-semibold">
-            <Link2 className="h-4 w-4" /> Add a job
-          </Button>
+            <Link2 className="h-4 w-4" />{" "}{tr("Add a job")}</Button>
         </div>
       </div>
+
+      {noneHere && (
+        <p className="mb-4 rounded-xl border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          {tr("There are no jobs in {place} right now. Here are the closest ones first, then the nearest big city, remote jobs and the rest of the country.", { place: searchedPlace })}</p>
+      )}
+
+      {tab === "results" && hiddenSent > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-sm">
+          <p className="text-muted-foreground">
+            {showSent ? tr("Showing") : tr("Hiding")} <span className="font-semibold text-foreground">{hiddenSent}</span>{" "}{hiddenSent > 1 ? tr("jobs you already applied to.") : tr("job you already applied to.")}
+          </p>
+          <button type="button" onClick={() => setShowSent((v) => !v)} className="font-semibold text-blue-500 hover:underline">
+            {showSent ? tr("Hide them") : tr("Show them anyway")}
+          </button>
+        </div>
+      )}
 
       {tab === "results" && hiddenAbove > 0 && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-sm">
           <p className="text-muted-foreground">
-            {showAbove ? "Showing" : "Hiding"} <span className="font-semibold text-foreground">{hiddenAbove}</span> job{hiddenAbove > 1 ? "s" : ""} that ask for more experience than your {myYears > 0 ? `${myYears} year${myYears === 1 ? "" : "s"}` : "profile shows"}.
+            {showAbove ? tr("Showing") : tr("Hiding")} <span className="font-semibold text-foreground">{hiddenAbove}</span>{" "}{tr("job")}{hiddenAbove > 1 ? tr("s") : ""}{" "}{tr("that ask for more experience than your")}{" "}{myYears > 0 ? tr("{myYears} year{v1}", { myYears, v1: myYears === 1 ? "" : "s" }) : tr("profile shows")}.
           </p>
           <button type="button" onClick={() => setShowAbove((v) => !v)} className="font-semibold text-blue-500 hover:underline">
-            {showAbove ? "Hide them" : "Show them anyway"}
+            {showAbove ? tr("Hide them") : tr("Show them anyway")}
           </button>
         </div>
       )}
@@ -353,25 +435,23 @@ export default function JobSearchPage() {
           </span>
           {tab !== "results" ? (
             <>
-              <p className="font-semibold">{tab === "applications" ? "No applications yet" : "No saved jobs yet"}</p>
+              <p className="font-semibold">{tab === "applications" ? tr("No applications yet") : tr("No saved jobs yet")}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {tab === "applications" ? "Press Prepare application on a job: Kaizo tailors your resume and writes the cover letter." : "Press Save on a job to keep it here."}
+                {tab === "applications" ? tr("Press Prepare application on a job: Kaizo tailors your resume and writes the cover letter.") : tr("Press Save on a job to keep it here.")}
               </p>
             </>
           ) : (
             <>
-              <p className="font-semibold">{searched ? "No jobs found for that search" : "Search to see openings"}</p>
+              <p className="font-semibold">{searched ? tr("No jobs found for that search") : tr("Search to see openings")}</p>
               <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                {searched ? "Try a shorter title, another city, or turn on remote jobs." : "Type a role and a place, or fill in your target job in your profile."}
+                {searched ? tr("Try a shorter title, another city, or turn on remote jobs.") : tr("Type a role and a place, or fill in your target job in your profile.")}
               </p>
               {searched && (
-                <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">
-                  Know the job already? <button type="button" onClick={() => setAdding(true)} className="font-semibold text-blue-500 underline">Paste its link or text</button> and add it yourself.
-                </p>
+                <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">{tr("Know the job already?")}{" "}<button type="button" onClick={() => setAdding(true)} className="font-semibold text-blue-500 underline">{tr("Paste its link or text")}</button>{" "}{tr("and add it yourself.")}</p>
               )}
               {!defaultRole && (
                 <Button asChild variant="outline" className="mt-4">
-                  <Link href="/home/profile#objective">Set your target job</Link>
+                  <Link href="/home/profile#objective">{tr("Set your target job")}</Link>
                 </Button>
               )}
             </>
@@ -381,16 +461,19 @@ export default function JobSearchPage() {
         <>
           <ul className="space-y-3">
             <AnimatePresence initial={false}>
-              {ranked.slice(0, tab === "results" ? shown : ranked.length).map(({ job, fit }) => (
-                <JobCard key={job.key} job={job} fit={fit} saved={savedKeys.has(job.key)} onToggle={() => toggleSave(job)} onPrepare={() => setKitJob(job)} onOpen={() => setDetailJob(job)} status={appByKey.get(job.key)?.status} />
+              {ranked.slice(0, tab === "results" ? shown : ranked.length).map(({ job, fit }, i, all) => (
+                <React.Fragment key={job.key}>
+                  {tab === "results" && job.reach && job.reach !== all[i - 1]?.job.reach && (
+                    <li className="px-1 pb-1 pt-4 text-sm font-bold text-muted-foreground first:pt-0">{reachTitle(job.reach)}</li>
+                  )}
+                  <JobCard job={job} fit={fit} saved={savedKeys.has(job.key)} onToggle={() => toggleSave(job)} onPrepare={() => setKitJob(job)} onOpen={() => setDetailJob(job)} onDelete={tab === "applications" ? () => deleteApplication(job) : undefined} status={appByKey.get(job.key)?.status} />
+                </React.Fragment>
               ))}
             </AnimatePresence>
           </ul>
           {tab === "results" && ranked.length > shown && (
             <div className="mt-6 flex justify-center">
-              <Button variant="outline" onClick={() => setShown((n) => n + PAGE)} className="h-11 px-8">
-                Show more ({ranked.length - shown} left)
-              </Button>
+              <Button variant="outline" onClick={() => setShown((n) => n + PAGE)} className="h-11 px-8">{tr("Show more (")}{ranked.length - shown}{" "}{tr("left)")}</Button>
             </div>
           )}
         </>
@@ -409,7 +492,7 @@ export default function JobSearchPage() {
             const res = await authFetch("/api/saved-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(job) });
             if (!res.ok) throw new Error();
           } catch {
-            toast.error("The job was added, but we couldn't save it for later.");
+            toast.error(tr("The job was added, but we couldn't save it for later."));
           }
         }}
       />

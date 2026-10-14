@@ -1,7 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import Link from "next/link";
+import { usePathname } from "@/i18n/navigation";
+import Link from "@/i18n/navigation";
 import KaizoLogo from "@/components/kaizoLogo";
 import {
     LayoutDashboard,
@@ -9,6 +9,7 @@ import {
     FileText,
     Briefcase,
     Settings,
+    Inbox,
     Mail,
     Target,
     Wrench,
@@ -23,8 +24,11 @@ import {
     X,
     type LucideIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useProfile } from "@/context/profileContext";
+import { authFetch } from "@/lib/authFetch";
 import { getProfileProgress } from "@/lib/profileProgress";
+import { useT } from "@/i18n/provider";
 
 interface SidePanelProps {
     isSidePanelOpen: boolean;
@@ -63,11 +67,45 @@ const linkClasses = (active: boolean) =>
             : "text-muted-foreground hover:bg-accent hover:text-foreground"
     }`;
 
+/** True for the people listed in ADMIN_EMAILS (the server decides; the answer is remembered for the tab). */
+function useIsAdmin(): boolean {
+    const [admin, setAdmin] = useState(false);
+    useEffect(() => {
+        let off = false;
+        try {
+            const known = sessionStorage.getItem("kaizo_admin");
+            if (known !== null) {
+                setAdmin(known === "1");
+                return;
+            }
+        } catch {
+            /* storage unavailable */
+        }
+        authFetch("/api/admin/messages?check=1")
+            .then((r) => {
+                const yes = r.ok;
+                try {
+                    sessionStorage.setItem("kaizo_admin", yes ? "1" : "0");
+                } catch {
+                    /* storage unavailable */
+                }
+                if (!off) setAdmin(yes);
+            })
+            .catch(() => {});
+        return () => {
+            off = true;
+        };
+    }, []);
+    return admin;
+}
+
 export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) {
+  const { tr } = useT();
     const pathname = usePathname();
     const onProfilePage = pathname === "/home/profile";
     const { activeProfile } = useProfile();
-    const progress = getProfileProgress(activeProfile);
+    const isAdmin = useIsAdmin();
+    const progress = getProfileProgress(activeProfile, tr);
     // the optional sections come after the main ones; they do not count in the profile strength
     const extraSections = [
         { key: "projects", label: "Projects", done: (activeProfile.projects?.length ?? 0) > 0 },
@@ -98,7 +136,7 @@ export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) 
                     <button
                         onClick={onClose}
                         className="rounded-md p-1.5 text-muted-foreground hover:bg-accent lg:hidden"
-                        aria-label="Close menu"
+                        aria-label={tr("Close menu")}
                     >
                         <X className="h-5 w-5" />
                     </button>
@@ -114,16 +152,14 @@ export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) 
                                     className={linkClasses(pathname === href)}
                                 >
                                     <Icon className="h-4 w-4 shrink-0" />
-                                    {label}
+                                    {tr(label)}
                                 </Link>
                             </li>
                         ))}
                     </ul>
 
                     <div>
-                        <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Profile sections
-                        </p>
+                        <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tr("Profile sections")}</p>
                         <ul className="flex flex-col gap-1">
                             {[...progress.sections, ...extraSections].map(({ key, label, done }) => {
                                 const Icon = SECTION_ICONS[key];
@@ -131,14 +167,14 @@ export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) 
                                 const inner = (
                                     <>
                                         <Icon className="h-4 w-4 shrink-0" />
-                                        <span className="flex-1">{label}</span>
+                                        <span className="flex-1">{tr(label)}</span>
                                         <span
                                             className={`flex h-4 w-4 items-center justify-center rounded-full ${
                                                 done
                                                     ? "bg-green-500 text-white"
                                                     : "border border-border text-transparent"
                                             }`}
-                                            title={done ? "Complete" : "Still to do"}
+                                            title={done ? tr("Complete") : tr("Still to do")}
                                         >
                                             <Check className="h-3 w-3" strokeWidth={3} />
                                         </span>
@@ -164,7 +200,7 @@ export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) 
                     {/* Profile strength */}
                     <div className="mt-auto rounded-md border bg-accent/50 p-3">
                         <div className="mb-2 flex items-center justify-between text-xs">
-                            <span className="font-semibold">Profile strength</span>
+                            <span className="font-semibold">{tr("Profile strength")}</span>
                             <span className="font-bold text-blue-600">{progress.percent}%</span>
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-border">
@@ -175,20 +211,20 @@ export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) 
                         </div>
                         <p className="mt-2 text-xs text-muted-foreground">
                             {progress.percent === 100
-                                ? "All set! Your profile is complete."
-                                : `Next: ${progress.next?.label}`}
+                                ? tr("All set! Your profile is complete.")
+                                : tr("Next: {label}", { label: progress.next?.label })}
                         </p>
                     </div>
 
                     <div className="flex flex-col gap-1 border-t pt-4">
                         <Link href="/home/help" className={linkClasses(pathname === "/home/help")}>
-                            <LifeBuoy className="h-4 w-4 shrink-0" />
-                            Help & tutorials
-                        </Link>
+                            <LifeBuoy className="h-4 w-4 shrink-0" />{tr("Help & tutorials")}</Link>
+                        {isAdmin && (
+                            <Link href="/home/admin/messages" className={linkClasses(pathname === "/home/admin/messages")}>
+                                <Inbox className="h-4 w-4 shrink-0" />{tr("Messages")}</Link>
+                        )}
                         <Link href="/home/settings" className={linkClasses(pathname === "/home/settings")}>
-                            <Settings className="h-4 w-4 shrink-0" />
-                            Settings
-                        </Link>
+                            <Settings className="h-4 w-4 shrink-0" />{tr("Settings")}</Link>
                     </div>
                 </nav>
             </aside>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/mongodb";
 import { limited } from "@/lib/rateLimit";
 
-const TOPICS = ["question", "privacy", "problem", "feedback", "other"];
+const TOPICS = ["question", "privacy", "appeal", "problem", "feedback", "other"];
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 
 // Public: the contact form. Messages are stored for the team to read; nothing is shown back to anyone.
@@ -35,5 +35,18 @@ export async function POST(req: NextRequest) {
     console.error("Could not store a contact message", e);
     return NextResponse.json({ error: "We couldn't send your message. Please try again." }, { status: 500 });
   }
+  void notifyTeam(`New Kaizo message (${topic}) from ${name}: ${message.slice(0, 200)}${message.length > 200 ? "…" : ""}`);
   return NextResponse.json({ ok: true });
+}
+
+// Optional: CONTACT_WEBHOOK_URL (a Slack, Discord or Teams incoming webhook) gets a short note for every message, so nobody has to
+// remember to look. It is never required, and a failure never affects the person who wrote.
+async function notifyTeam(text: string) {
+  const url = process.env.CONTACT_WEBHOOK_URL;
+  if (!url || !/^https:\/\//.test(url)) return;
+  try {
+    await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, content: text }), signal: AbortSignal.timeout(5000) });
+  } catch {
+    /* the message is saved anyway */
+  }
 }

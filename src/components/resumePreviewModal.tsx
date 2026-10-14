@@ -12,6 +12,7 @@ import { Download, FileText, Loader2, Pencil, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useToast } from "@/context/toastContext";
 import { authFetch } from "@/lib/authFetch";
+import { useT } from "@/i18n/provider";
 
 interface ResumePreviewModalProps {
     isOpen: boolean;
@@ -20,6 +21,7 @@ interface ResumePreviewModalProps {
 }
 
 export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePreviewModalProps) {
+  const { tr } = useT();
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
     const [filename, setFilename] = useState<string>("");
     const [editing, setEditing] = useState(false);
@@ -35,7 +37,7 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
             // The PDF is fetched with the user's token and shown from a local blob URL
             authFetch(`/api/resumes/${fileId}?view=true`)
                 .then(async (res) => {
-                    if (!res.ok) throw new Error("Could not open this resume.");
+                    if (!res.ok) throw new Error(tr("Could not open this resume."));
                     const name = decodeURIComponent(res.headers.get("X-Filename") || "");
                     const blob = await res.blob();
                     if (cancelled) return;
@@ -47,7 +49,7 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
                     }
                 })
                 .catch(() => {
-                    if (!cancelled) toast.error("We couldn't open that resume. Please try again.");
+                    if (!cancelled) toast.error(tr("We couldn't open that resume. Please try again."));
                 });
         } else {
             setPdfUrl(null);
@@ -67,7 +69,7 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
         try {
             const response = await authFetch(`/api/resumes/${fileId}?format=${format}`);
             if (!response.ok) {
-                throw new Error("Failed to download file.");
+                throw new Error(tr("Failed to download file."));
             }
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -78,9 +80,9 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
-            toast.success(`Resume downloaded as ${format.toUpperCase()}!`);
+            toast.success(tr("Resume downloaded as {v0}!", { v0: format.toUpperCase() }));
         } catch (error) {
-            toast.error(`Failed to download resume: ${(error as Error).message}`);
+            toast.error(tr("Failed to download resume: {message}", { message: (error as Error).message }));
         }
     };
 
@@ -92,12 +94,12 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ filename: newFilename })
             });
-            if (!res.ok) throw new Error('Failed to rename file');
+            if (!res.ok) throw new Error(tr("Failed to rename file"));
             setFilename(newFilename);
             setEditing(false);
-            toast.success('Filename updated!');
+            toast.success(tr("Filename updated!"));
         } catch {
-            toast.error('Failed to rename file');
+            toast.error(tr("Failed to rename file"));
         }
     };
 
@@ -114,7 +116,7 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
                             <FileText className="h-5 w-5" />
                         </span>
                         <div className="min-w-0">
-                            <DialogTitle className="text-base font-bold leading-tight">Resume preview</DialogTitle>
+                            <DialogTitle className="text-base font-bold leading-tight">{tr("Resume preview")}</DialogTitle>
                             {editing ? (
                                 <div className="mt-1 flex items-center gap-2">
                                     <input
@@ -124,16 +126,15 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
                                         onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') { setEditing(false); setNewFilename(filename); } }}
                                         autoFocus
                                     />
-                                    <Button size="sm" onClick={handleRename}>Save</Button>
-                                    <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setNewFilename(filename); }}>Cancel</Button>
+                                    <Button size="sm" onClick={handleRename}>{tr("Save")}</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setNewFilename(filename); }}>{tr("Cancel")}</Button>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <span className="truncate">{filename || "Loading…"}</span>
+                                    <span className="truncate">{filename || tr("Loading…")}</span>
                                     {filename && (
                                         <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium hover:bg-accent hover:text-foreground">
-                                            <Pencil className="h-3 w-3" /> Rename
-                                        </button>
+                                            <Pencil className="h-3 w-3" />{" "}{tr("Rename")}</button>
                                     )}
                                 </div>
                             )}
@@ -142,7 +143,7 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
                     <DialogClose asChild>
                         <button
                             type="button"
-                            aria-label="Close"
+                            aria-label={tr("Close")}
                             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
                         >
                             <X className="h-4 w-4" />
@@ -157,23 +158,21 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
                         <iframe
                             src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&statusbar=0&view=FitH`}
                             className="h-full w-full border-none"
-                            title="Resume Preview"
+                            title={tr("Resume Preview")}
                         />
                     ) : (
                         <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-muted-foreground">
                             <Loader2 className="h-6 w-6 animate-spin" />
-                            <p className="text-sm">Opening your resume…</p>
+                            <p className="text-sm">{tr("Opening your resume…")}</p>
                         </div>
                     )}
                 </div>
 
                 <div className="flex items-center justify-end gap-3 border-t bg-background px-5 py-3.5">
                     <Button variant="outline" onClick={() => handleDownload('docx')} disabled={!pdfUrl} className="h-10 gap-2 px-5">
-                        <Download className="h-4 w-4" /> Download as DOCX
-                    </Button>
+                        <Download className="h-4 w-4" />{" "}{tr("Download as DOCX")}</Button>
                     <Button onClick={() => handleDownload('pdf')} disabled={!pdfUrl} className="h-10 gap-2 px-5">
-                        <Download className="h-4 w-4" /> Download as PDF
-                    </Button>
+                        <Download className="h-4 w-4" />{" "}{tr("Download as PDF")}</Button>
                 </div>
             </DialogContent>
         </Dialog>

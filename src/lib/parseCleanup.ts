@@ -1,6 +1,7 @@
 // Safety net for what the AI returns when it reads a resume: even with a good prompt, models sometimes put the
 // location or the role in the bullets, or glue the address onto an employer or school name. This fixes that
 // deterministically, so the profile never shows "Newark, NJ" as an achievement or "NJIT, Newark, NJ" as a school.
+import { detectSelfEmployed } from "@/lib/selfEmployed";
 import type { ProfileData, JobEntry, EducationEntry } from "@/context/profileContext";
 
 const STATE_CODES =
@@ -65,8 +66,25 @@ function cleanBullets(list: string[] | undefined, job: { title?: string; company
     });
 }
 
+// a web address ("mygeochallenge.com", "https://www.acme.io/jobs"): the resume sometimes shows the link of a company or project where its name goes
+const WEB_ADDRESS = /^(?:https?:\/\/)?(?:www\.)?([a-z0-9][a-z0-9-]*)(?:\.[a-z0-9-]+)+(?:[/?#]\S*)?$/i;
+
+/**
+ * The name of an organization for a web address: the way the resume writes it elsewhere in the job (so "mygeochallenge.com" becomes
+ * "myGeoChallenge" when a bullet says so), or else the name of the site, with a capital letter.
+ */
+export function nameFromWebAddress(company: string, texts: string[] = []): string {
+  const m = WEB_ADDRESS.exec(company.trim());
+  if (!m) return company;
+  const label = m[1];
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const written = new RegExp(`\\b${escaped}\\b`, "i").exec(texts.join("\n"));
+  return written ? written[0] : label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 function cleanJob<T extends Partial<JobEntry>>(j: T): T {
-  let company = (j.company ?? "").trim();
+  // the company is a name, never a link
+  let company = nameFromWebAddress((j.company ?? "").trim(), [j.title ?? "", j.description ?? "", ...(j.accomplishments ?? [])]);
   let location = (j.location ?? "").trim();
   const split = splitPlace(company);
   if (split.place) {
@@ -74,10 +92,14 @@ function cleanJob<T extends Partial<JobEntry>>(j: T): T {
     if (!location) location = split.place;
   }
   const description = (j.description ?? "").trim();
+  // (a "false" from the AI does not block it: the company, the title and the first lines are read too)
+  const self = j.selfEmployed === true || detectSelfEmployed({ ...j, selfEmployed: undefined, company, description });
   return {
     ...j,
     company,
     location,
+    // working for oneself (freelance, own business): the box "I work for myself" is ticked from the start
+    ...(self ? { selfEmployed: true } : {}),
     // a description that is just the place or the role is not a description
     description: looksLikePlace(description) || norm(description) === norm(j.title) ? "" : description,
     accomplishments: cleanBullets(j.accomplishments, { title: j.title, company, location }),

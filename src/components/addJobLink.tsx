@@ -7,8 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Button } from "@/components/ui/button";
 import { authFetch } from "@/lib/authFetch";
 import type { JobListing } from "@/lib/jobSearch";
+import { useT } from "@/i18n/provider";
 
 export default function AddJobLink({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded: (job: JobListing) => void }) {
+  const { tr, trd } = useT();
   const [mode, setMode] = useState<"link" | "text">("link");
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
@@ -28,7 +30,7 @@ export default function AddJobLink({ open, onClose, onAdded }: { open: boolean; 
       if (!res.ok) {
         // a page that needs a login cannot be read: offer the text instead
         if (res.status === 422 && mode === "link") setMode("text");
-        throw new Error(data.error || "We couldn't read that posting.");
+        throw new Error(trd(data.error) || tr("We couldn't read that posting."));
       }
       onAdded(data.job as JobListing);
       setUrl("");
@@ -43,8 +45,8 @@ export default function AddJobLink({ open, onClose, onAdded }: { open: boolean; 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
       <DialogContent className="rounded-2xl sm:max-w-xl">
-        <DialogTitle className="text-xl font-extrabold">Add a job</DialogTitle>
-        <DialogDescription>Did not find it in the search? Paste the link of the posting, from any site, or its text. It becomes a job here: you can compare it with your profile and prepare a resume and cover letter for it.</DialogDescription>
+        <DialogTitle className="text-xl font-extrabold">{tr("Add a job")}</DialogTitle>
+        <DialogDescription>{tr("Did not find it in the search? Paste the link of the posting, from any site, or its text. It becomes a job here: you can compare it with your profile and prepare a resume and cover letter for it.")}</DialogDescription>
 
         <form onSubmit={submit} className="space-y-4">
           <div role="tablist" className="inline-flex rounded-full border p-1 text-sm font-semibold">
@@ -53,22 +55,22 @@ export default function AddJobLink({ open, onClose, onAdded }: { open: boolean; 
               { id: "text" as const, label: "Paste the text", icon: FileText },
             ].map((t) => (
               <button key={t.id} type="button" role="tab" aria-selected={mode === t.id} onClick={() => setMode(t.id)} className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 transition-colors ${mode === t.id ? "bg-blue-600 text-white" : "text-muted-foreground hover:text-foreground"}`}>
-                <t.icon className="h-4 w-4" /> {t.label}
+                <t.icon className="h-4 w-4" /> {tr(t.label)}
               </button>
             ))}
           </div>
 
           {mode === "link" ? (
             <div>
-              <label htmlFor="job-url" className="mb-1.5 block text-sm font-semibold">Link to the job</label>
-              <input id="job-url" type="url" inputMode="url" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://company.com/careers/job-123" className="h-11 w-full rounded-lg border bg-background px-3.5 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50" />
-              <p className="mt-1.5 text-xs text-muted-foreground">Works with company pages and most job boards. Sites that ask you to log in cannot be read: paste the text instead.</p>
+              <label htmlFor="job-url" className="mb-1.5 block text-sm font-semibold">{tr("Link to the job")}</label>
+              <input id="job-url" type="url" inputMode="url" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder={tr("https://company.com/careers/job-123")} className="h-11 w-full rounded-lg border bg-background px-3.5 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50" />
+              <p className="mt-1.5 text-xs text-muted-foreground">{tr("Works with company pages and most job boards. Sites that ask you to log in cannot be read: paste the text instead.")}</p>
             </div>
           ) : (
             <div>
-              <label htmlFor="job-text" className="mb-1.5 block text-sm font-semibold">Text of the posting</label>
-              <textarea id="job-text" autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={9} placeholder="Copy the job title, company and description from the page and paste it here." className="w-full resize-y rounded-lg border bg-background p-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50" />
-              <p className="mt-1 text-xs text-muted-foreground">{text.trim().length < 80 ? "Paste a little more of the posting." : `${text.trim().length.toLocaleString()} characters`}</p>
+              <label htmlFor="job-text" className="mb-1.5 block text-sm font-semibold">{tr("Text of the posting")}</label>
+              <textarea id="job-text" autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={9} placeholder={tr("Copy the job title, company and description from the page and paste it here.")} className="w-full resize-y rounded-lg border bg-background p-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50" />
+              <p className="mt-1 text-xs text-muted-foreground">{text.trim().length < 80 ? tr("Paste a little more of the posting.") : tr("{v0} characters", { v0: text.trim().length.toLocaleString() })}</p>
             </div>
           )}
 
@@ -79,10 +81,10 @@ export default function AddJobLink({ open, onClose, onAdded }: { open: boolean; 
           )}
 
           <div className="flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>{tr("Cancel")}</Button>
             <Button type="submit" disabled={!ready || busy} className="gap-2">
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {busy ? "Reading the posting…" : "Add this job"}
+              {busy ? tr("Reading the posting…") : tr("Add this job")}
             </Button>
           </div>
         </form>

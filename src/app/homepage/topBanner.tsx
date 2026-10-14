@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/i18n/navigation";
 import Image from "next/image";
 import { MenuIcon, XIcon } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { LoginForm } from "@/components/forms/loginForm";
 import { useAuth } from "@/context/authContext";
+import { useRouter } from "@/i18n/navigation";
+import LanguageSwitch from "@/components/languageSwitch";
+import { useT } from "@/i18n/provider";
 
 const links = [
   { href: "#how", label: "How it works" },
@@ -16,6 +19,8 @@ const links = [
 ];
 
 export default function TopBanner() {
+  const { tr } = useT();
+  const router = useRouter();
   const { user } = useAuth();
   // a guest is not logged in: only a real account sees the dashboard shortcut
   const signedIn = !!user && !user.uid.startsWith("guest-");
@@ -59,11 +64,11 @@ export default function TopBanner() {
         scrolled ? "shadow-md" : "border-b border-gray-200"
       }`}
     >
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div className="max-w-[1600px] mx-auto px-4 lg:px-10 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center shrink-0">
           <Image
-            src="/kaizologo.png"
-            alt="Kaizo Resume Builder logo"
+            src="/kaizologo-v2.png" unoptimized
+            alt={tr("Kaizo Resume Builder logo")}
             width={118}
             height={39}
             priority
@@ -82,22 +87,23 @@ export default function TopBanner() {
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               }`}
             >
-              {l.label}
+              {tr(l.label)}
             </a>
           ))}
         </nav>
 
         <div className="flex items-center gap-2">
+          <LanguageSwitch className="hidden sm:inline-flex" />
           {signedIn ? (
             <Link href="/home" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-md transition-colors">
-              Go to dashboard
+              {tr("Go to dashboard")}
             </Link>
           ) : (
             <>
           <Popover open={showLogin} onOpenChange={setShowLogin}>
             <PopoverTrigger asChild>
               <button className="hidden sm:inline-block text-sm font-semibold text-gray-800 border border-gray-300 hover:border-gray-900 px-4 py-2 rounded-md transition-colors">
-                Log in
+                {tr("Log in")}
               </button>
             </PopoverTrigger>
             <PopoverContent
@@ -105,20 +111,20 @@ export default function TopBanner() {
               sideOffset={12}
               className="auth-light w-[22rem] p-6 bg-white text-gray-900 rounded-md border border-gray-200 shadow-2xl"
             >
-              <h3 className="text-xl font-bold text-gray-900">Welcome back</h3>
+              <h3 className="text-xl font-bold text-gray-900">{tr("Welcome back")}</h3>
               <p className="text-sm text-gray-500 mt-1 mb-5">
-                Log in to keep working on your resume.
+                {tr("Log in to keep working on your resume.")}
               </p>
               <LoginForm
                 onLogin={() => setShowLogin(false)}
                 onForgotPassword={() => {
-                  window.location.href = "/login?view=resetPassword";
+                  router.push("/login?view=resetPassword");
                 }}
               />
               <div className="mt-5 pt-4 border-t border-gray-200 text-center text-sm text-gray-600">
-                New here?{" "}
+                {tr("New here?")}{" "}
                 <Link href="/login?view=register" className="text-blue-600 font-semibold hover:underline">
-                  Create a free account
+                  {tr("Create a free account")}
                 </Link>
               </div>
             </PopoverContent>
@@ -128,7 +134,7 @@ export default function TopBanner() {
             href="/start"
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-md transition-colors"
           >
-            Create my resume
+            {tr("Create my resume")}
           </Link>
 
             </>
@@ -137,7 +143,7 @@ export default function TopBanner() {
           <button
             className="md:hidden p-2 text-gray-700"
             onClick={() => setMenuOpen((o) => !o)}
-            aria-label="Toggle menu"
+            aria-label={tr("Toggle menu")}
           >
             {menuOpen ? <XIcon className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
           </button>
@@ -157,11 +163,12 @@ export default function TopBanner() {
               onClick={() => setMenuOpen(false)}
               className="py-3 text-gray-800 font-medium border-b border-gray-100"
             >
-              {l.label}
+              {tr(l.label)}
             </a>
           ))}
+          <LanguageSwitch className="my-3 w-fit" />
           <Link href={signedIn ? "/home" : "/login?view=login"} className="py-3 text-blue-600 font-semibold">
-            {signedIn ? "Go to dashboard" : "Log in"}
+            {signedIn ? tr("Go to dashboard") : tr("Log in")}
           </Link>
         </div>
       )}

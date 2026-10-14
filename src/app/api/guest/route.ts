@@ -1,4 +1,5 @@
 import { limited } from "@/lib/rateLimit";
+import { sweepOnce } from "@/lib/retention";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import admin from "@/lib/firebase-admin";
@@ -11,6 +12,7 @@ export async function POST(req: Request) {
   const tooMany = limited(req, "guest", 15, 60 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
+    void sweepOnce(); // inactive guests and old messages are removed here, no scheduler needed
     const uid = `guest-${randomUUID()}`;
     const token = await admin.auth().createCustomToken(uid, { guest: true });
     return NextResponse.json({ token });

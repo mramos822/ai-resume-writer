@@ -1,3 +1,8 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { useT } from "@/i18n/provider";
+
 /** One sheet of a resume, drawn with bars. */
 function Sheet({ lit = false }: { lit?: boolean }) {
   // grey sheet; the lit copy is the same sheet in blue and is only visible around the scanner line
@@ -32,19 +37,29 @@ function Sheet({ lit = false }: { lit?: boolean }) {
 }
 
 /** The one loading screen of the app: a resume being scanned. Shown whenever a page (or the session) is still being prepared. */
-export default function PageLoader({ label = "Getting things ready…" }: { label?: string }) {
+export default function PageLoader({ label }: { label?: string }) {
+  const { tr } = useT();
   // The loading screen is shown by several parts of the app one after another (session check, page load). Each new one
   // would start the scan from the top and the line would jump back. Starting every animation at the point of the cycle
   // the clock is at keeps the line moving without a break from one screen to the next.
   const phase = { animationDelay: `-${((Date.now() % 2800) / 1000).toFixed(3)}s` };
   return (
-    <div
+    // It enters with a short fade (a quick load never flashes it) and leaves by lifting away, so the page underneath appears smoothly.
+    <motion.div
       role="status"
       aria-live="polite"
       suppressHydrationWarning
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: { duration: 0.35, delay: 0.12, ease: "easeOut" } }}
+      exit={{ opacity: 0, transition: { duration: 0.4, ease: "easeInOut" } }}
       className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-8 bg-background text-foreground"
     >
-      <div className="relative h-72 w-56">
+      <motion.div
+        className="relative h-72 w-56"
+        initial={{ opacity: 0, y: 14, scale: 0.94 }}
+        animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: 0.55, delay: 0.12, ease: [0.22, 1, 0.36, 1] } }}
+        exit={{ opacity: 0, y: -18, scale: 1.04, filter: "blur(6px)", transition: { duration: 0.4, ease: "easeIn" } }}
+      >
         {/* the sheet fades out towards the bottom */}
         <div
           className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-2xl shadow-blue-900/15 ring-1 ring-black/10"
@@ -62,8 +77,15 @@ export default function PageLoader({ label = "Getting things ready…" }: { labe
           <div className="absolute inset-x-1 top-0 h-20 bg-gradient-to-b from-blue-500/35 via-blue-500/10 to-transparent" />
           <div className="absolute inset-x-0 -top-[2px] h-1 rounded-full bg-blue-500 shadow-[0_0_18px_5px_rgba(59,130,246,0.7)]" />
         </div>
-      </div>
-      <p className="text-sm font-medium tracking-wide text-muted-foreground">{label}</p>
-    </div>
+      </motion.div>
+      <motion.p
+        className="text-sm font-medium tracking-wide text-muted-foreground"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0, transition: { duration: 0.45, delay: 0.3 } }}
+        exit={{ opacity: 0, transition: { duration: 0.2 } }}
+      >
+        {label ?? tr("Getting things ready…")}
+      </motion.p>
+    </motion.div>
   );
 }

@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/i18n/navigation";
 import LegalLayout, { type LegalSection } from "@/components/legalLayout";
+import { getT } from "@/i18n/server";
+import { privacyEs } from "@/app/privacy/content.es";
 
-export const metadata: Metadata = { title: "Privacy Policy | Kaizo" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { tr } = await getT();
+  return { title: { absolute: tr("Privacy Policy | Kaizo") } };
+}
 
 const sections: LegalSection[] = [
   {
@@ -23,6 +28,8 @@ const sections: LegalSection[] = [
           <li><strong>Resume data you give us:</strong> everything you type or import into your profile: contact details, address, photo, work history, education, skills, projects, languages and links.</li>
           <li><strong>Files:</strong> resumes you upload and the PDF or DOCX files we generate for you.</li>
           <li><strong>Job activity:</strong> job descriptions you paste, jobs you save, and the applications you prepare, including the tailored resume and cover letter.</li>
+          <li><strong>What you confirm for an application:</strong> the skills you say you have, your answers to the questions about a job, and the date you declared they are true, linked to that application.</li>
+          <li><strong>Places you search:</strong> the country and place you type or pick in the job search. Suggestions of cities and regions are made on our servers from a built-in list, without sending what you type to anyone else.</li>
           <li><strong>Messages</strong> you send through our contact form.</li>
           <li><strong>Settings and progress</strong> such as your light or dark theme and your unfinished builder draft.</li>
           <li><strong>Basic technical data</strong> your browser sends to any website (such as IP address and browser type), which our hosting and security tools process to deliver the site and keep it safe.</li>
@@ -52,6 +59,7 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>When you use an AI feature, the text needed for that task (for example your resume content and, if you chose one, a job description) is sent to a third-party AI provider, Google&apos;s Gemini API by default, which returns the result to us. We send only what the task needs, and we do not use your content to train our own models.</p>
+        <p>This includes the text of a job posting (from a listing or one you paste or link), the parts of your profile needed to compare it, and what you confirmed or answered for that job, so that the AI can ask questions, check a draft and write the resume and cover letter. When you give us a link to a job, our servers download that public page to read it; the site sees our server&apos;s address, not yours.</p>
         <p>The provider processes that text under its own terms. Please do not put information in your resume that you would not want processed this way.</p>
       </>
     ),
@@ -66,9 +74,10 @@ const sections: LegalSection[] = [
           <li><strong>Google Firebase</strong>: sign-in and some account settings.</li>
           <li><strong>MongoDB Atlas</strong>: the database where your profile, files and applications are stored.</li>
           <li><strong>Google Gemini API</strong> (or the AI provider configured for the service): AI features, as described above.</li>
-          <li><strong>Adzuna, Remotive and Arbeitnow</strong>: job listings. Our servers send them the search terms and location you choose, never your resume or profile.</li>
+          <li><strong>Adzuna, Remotive and Arbeitnow</strong>: job listings. Our servers send them the search terms and place you choose, which can include your target job title and your main skills (so they find jobs that fit you), never your resume, your name, your contact details or your profile. For a search by place we may also send the nearby city or the nearest big city.</li>
           <li><strong>Google</strong> (favicon service): to show a company logo, your browser requests a small icon from Google using the company&apos;s website address. Google receives your IP address as with any image request.</li>
           <li><strong>Our hosting provider</strong>, which delivers the site.</li>
+          <li><strong>The team&apos;s chat tool</strong> (if configured): a short note, with the first lines of your message, so we see it quickly.</li>
         </ul>
         <p>We may also disclose data when the law requires it, or to protect the rights, safety and security of Kaizo and its users.</p>
       </>
@@ -84,7 +93,7 @@ const sections: LegalSection[] = [
     title: "How long we keep it",
     body: (
       <>
-        <p>We keep your data while your account exists. When you delete a resume or a profile in the app, it is removed from our database, and when you delete your account everything is removed. Guest data that is not claimed with an account may be deleted after a period of inactivity. Contact messages are kept for as long as needed to answer you and keep a record of the conversation. Backups may hold deleted data for a short time before they are overwritten.</p>
+        <p>We keep your data while your account exists. When you delete a resume or a profile in the app, it is removed from our database, and when you delete your account everything is removed. A guest session (no account) that has not been used for <strong>30 days</strong> is deleted automatically with everything in it, and starting a new resume as a guest deletes the unfinished one. Contact messages are kept for at most <strong>24 months</strong>. Backups may hold deleted data for a short time before they are overwritten.</p>
       </>
     ),
   },
@@ -150,6 +159,7 @@ const sections: LegalSection[] = [
   },
 ];
 
-export default function PrivacyPage() {
-  return <LegalLayout title="Privacy Policy" intro="What information Kaizo collects, why, who helps us handle it and the control you have over it. No tracking, no ads, no selling your data." sections={sections} />;
+export default async function PrivacyPage() {
+  const { tr, locale } = await getT();
+  return <LegalLayout title={tr("Privacy Policy")} intro={tr("What information Kaizo collects, why, who helps us handle it and the control you have over it. No tracking, no ads, no selling your data.")} sections={locale === "es" ? privacyEs : sections} />;
 }

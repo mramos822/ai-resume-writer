@@ -20,10 +20,11 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getFriendlyFirebaseErrorMessage } from "@/utils/firebaseErrorHandler";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { FcGoogle } from "react-icons/fc";
+import { useT } from "@/i18n/provider";
 
 interface LoginFormValues {
     email: string;
@@ -37,6 +38,7 @@ export function LoginForm({
     onLogin: () => void;
     onForgotPassword?: () => void;
 }) {
+  const { tr } = useT();
     const [error, setError] = useState<string | null>(null);
     const [showResendLink, setShowResendLink] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -64,7 +66,7 @@ export function LoginForm({
             toast.error(
                 code
                     ? getFriendlyFirebaseErrorMessage(err)
-                    : "Failed to sign in with Google. Please try again."
+                    : tr("Failed to sign in with Google. Please try again.")
             );
             console.error("Google sign-in error:", err);
         }
@@ -82,7 +84,7 @@ export function LoginForm({
 
             await user.reload();
             if (!user.emailVerified) {
-                setError("Your email is not verified.");
+                setError(tr("Your email is not verified."));
                 setShowResendLink(true);
                 return;
             }
@@ -105,10 +107,10 @@ export function LoginForm({
             const user = userCredential.user;
 
             await sendEmailVerification(user);
-            toast.success("Verification email resent. Please check your inbox.");
+            toast.success(tr("Verification email resent. Please check your inbox."));
             setShowResendLink(false);
         } catch {
-            toast.error("Failed to resend verification email. Please try again.");
+            toast.error(tr("Failed to resend verification email. Please try again."));
         }
     };
 
@@ -121,15 +123,12 @@ export function LoginForm({
                 {error && <p className="text-sm text-red-500">{error}</p>}
 
                 {showResendLink && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Your email is not verified.{" "}
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{tr("Your email is not verified.")}{" "}
                         <button
                             type="button"
                             onClick={handleResendVerification}
                             className="text-blue-500 hover:underline"
-                        >
-                            Click here to resend the verification email.
-                        </button>
+                        >{tr("Click here to resend the verification email.")}</button>
                     </p>
                 )}
 
@@ -138,11 +137,11 @@ export function LoginForm({
                     control={form.control}
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel>{tr("Email")}</FormLabel>
                             <FormControl>
                                 <Input
                                     id="email"
-                                    placeholder="Enter your email"
+                                    placeholder={tr("Enter your email")}
                                     className="bg-white border border-gray-400 text-black placeholder-gray-500"
                                     {...field}
                                 />
@@ -157,13 +156,13 @@ export function LoginForm({
                     control={form.control}
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Password</FormLabel>
+                            <FormLabel>{tr("Password")}</FormLabel>
                             <FormControl>
                                 <div className="relative">
                                     <Input
                                         id="password"
                                         type={showPassword ? "text" : "password"}
-                                        placeholder="Enter your password"
+                                        placeholder={tr("Enter your password")}
                                         className="bg-white border border-gray-400 text-black placeholder-gray-500"
                                         {...field}
                                     />
@@ -191,21 +190,15 @@ export function LoginForm({
                             type="button"
                             onClick={onForgotPassword}
                             className="text-sm text-blue-500 hover:underline"
-                        >
-                            Forgot password?
-                        </button>
+                        >{tr("Forgot password?")}</button>
                     </div>
                 )}
 
-                <Button type="submit" className="w-full">
-                    Log In
-                </Button>
+                <Button type="submit" className="w-full">{tr("Log In")}</Button>
 
                 <div className="flex items-center my-4">
                     <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
-                    <span className="mx-2 text-sm text-gray-500 dark:text-gray-400">
-                        or
-                    </span>
+                    <span className="mx-2 text-sm text-gray-500 dark:text-gray-400">{tr("or")}</span>
                     <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
                 </div>
 
@@ -214,9 +207,7 @@ export function LoginForm({
                     onClick={handleGoogleSignIn}
                     className="w-full flex items-center justify-center gap-2 dark:bg-black dark:text-stone-300 dark:border-stone-600 border border-black"
                 >
-                    <FcGoogle className="h-5 w-5" />
-                    Sign in with Google
-                </Button>
+                    <FcGoogle className="h-5 w-5" />{tr("Sign in with Google")}</Button>
             </form>
         </Form>
     );

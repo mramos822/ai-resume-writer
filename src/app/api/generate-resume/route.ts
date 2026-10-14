@@ -1,5 +1,6 @@
+import { asResumeLang } from '@/lib/resumeLang';
 import { limited } from "@/lib/rateLimit";
-import { bumpResumeCount } from '@/lib/resumeCounter';
+import { bumpResumeCount, bumpTemplateCount } from '@/lib/resumeCounter';
 import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
 import { createHash } from 'crypto';
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest) {
     const uid = await authUid(req);
     const body = await req.json();
     const { template, format, profileId, jobAdId, withPhoto, builder, create } = body;
+    const lang = asResumeLang(body.lang);
 
     if (!template) {
       return NextResponse.json({ error: 'Template not provided' }, { status: 400 });
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     // The resume made by the step-by-step builder is kept apart and reused: while nothing changed the same file is
     // returned (nothing is generated again); when something changed, the old file is deleted and the new one takes its place.
-    const contentHash = createHash('sha256').update(JSON.stringify({ template, withPhoto: withPhoto !== false, data: profileData })).digest('hex');
+    const contentHash = createHash('sha256').update(JSON.stringify({ template, lang, withPhoto: withPhoto !== false, data: profileData })).digest('hex');
     const files = db.collection('uploads.files');
     // the builder's file is replaced when you change something: only the first one counts as a resume created
     let countsAsNew = true;
@@ -63,7 +65,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { buffer: pdfBuffer, scale, pages, droppedChars } = await renderResumeDetailed(profileData, template, { withPhoto: withPhoto !== false });
+    const { buffer: pdfBuffer, scale, pages, droppedChars } = await renderResumeDetailed(profileData, template, { withPhoto: withPhoto !== false, lang });
 
     let jobAdTitle = '';
     if (jobAdId) {
@@ -114,6 +116,8 @@ export async function POST(req: NextRequest) {
       }
     }
     if (countsAsNew) await bumpResumeCount().catch((e) => console.error('Could not update the resume counter', e));
+    // how many resumes each look has made, only for people who registered (a guest has no account yet)
+    if (countsAsNew && !uid.startsWith('guest-')) await bumpTemplateCount(String(template)).catch((e) => console.error('Could not update the look counter', e));
 
     return NextResponse.json(
       {

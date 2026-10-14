@@ -20,6 +20,7 @@ const replaceMock = jest.fn();
 const routerMock = { push: pushMock, replace: replaceMock };
 jest.mock("next/navigation", () => ({
     useRouter: () => routerMock,
+    usePathname: () => "/login",
 }));
 
 // Variable to control useAuth mock

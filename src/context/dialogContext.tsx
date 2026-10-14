@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/i18n/provider";
 
 /** In-app replacements for window.confirm / window.prompt. */
 export interface ConfirmOptions {
@@ -57,6 +58,7 @@ const DialogContext = createContext<DialogApi>({
 });
 
 export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { tr } = useT();
   const [state, setState] = useState<State>(null);
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -133,11 +135,11 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 </span>
                 <div className="min-w-0 flex-1">
                   <DialogTitle className="text-lg font-semibold leading-tight">
-                    {state.opts.title}
+                    {tr(state.opts.title)}
                   </DialogTitle>
                   <DialogDescription asChild>
                     <div className="mt-1.5 text-sm text-muted-foreground">
-                      {state.opts.description ?? (danger ? "This can't be undone." : "")}
+                      {state.opts.description ?? (danger ? tr("This can't be undone.") : "")}
                     </div>
                   </DialogDescription>
 
@@ -148,7 +150,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                           htmlFor="app-dialog-input"
                           className="mb-1.5 block text-sm font-medium"
                         >
-                          {state.opts.label}
+                          {tr(state.opts.label)}
                         </label>
                       )}
                       <Input
@@ -182,14 +184,14 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 variant="outline"
                 onClick={() => close(state.kind === "confirm" ? false : null)}
               >
-                {state.opts.cancelText ?? "Cancel"}
+                {state.opts.cancelText ?? tr("Cancel")}
               </Button>
               <Button
                 autoFocus={state.kind === "confirm"}
                 variant={danger ? "destructive" : "default"}
                 onClick={() => (state.kind === "confirm" ? close(true) : submitPrompt())}
               >
-                {state.opts.confirmText ?? (state.kind === "prompt" ? "Save" : "Confirm")}
+                {state.opts.confirmText ?? (state.kind === "prompt" ? tr("Save") : tr("Confirm"))}
               </Button>
             </div>
           )}

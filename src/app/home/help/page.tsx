@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import Link from "next/link";
+import Link from "@/i18n/navigation";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -19,6 +19,7 @@ import {
 import { openTour } from "@/components/guidedTour";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useT } from "@/i18n/provider";
 
 const GUIDES = [
   {
@@ -122,14 +123,16 @@ const GLOSSARY = [
 ];
 
 export default function HelpPage() {
+  const { tr } = useT();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return FAQS;
-    return FAQS.filter((f) => f.q.toLowerCase().includes(q) || f.a.toLowerCase().includes(q));
-  }, [query]);
+    // the search looks in the text the person reads (in their language)
+    return FAQS.filter((f) => tr(f.q).toLowerCase().includes(q) || tr(f.a).toLowerCase().includes(q));
+  }, [query, tr]);
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-8">
@@ -140,12 +143,9 @@ export default function HelpPage() {
         className="rounded-lg border bg-gradient-to-br from-blue-600 to-indigo-600 p-8 text-white"
       >
         <span className="mb-3 inline-flex items-center gap-2 rounded-md bg-white/15 px-3 py-1 text-sm font-medium">
-          <LifeBuoy className="h-4 w-4" /> Help center
-        </span>
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">How can we help?</h1>
-        <p className="mt-2 max-w-xl text-blue-100">
-          Short guides, answers to common questions, and a tour if you&apos;d like to see everything at once.
-        </p>
+          <LifeBuoy className="h-4 w-4" />{" "}{tr("Help center")}</span>
+        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{tr("How can we help?")}</h1>
+        <p className="mt-2 max-w-xl text-blue-100">{tr("Short guides, answers to common questions, and a tour if you'd like to see everything at once.")}</p>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
@@ -156,22 +156,20 @@ export default function HelpPage() {
                 setQuery(e.target.value);
                 setOpen(null);
               }}
-              placeholder="Search questions, e.g. “upload” or “template”"
+              placeholder={tr("Search questions, e.g. “upload” or “template”")}
               className="h-11 w-full rounded-md border-0 bg-white pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/60"
             />
           </div>
           <Button onClick={openTour} className="h-11 gap-2 bg-white text-blue-700 hover:bg-blue-50">
-            <PlayCircle className="h-4 w-4" /> Take the tour
-          </Button>
+            <PlayCircle className="h-4 w-4" />{" "}{tr("Take the tour")}</Button>
         </div>
       </motion.div>
 
       {/* Guides */}
       <section>
         <h2 className="mb-1 flex items-center gap-2 text-xl font-bold">
-          <BookOpen className="h-5 w-5 text-blue-600" /> Quick-start guides
-        </h2>
-        <p className="mb-5 text-sm text-muted-foreground">Follow these in order. The whole thing takes about ten minutes.</p>
+          <BookOpen className="h-5 w-5 text-blue-600" />{" "}{tr("Quick-start guides")}</h2>
+        <p className="mb-5 text-sm text-muted-foreground">{tr("Follow these in order. The whole thing takes about ten minutes.")}</p>
         <div className="grid gap-4 sm:grid-cols-2">
           {GUIDES.map(({ icon: Icon, title, time, steps, href, cta }, i) => (
             <motion.div
@@ -186,9 +184,9 @@ export default function HelpPage() {
                     <span className="flex h-10 w-10 items-center justify-center rounded-md bg-accent text-blue-600">
                       <Icon className="h-5 w-5" />
                     </span>
-                    <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{time}</span>
+                    <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{tr(time)}</span>
                   </div>
-                  <CardTitle className="mt-3">{title}</CardTitle>
+                  <CardTitle className="mt-3">{tr(title)}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ol className="space-y-2 text-sm text-muted-foreground">
@@ -197,12 +195,12 @@ export default function HelpPage() {
                         <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-blue-600">
                           {n + 1}
                         </span>
-                        {s}
+                        {tr(s)}
                       </li>
                     ))}
                   </ol>
                   <Link href={href} className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:underline">
-                    {cta} →
+                    {tr(cta)} →
                   </Link>
                 </CardContent>
               </Card>
@@ -213,21 +211,17 @@ export default function HelpPage() {
 
       {/* FAQ */}
       <section>
-        <h2 className="mb-1 text-xl font-bold">Frequently asked questions</h2>
+        <h2 className="mb-1 text-xl font-bold">{tr("Frequently asked questions")}</h2>
         <p className="mb-5 text-sm text-muted-foreground">
-          {query ? `${results.length} result${results.length === 1 ? "" : "s"} for “${query}”` : "Tap a question to see the answer."}
+          {query ? tr("{length} result{v1} for “{query}”", { length: results.length, v1: results.length === 1 ? "" : "s", query }) : tr("Tap a question to see the answer.")}
         </p>
 
         {results.length === 0 ? (
           <div className="flex flex-col items-center rounded-lg border border-dashed py-12 text-center">
             <SearchX className="mb-3 h-8 w-8 text-muted-foreground" />
-            <p className="font-semibold">Nothing matched that search</p>
-            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-              Try a shorter word, or take the tour to see how everything works.
-            </p>
-            <Button variant="outline" className="mt-4" onClick={() => setQuery("")}>
-              Clear search
-            </Button>
+            <p className="font-semibold">{tr("Nothing matched that search")}</p>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">{tr("Try a shorter word, or take the tour to see how everything works.")}</p>
+            <Button variant="outline" className="mt-4" onClick={() => setQuery("")}>{tr("Clear search")}</Button>
           </div>
         ) : (
           <div className="divide-y rounded-lg border bg-card">
@@ -240,14 +234,14 @@ export default function HelpPage() {
                     aria-expanded={isOpen}
                     className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left font-medium hover:bg-accent/50"
                   >
-                    {f.q}
+                    {tr(f.q)}
                     <Plus
                       className={`h-5 w-5 shrink-0 text-blue-600 transition-transform duration-300 ${isOpen ? "rotate-45" : ""}`}
                     />
                   </button>
                   <div className={`grid transition-all duration-300 ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
                     <div className="overflow-hidden">
-                      <p className="px-5 pb-4 text-sm text-muted-foreground">{f.a}</p>
+                      <p className="px-5 pb-4 text-sm text-muted-foreground">{tr(f.a)}</p>
                     </div>
                   </div>
                 </div>
@@ -259,12 +253,12 @@ export default function HelpPage() {
 
       {/* Glossary */}
       <section>
-        <h2 className="mb-4 text-xl font-bold">Words you&apos;ll see</h2>
+        <h2 className="mb-4 text-xl font-bold">{tr("Words you'll see")}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {GLOSSARY.map((g) => (
             <div key={g.term} className="rounded-lg border bg-card p-4">
-              <p className="font-semibold text-blue-600">{g.term}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{g.def}</p>
+              <p className="font-semibold text-blue-600">{tr(g.term)}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{tr(g.def)}</p>
             </div>
           ))}
         </div>
@@ -272,14 +266,12 @@ export default function HelpPage() {
 
       <Card className="border-blue-200 bg-accent/50">
         <CardHeader>
-          <CardTitle>Still stuck?</CardTitle>
-          <CardDescription>
-            Go back to the Dashboard. Its checklist always shows the very next step for you.
-          </CardDescription>
+          <CardTitle>{tr("Still stuck?")}</CardTitle>
+          <CardDescription>{tr("Go back to the Dashboard. Its checklist always shows the very next step for you.")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild>
-            <Link href="/home">Back to Dashboard</Link>
+            <Link href="/home">{tr("Back to Dashboard")}</Link>
           </Button>
         </CardContent>
       </Card>

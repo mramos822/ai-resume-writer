@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/i18n/navigation";
 import LegalLayout, { type LegalSection } from "@/components/legalLayout";
+import { getT } from "@/i18n/server";
+import { termsEs } from "@/app/terms/content.es";
 
-export const metadata: Metadata = { title: "Terms of Service | Kaizo" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { tr } = await getT();
+  return { title: { absolute: tr("Terms of Service | Kaizo") } };
+}
 
 const sections: LegalSection[] = [
   {
@@ -20,7 +25,7 @@ const sections: LegalSection[] = [
     title: "What Kaizo does",
     body: (
       <>
-        <p>Kaizo helps you write resumes and cover letters. You enter or import your details, choose a look, and download the result as PDF or DOCX. Optional features search public job listings, estimate how well your profile matches a job and prepare a resume and cover letter adapted to it.</p>
+        <p>Kaizo helps you write resumes and cover letters. You enter or import your details, choose a look, and download the result as PDF or DOCX. Optional features search public job listings, estimate how well your profile matches a job, ask you questions about it, check a draft against it and prepare a resume and cover letter adapted to it.</p>
         <p>Kaizo prepares application material for you. It does <strong>not</strong> apply to jobs on your behalf and does not contact employers.</p>
       </>
     ),
@@ -42,7 +47,7 @@ const sections: LegalSection[] = [
     title: "Accounts and guest sessions",
     body: (
       <>
-        <p>You can start building a resume without an account, as a guest. A guest session lives in the browser you used. If you clear your browser data or use another device, a guest resume may no longer be available. Create an account to keep your work.</p>
+        <p>You can start building a resume without an account, as a guest. A guest session lives in the browser you used. If you clear your browser data or use another device, a guest resume may no longer be available, and a guest session that is not used for 30 days is deleted. Create an account to keep your work.</p>
         <p>You are responsible for keeping your password safe and for what happens under your account. Give us accurate information and tell us if you think someone else is using your account.</p>
       </>
     ),
@@ -59,12 +64,25 @@ const sections: LegalSection[] = [
     ),
   },
   {
+    id: "truth",
+    title: "Your declarations must be true",
+    body: (
+      <>
+        <p>Kaizo writes resumes and cover letters with the information you give it: your profile, the skills you say you have, and your answers to the questions it asks about a job. <strong>Kaizo does not check any of it.</strong></p>
+        <p>Before a resume is made with something you added for a specific job, we ask you to declare that it is true. By making that declaration you confirm that every skill, experience, qualification and fact you confirmed is real, and that you are <strong>solely responsible</strong> for the truthfulness of your resume, your cover letter and everything in them, and for what you send to an employer. A false or exaggerated claim can lead an employer to reject your application or end your employment, and in some places it can have legal consequences.</p>
+        <p>We keep the date of each declaration and what you confirmed, linked to that application, so we can show it if it is needed. It is deleted when you delete the application or your account.</p>
+        <p>To the fullest extent the law allows, Kaizo is not responsible for losses that result from information you provided that was false, inaccurate or misleading, and you agree to hold Kaizo harmless from claims by employers or other third parties that arise from it.</p>
+      </>
+    ),
+  },
+  {
     id: "ai",
     title: "AI-written content",
     body: (
       <>
         <p>Some features use artificial intelligence to suggest wording, review your resume and write cover letters. AI can make mistakes. <strong>Read everything before you send it.</strong> You are the author of your resume and are responsible for it being accurate and for what you apply with.</p>
         <p>We do not promise that a resume will pass any particular applicant tracking system, that you will get an interview or a job, or that suggestions are right for your situation. Scores and checks in Kaizo are guidance, not a guarantee.</p>
+        <p>The &ldquo;fit&rdquo; percentage, the questions Kaizo asks about a job, the check of a draft and the summaries of job postings are estimates made by software from the text available. They are not a hiring decision, they do not describe you as a person, and they can be wrong or incomplete. Always check the original job posting.</p>
       </>
     ),
   },
@@ -72,7 +90,11 @@ const sections: LegalSection[] = [
     id: "jobs",
     title: "Job listings from other sources",
     body: (
-      <p>Job listings come from third-party sources such as Adzuna, Remotive and Arbeitnow. We do not write, verify or endorse them, and they can be out of date or removed. Applying always happens on the employer&apos;s or the source&apos;s own site, under their terms and privacy practices.</p>
+      <>
+        <p>Job listings come from third-party sources such as Adzuna, Remotive and Arbeitnow. We do not write, verify or endorse them, and they can be out of date or removed. Applying always happens on the employer&apos;s or the source&apos;s own site, under their terms and privacy practices.</p>
+        <p>To make a listing easier to read, Kaizo may read the public page of the posting and use AI to summarize it in sections. A summary can leave out or misstate details, so check the original posting before you apply. Distances, nearby places and the &ldquo;nearest big city&rdquo; are approximations.</p>
+        <p>If you add a job by pasting a link or text, you confirm that you may use that content and that you are not using content you reached with someone else&apos;s login. Kaizo is not affiliated with the sites the postings come from, such as LinkedIn.</p>
+      </>
     ),
   },
   {
@@ -103,7 +125,7 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>We keep improving Kaizo, so features can change or be removed. We work to keep the service available but cannot promise it will always be uninterrupted or error-free.</p>
-        <p>You can stop using Kaizo at any time and delete your resumes and profiles from inside the app. To close your account completely, <Link href="/contact">contact us</Link>. We may suspend or end an account that breaks these terms.</p>
+        <p>You can stop using Kaizo at any time and delete your resumes and profiles from inside the app. To close your account completely, use <strong>Delete my account</strong> in Settings (you can also download a copy of your data there first). We may suspend or end an account that breaks these terms.</p>
       </>
     ),
   },
@@ -135,6 +157,7 @@ const sections: LegalSection[] = [
   },
 ];
 
-export default function TermsPage() {
-  return <LegalLayout title="Terms of Service" intro="The rules for using Kaizo, in plain language. Please read them before you start." sections={sections} />;
+export default async function TermsPage() {
+  const { tr, locale } = await getT();
+  return <LegalLayout title={tr("Terms of Service")} intro={tr("The rules for using Kaizo, in plain language. Please read them before you start.")} sections={locale === "es" ? termsEs : sections} />;
 }

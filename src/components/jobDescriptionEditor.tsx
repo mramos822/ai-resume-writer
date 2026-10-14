@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
-import { Lightbulb, Plus, Check } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import { Lightbulb, Plus, Check, ChevronDown } from "lucide-react";
 import { ACTION_VERBS, bulletTips, normalizeBullets, toBullets } from "@/lib/bullets";
 import { ideasFor } from "@/lib/jobIdeas";
+import { useT } from "@/i18n/provider";
 
 const RECOMMENDED_MAX = 700;
 
@@ -15,15 +16,21 @@ export default function JobDescriptionEditor({
   value,
   onChange,
   jobTitle,
+  compact = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   jobTitle: string;
+  /** a shorter box, with the tips, the examples and the verbs folded until asked for (used where space is tight) */
+  compact?: boolean;
 }) {
+  const { tr } = useT();
+  const [helpOpen, setHelpOpen] = useState(false);
+  const showHelp = !compact || helpOpen;
   const ref = useRef<HTMLTextAreaElement>(null);
   const bullets = useMemo(() => toBullets(value), [value]);
   const tips = useMemo(() => bulletTips(bullets), [bullets]);
-  const ideas = useMemo(() => ideasFor(jobTitle), [jobTitle]);
+  const ideas = useMemo(() => ideasFor(jobTitle, tr), [jobTitle, tr]);
   const chars = bullets.join("").length;
   const used = new Set(bullets.map((b) => b.toLowerCase()));
 
@@ -106,25 +113,25 @@ export default function JobDescriptionEditor({
 
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-sm font-semibold">What did you do?</span>
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+        <span className="text-sm font-semibold">{tr("What did you do?")}</span>
         <span className={`text-xs tabular-nums ${countTone}`}>
-          {chars} / {RECOMMENDED_MAX} characters · {bullets.length} bullet{bullets.length === 1 ? "" : "s"}
+          {chars} / {RECOMMENDED_MAX}{" "}{tr("characters ·")}{" "}{bullets.length}{" "}{tr("bullet")}{bullets.length === 1 ? "" : tr("s")}
         </span>
       </div>
 
       <textarea
         ref={ref}
         value={value}
-        rows={8}
+        rows={compact ? 4 : 8}
         onKeyDown={onKeyDown}
         onChange={(e) => {
           const raw = e.target.value;
           const next = normalizeBullets(raw);
           setValue(next, e.target.selectionStart + (next.length - raw.length));
         }}
-        placeholder={"• Served 100+ customers per shift\n• Trained 3 new team members\n• Kept the station clean during rush hours"}
-        className="no-scrollbar min-h-[11rem] w-full resize-y rounded-md border border-input bg-background px-3 py-2.5 text-sm leading-relaxed placeholder:text-muted-foreground/70 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+        placeholder={tr("• Served 100+ customers per shift\n• Trained 3 new team members\n• Kept the station clean during rush hours")}
+        className={`no-scrollbar ${compact ? "min-h-[6.5rem]" : "min-h-[11rem]"} w-full resize-y rounded-md border border-input bg-background px-3 py-2.5 text-sm leading-relaxed placeholder:text-muted-foreground/70 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20`}
       />
       <div className="mt-1 h-1 overflow-hidden rounded-full bg-border">
         <div
@@ -133,6 +140,14 @@ export default function JobDescriptionEditor({
         />
       </div>
 
+      {compact && (
+        <button type="button" aria-expanded={helpOpen} onClick={() => setHelpOpen((v) => !v)} className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:underline">
+          <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${helpOpen ? "rotate-180" : ""}`} />
+          {tr("Tips, ideas and strong verbs")}
+        </button>
+      )}
+      {showHelp && (
+      <>
       <ul className="mt-3 space-y-1.5">
         {tips.map((t) => (
           <li key={t.text} className="flex items-start gap-2 text-xs text-muted-foreground">
@@ -141,14 +156,14 @@ export default function JobDescriptionEditor({
             ) : (
               <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
             )}
-            {t.text}
+            {tr(t.text)}
           </li>
         ))}
       </ul>
 
       <div className="mt-4">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {jobTitle.trim() ? `Ideas for ${jobTitle.trim()}` : "Ideas to start from"} <span className="font-normal normal-case">(tap to add, then make it yours)</span>
+          {jobTitle.trim() ? tr("Ideas for {v0}", { v0: jobTitle.trim() }) : tr("Ideas to start from")} <span className="font-normal normal-case">{tr("(tap to add, then make it yours)")}</span>
         </p>
         <ul className="flex flex-wrap gap-2">
           {ideas
@@ -166,21 +181,23 @@ export default function JobDescriptionEditor({
               </li>
             ))}
         </ul>
-        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Strong verbs to start a bullet</p>
+        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("Strong verbs to start a bullet")}</p>
         <ul className="flex flex-wrap gap-1.5">
           {ACTION_VERBS.map((v) => (
             <li key={v}>
               <button
                 type="button"
-                onClick={() => addLine(`${v} `)}
+                onClick={() => addLine(`${tr(v)} `)}
                 className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
-                {v}
+                {tr(v)}
               </button>
             </li>
           ))}
         </ul>
       </div>
+      </>
+      )}
     </div>
   );
 }

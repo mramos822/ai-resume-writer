@@ -1,6 +1,7 @@
 // src/components/UploadedItems.tsx
 "use client";
 
+import { dndAccessibility } from "@/i18n/dnd";
 import React, {
   useState,
   useEffect,
@@ -39,6 +40,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useT } from "@/i18n/provider";
 
 type UploadedRecord = {
   id: string;
@@ -62,6 +64,7 @@ function SortableTile(props: {
   onParse: (id: string) => void;
   isParsing: boolean;
 }) {
+  const { tr } = useT();
   const {
     record: it,
     fmt,
@@ -93,9 +96,9 @@ function SortableTile(props: {
       onClick={async (e) => {
         e.stopPropagation();
         const ok = await dialog.confirm({
-          title: `Delete “${it.filename}”?`,
-          description: "The file is removed from your uploads. Details already imported into your profile are kept.",
-          confirmText: "Delete file",
+          title: tr("Delete “{filename}”?", { filename: it.filename }),
+          description: tr("The file is removed from your uploads. Details already imported into your profile are kept."),
+          confirmText: tr("Delete file"),
           tone: "danger",
         });
         if (ok) onDelete(it.id);
@@ -116,7 +119,7 @@ function SortableTile(props: {
         onParse(it.id);
       }}
     >
-      {isParsing ? "Parsing…" : "Parse"}
+      {isParsing ? tr("Parsing…") : tr("Parse")}
     </Button>
   );
 
@@ -207,6 +210,7 @@ function SortableTile(props: {
 }
 
 export default function UploadedItems() {
+  const { tr } = useT();
   const { user, loading } = useAuth();
   const { parseFile } = useProfile();
   const toast = useToast();
@@ -329,7 +333,7 @@ export default function UploadedItems() {
       setParsingId(id);
       parseFile(id)
         .catch((err) =>
-          toast.error(`We couldn't read that file: ${err.message}. Try again, or paste the text in Write Biography.`)
+          toast.error(tr("We couldn't read that file: {message}. Try again, or paste the text in Write Biography.", { message: err.message }))
         )
         .finally(() => setParsingId(null));
     },
@@ -393,7 +397,7 @@ export default function UploadedItems() {
     <div>
       {/* header + toggle */}
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-lg font-semibold text-foreground">Your Uploads</h4>
+        <h4 className="text-lg font-semibold text-foreground">{tr("Your Uploads")}</h4>
         <div className="flex space-x-2">
           <Button variant="ghost" size="icon" onClick={() => setViewMode("list")}>
             <List className={`h-5 w-5 ${viewMode === "list" ? "text-blue-600" : "text-muted-foreground"}`} />
@@ -406,23 +410,23 @@ export default function UploadedItems() {
 
       {/* SORT BAR */}
       <div className="flex items-center space-x-2 mb-4">
-        <span className="text-sm text-muted-foreground">Sort by:</span>
+        <span className="text-sm text-muted-foreground">{tr("Sort by:")}</span>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortBy)}
           className="bg-card text-foreground text-sm rounded px-2 py-1"
         >
-          <option value="order">Order</option>
-          <option value="name">Name</option>
-          <option value="date">Date</option>
-          <option value="type">Type</option>
+          <option value="order">{tr("Order")}</option>
+          <option value="name">{tr("Name")}</option>
+          <option value="date">{tr("Date")}</option>
+          <option value="type">{tr("Type")}</option>
         </select>
         <button onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} className="bg-card text-foreground text-sm rounded px-2 py-1">
           {sortDir === "asc" ? "↑" : "↓"}
         </button>
       </div>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext accessibility={dndAccessibility(tr)} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={sortedItems.map((i) => i.id)} strategy={viewMode === "list" ? verticalListSortingStrategy : rectSortingStrategy}>
           {viewMode === "list" ? (
             <ul className="space-y-2">
@@ -463,7 +467,7 @@ export default function UploadedItems() {
       </DndContext>
 
       {selected && (
-        <div className="fixed inset-0 bg-background/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-background/50 flex items-center justify-center z-[70]">
           <div className="bg-card max-w-3xl w-full max-h-[80vh] overflow-auto rounded-lg p-6 relative">
             <button onClick={closeModal} className="absolute top-4 right-4 p-1 text-muted-foreground hover:text-white">
               <X className="h-6 w-6" />
@@ -476,7 +480,7 @@ export default function UploadedItems() {
             </h2>
 
             {loadingContent ? (
-              <p className="text-muted-foreground">Opening your file…</p>
+              <p className="text-muted-foreground">{tr("Opening your file…")}</p>
             ) : previewMode === "pdf" ? (
               <iframe src={contentUrl!} className="w-full h-[70vh] border" title={selected.filename} />
             ) : previewMode === "docx" ? (
@@ -488,7 +492,7 @@ export default function UploadedItems() {
             ) : previewMode === "text" ? (
               <pre className="whitespace-pre-wrap text-foreground">{textContent}</pre>
             ) : (
-              <p className="text-muted-foreground">No preview available.</p>
+              <p className="text-muted-foreground">{tr("No preview available.")}</p>
             )}
           </div>
         </div>

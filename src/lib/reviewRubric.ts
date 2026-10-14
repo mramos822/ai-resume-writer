@@ -3,10 +3,16 @@
 // recruiters check first in a quick scan. Measurable guidelines ("auto") are scored by code, so the same resume
 // always gets the same score and fixing something can only raise it. Subjective ones ("ai") are judged by the AI
 // against the written definitions below, never against rules it invents on the spot.
+import { TWO_COLUMN } from "@/lib/templates";
+import { passesPage } from "@/lib/pageRules";
 import type { ProfileData, JobEntry } from "@/context/profileContext";
 import { dedupeProfile } from "@/lib/profileDedupe";
 import { placeLine } from "@/lib/place";
+import { ALL_SKILLS } from "@/lib/skills";
 import { isRelevantJob, keywordCoverage, type RoleProfile } from "@/lib/roleProfile";
+
+/** The standard skills and languages of the big list, in lower case. */
+const KNOWN_SKILLS = new Set(ALL_SKILLS.map((s) => s.toLowerCase()));
 
 export type Verdict = "pass" | "partial" | "fail";
 
@@ -49,13 +55,13 @@ export const CRITERIA: Criterion[] = [
     kind: "auto",
     guideline: "The profile is the cover letter of the resume, not a tagline. pass: 250 to 700 characters (about 3 to 5 sentences). partial: 120 to 249 or 701 to 900. fail: shorter or longer.",
   },
-  { id: "skillsCount", label: "Enough skills for keyword matching", weight: 6, kind: "auto", guideline: "Skills are a priority for ATS. pass: 8 to 30 skills. partial: 5 to 7 or 31 to 40. fail: otherwise." },
+  { id: "skillsCount", label: "Enough skills for keyword matching", weight: 6, kind: "auto", guideline: "Skills are a priority for ATS: the more real skills and languages, the better. pass: 8 to 40 skills. partial: 5 to 7 or 41 to 60. fail: fewer than 5 or more than 60." },
   {
     id: "skillsBacked",
     label: "Skills are backed by your experience",
     weight: 6,
     kind: "auto",
-    guideline: "Share of listed skills that also appear in the jobs, projects, education or coursework. pass: 50% or more. partial: 30% or more. fail: less.",
+    guideline: "Share of listed skills that appear in the jobs, projects, education or coursework, or that are standard, in-demand skills (those never count against you). pass: 50% or more. partial: 30% or more. fail: less.",
   },
   {
     id: "keywordCoverage",
@@ -79,7 +85,7 @@ export const CRITERIA: Criterion[] = [
   { id: "strongVerbs", label: "Bullets start with strong verbs", weight: 5, kind: "auto", guideline: 'No bullet starts with a weak phrase ("Responsible for", "Helped with", "Worked on", "Duties included", "In charge of", "Tasked with", "I"). pass: none. partial: up to 25%. fail: more.' },
   { id: "numbers", label: "Results with numbers", weight: 6, kind: "auto", guideline: "Share of bullets in the 3 most recent jobs that contain a number. pass: 30% or more. partial: 10% or more. fail: less." },
   { id: "education", label: "Education listed", weight: 5, kind: "auto", guideline: "pass: at least one school. fail: none." },
-  { id: "onePage", label: "Fits on one page", weight: 8, kind: "auto", guideline: "pass: one page without shrinking the text below 82%. partial: 70% to 82%. fail: smaller or more than one page." },
+  { id: "onePage", label: "Fits on one page", weight: 8, kind: "auto", guideline: "pass: one page without shrinking the text below 85% (a recruiter skips small print). partial: 70% to 85%. fail: smaller or more than one page." },
   {
     id: "atsLayout",
     label: "Easy for ATS to read",
@@ -104,7 +110,7 @@ export const CRITERIA: Criterion[] = [
     weight: 6,
     kind: "ai",
     guideline:
-      "pass: about 70% or more of the skills are relevant to the target role AND are consistent with the experience, projects and education described, with no filler. partial: 40% to 70%. fail: under 40%, or many skills that nothing in the resume supports.",
+      "A skill is relevant when it is important or in demand for the target role or its field, even if no job, project or study shows it: it is NEVER a problem that a skill is not used in the experience. pass: about 70% or more of the skills are relevant to the target role or field, with no filler. partial: 40% to 70%. fail: under 40%, or the list is mostly filler or jokes.",
   },
   {
     id: "roleRequirements",
@@ -226,8 +232,9 @@ function evalAuto(id: string, p: ProfileData, fit?: PageFit | null, template = "
     }
     case "skillsCount": {
       const n = p.skills?.length ?? 0;
-      if (n >= 8 && n <= 30) return { verdict: "pass", reason: `${n} skills.` };
-      if ((n >= 5 && n < 8) || (n > 30 && n <= 40)) return { verdict: "partial", reason: `${n} skills; aim for 8 or more.` };
+      if (n >= 8 && n <= 40) return { verdict: "pass", reason: `${n} skills.` };
+      if (n > 40) return n <= 60 ? { verdict: "partial", reason: `${n} skills; the list is very long, so repeated or redundant ones can go.` } : { verdict: "fail", reason: `${n} skills; the list is very long, so repeated or redundant ones can go.` };
+      if (n >= 5) return { verdict: "partial", reason: `${n} skills; aim for 8 or more.` };
       return { verdict: "fail", reason: `${n} skills; aim for 8 or more.` };
     }
     case "skillsBacked": {
@@ -235,10 +242,11 @@ function evalAuto(id: string, p: ProfileData, fit?: PageFit | null, template = "
       if (skills.length === 0) return null;
       const text = evidenceText(p);
       if (text.trim().length < 40) return null; // nothing written to check against
-      const backed = skills.filter((s) => text.includes(norm(s).replace(/[()]/g, "").trim())).length;
+      // a standard skill of the big list counts as supported even if no job or project names it: it is never held against the person
+      const backed = skills.filter((s) => text.includes(norm(s).replace(/[()]/g, "").trim()) || KNOWN_SKILLS.has(s.trim().toLowerCase())).length;
       const share = backed / skills.length;
       const verdict: Verdict = share >= 0.5 ? "pass" : share >= 0.3 ? "partial" : "fail";
-      return { verdict, reason: `${backed} of your ${skills.length} skills also show up in your experience, projects or studies.` };
+      return { verdict, reason: `${backed} of your ${skills.length} skills are standard skills or show up in your experience, projects or studies.` };
     }
     case "keywordCoverage": {
       if (!role || role.keywords.length === 0) return null;
@@ -318,15 +326,16 @@ function evalAuto(id: string, p: ProfileData, fit?: PageFit | null, template = "
       return (p.education?.length ?? 0) > 0 ? { verdict: "pass", reason: "Education is listed." } : { verdict: "fail", reason: "No education listed." };
     case "onePage": {
       if (!fit) return null;
-      if (fit.pages <= 1 && fit.scale >= 0.82) return { verdict: "pass", reason: "Fits on one page at a comfortable size." };
+      if (passesPage(fit)) return { verdict: "pass", reason: "Fits on one page at a comfortable size." };
       if (fit.pages <= 1 && fit.scale >= 0.7) return { verdict: "partial", reason: "It fits, but the text is shrunk a bit." };
       return { verdict: "fail", reason: "Too much content: the text has to be very small to fit." };
     }
     case "atsLayout": {
       const problems: string[] = [];
-      if (template !== "classic") problems.push("two-column layout");
+      const twoColumn = (TWO_COLUMN as readonly string[]).includes(template);
+      if (twoColumn) problems.push("two-column layout");
       if (p.photo) problems.push("photo");
-      if (template !== "classic" && Object.keys(p.skillLevels ?? {}).length > 0) problems.push("skill rating graphics");
+      if (twoColumn && Object.keys(p.skillLevels ?? {}).length > 0) problems.push("skill rating graphics");
       if (problems.length === 0) return { verdict: "pass", reason: "Single column, plain text: ATS can read all of it." };
       return { verdict: problems.length === 1 ? "partial" : "fail", reason: `ATS may struggle with: ${problems.join(", ")}.` };
     }

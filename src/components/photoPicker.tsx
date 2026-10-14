@@ -5,9 +5,11 @@ import { Camera, Trash2, UserRound } from "lucide-react";
 import { fileToSquarePhoto } from "@/lib/photo";
 import { useToast } from "@/context/toastContext";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 
 /** Round photo with upload / replace / remove. `value` is a data URL, "" when there is none. */
 export default function PhotoPicker({ value, onChange }: { value: string; onChange: (photo: string) => void }) {
+  const { tr } = useT();
   const input = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
@@ -25,12 +27,12 @@ export default function PhotoPicker({ value, onChange }: { value: string; onChan
       <button
         type="button"
         onClick={() => input.current?.click()}
-        aria-label={value ? "Change photo" : "Add photo"}
+        aria-label={value ? tr("Change photo") : tr("Add photo")}
         className="group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed bg-muted text-muted-foreground transition-colors hover:border-blue-500"
       >
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={value} alt="Your photo" className="h-full w-full object-cover" />
+          <img src={value} alt={tr("Your photo")} className="h-full w-full object-cover" />
         ) : (
           <UserRound className="h-8 w-8" />
         )}
@@ -39,16 +41,15 @@ export default function PhotoPicker({ value, onChange }: { value: string; onChan
         </span>
       </button>
       <div>
-        <p className="text-sm font-semibold">Photo <span className="font-normal text-muted-foreground">(optional)</span></p>
-        <p className="mb-2 text-xs text-muted-foreground">Templates make room for it when you add one.</p>
+        <p className="text-sm font-semibold">{tr("Photo")}{" "}<span className="font-normal text-muted-foreground">{tr("(optional)")}</span></p>
+        <p className="mb-2 text-xs text-muted-foreground">{tr("Templates make room for it when you add one.")}</p>
         <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()}>
-            {value ? "Change" : "Add a photo"}
+            {value ? tr("Change") : tr("Add a photo")}
           </Button>
           {value && (
             <Button type="button" variant="ghost" size="sm" onClick={() => onChange("")}>
-              <Trash2 className="h-4 w-4" /> Remove
-            </Button>
+              <Trash2 className="h-4 w-4" />{" "}{tr("Remove")}</Button>
           )}
         </div>
       </div>

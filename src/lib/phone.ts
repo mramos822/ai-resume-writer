@@ -19,15 +19,15 @@ export function formatUsPhone(raw: string): string {
 }
 
 /* ---------- other countries ---------- */
-import { AsYouType, getCountryCallingCode, getExampleNumber, type CountryCode } from "libphonenumber-js";
+import { AsYouType, getCountryCallingCode, getExampleNumber, parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js";
 import examples from "libphonenumber-js/mobile/examples";
 
 /** What the phone field shows while typing: the US look for the US, the country's own national look elsewhere. */
 export function formatPhoneInput(raw: string, iso?: string): string {
   if (!iso || iso === "US") return formatUsPhone(raw);
-  if (raw.startsWith("+")) return raw; // someone typing the full international number keeps it as typed
   try {
-    return new AsYouType(iso as CountryCode).input(raw);
+    // a full international number ("+51987654321") is grouped the way its own country writes it; a national one the same way
+    return raw.startsWith("+") ? new AsYouType().input(raw) : new AsYouType(iso as CountryCode).input(raw);
   } catch {
     return raw;
   }
@@ -37,9 +37,22 @@ export function formatPhoneInput(raw: string, iso?: string): string {
 export function formatContactPhone(raw: string, iso?: string): string {
   const v = (raw ?? "").trim();
   if (!v) return "";
+  // a number from another country than the US (even for a person whose country is the US) keeps the grouping of its own country
+  if (v.startsWith("+") && !v.startsWith("+1")) {
+    try {
+      const p = parsePhoneNumberFromString(v);
+      if (p) return p.formatInternational();
+    } catch {
+      /* written as it was */
+    }
+    return v;
+  }
   if (!iso || iso === "US") return formatUsPhone(v);
   if (v.startsWith("+")) return v;
   try {
+    // "987 654 321" of Peru -> "+51 987 654 321", "612345678" of Spain -> "+34 612 34 56 78": each country groups its digits its own way
+    const parsed = parsePhoneNumberFromString(v, iso as CountryCode);
+    if (parsed && parsed.isPossible()) return parsed.formatInternational();
     return `+${getCountryCallingCode(iso as CountryCode)} ${v.replace(/^0+(?=\d)/, "")}`;
   } catch {
     return v;

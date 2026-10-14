@@ -1,15 +1,17 @@
 import { limited } from "@/lib/rateLimit";
+import { detectResumeLanguage } from "@/lib/resumeTranslate";
+import { asResumeLang } from "@/lib/resumeLang";
 import { NextResponse } from "next/server";
 import { authUid, ownedProfile, errorResponse } from "@/lib/apiAuth";
-import { getOpenAIChatCompletion } from "@/lib/openaiClient";
-import { AI_MODEL } from "@/lib/aiConfig";
+import { getOpenAIChatCompletionWithFallback } from "@/lib/openaiClient";
+import { AI_MODEL_STRONG } from "@/lib/aiConfig";
 import { applyFixes, autoFixFor, cleanFix, profileForReview, type ReviewFix } from "@/lib/resumeReview";
 import { autoPoints, criterionById, evaluateAuto, newestFirst } from "@/lib/reviewRubric";
 import { isRelevantJob, targetRoleOf } from "@/lib/roleProfile";
 import { loadRoleProfile, measure } from "@/lib/reviewServer";
 import type { ProfileData } from "@/context/profileContext";
 
-const FIX_SYSTEM = `You are an expert resume writer fixing ONE problem of a resume, for a US applicant tracking system (ATS) and recruiters.
+const FIX_SYSTEM = `You are an expert resume writer fixing ONE problem of a resume, for a US applicant tracking system (ATS) and recruiters. Write every new or rewritten text in the same language as the resume (if it is in Spanish, in neutral Spanish).
 You receive the resume as JSON, the role profile (keywords, requirements, priorities), and the guideline that is not passing with its reason.
 Reply with ONE JSON object and nothing else: { "fixes": [ <fix>, ... ] } where each fix is exactly one of:
   { "type": "objective", "text": "<3 to 5 sentences, 250 to 700 characters, no 'I'>" }
@@ -22,15 +24,23 @@ Rules:
 - Use only facts present in the data. Never invent employers, dates, tools, degrees, metrics or numbers. If a bullet has no number, make the verb and the result clearer without adding one.
 - Bullets: 25 to 170 characters, start with a strong past-tense verb (present tense for the current job), no first person. Provide the FULL replacement list for each job you touch.
 - Jobs that have little to do with the target role only need 1 or 2 bullets; do not pad them. Recent jobs related to the role get 3 to 5.
-- Skills are a PRIORITY. Never remove a skill because the resume does not mention it or to save space; remove one ONLY if it is a repeat of another skill, very redundant, or clearly useless. Adding skills is allowed only when the jobs, projects or studies show them.
+- Skills are a PRIORITY. More skills and languages is better: never remove an important or in-demand skill because the resume does not mention it or to save space. Remove one ONLY if it is a repeat of another skill (like "JS" and "JavaScript"), very redundant, or clearly useless, and only when the list is very long (over 40). Adding skills is allowed only when the jobs, projects or studies show them.
 - Plain language, no emojis, no markdown.`;
+
+/** The text written for the resume goes in the language of the resume itself (the person's own words), whatever language the site is in. */
+function languageRule(data: ProfileData, siteLang?: string): string {
+  const lang = detectResumeLanguage(data) ?? asResumeLang(siteLang);
+  return lang === "es"
+    ? "\nLANGUAGE: the resume is in Spanish. Write every piece of text of your answer in neutral Latin American Spanish (use \"tú\"), keeping names, companies, products and JSON keys exactly as they are."
+    : "\nLANGUAGE: write every piece of text of your answer in English, keeping names, companies, products and JSON keys exactly as they are.";
+}
 
 export async function POST(req: Request) {
   const tooMany = limited(req, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);
-    const body = (await req.json()) as { profileId?: string; template?: string; criterionId?: string };
+    const body = (await req.json()) as { profileId?: string; template?: string; criterionId?: string; lang?: string };
     const profileId = String(body.profileId ?? "");
     const criterionId = String(body.criterionId ?? "");
     const template = typeof body.template === "string" && body.template ? body.template : "classic";
@@ -49,12 +59,12 @@ export async function POST(req: Request) {
     if (mech) return NextResponse.json({ fixes: [mech] });
 
     const jobs = newestFirst(data.jobHistory ?? []).map((j, i) => ({ id: j.id, rank: i + 1, relatedToRole: isRelevantJob(data, j, role) }));
-    const completion = await getOpenAIChatCompletion({
-      model: AI_MODEL,
+    const completion = await getOpenAIChatCompletionWithFallback({
+      model: AI_MODEL_STRONG,
       temperature: 0,
-      max_tokens: 2500,
+      max_tokens: 5000,
       messages: [
-        { role: "system", content: FIX_SYSTEM },
+        { role: "system", content: FIX_SYSTEM + languageRule(data, body.lang) },
         {
           role: "user",
           content: JSON.stringify({
@@ -66,7 +76,7 @@ export async function POST(req: Request) {
           }),
         },
       ],
-    });
+    }, { timeout: 40_000, maxRetries: 0 }); // a slow AI must not leave the person waiting
     let raw: { fixes?: unknown[] } = {};
     try {
       raw = JSON.parse(completion.content);

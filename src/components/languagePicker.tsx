@@ -5,17 +5,19 @@ import { Plus, X } from "lucide-react";
 import { LANGUAGES, POPULAR_LANGUAGES, type LanguageEntry } from "@/lib/languages";
 import SuggestInput from "@/components/suggestInput";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 
 // five dots, weakest to strongest: tapping the 4th means Fluent, and every dot to its left lights up with it
 const LEVELS_ASC = ["Basic", "Intermediate", "Advanced", "Fluent", "Native"];
 
 function LevelDots({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  const { tr } = useT();
   const [hover, setHover] = useState(0);
   const current = LEVELS_ASC.indexOf(value) + 1;
   const shown = hover || current;
   return (
     <span className="flex items-center gap-3">
-      <span className="hidden w-24 text-right text-xs text-muted-foreground sm:block">{shown ? LEVELS_ASC[shown - 1] : "Not set"}</span>
+      <span className="hidden w-24 text-right text-xs text-muted-foreground sm:block">{shown ? tr(LEVELS_ASC[shown - 1]) : tr("Not set")}</span>
       <span className="flex items-center gap-1.5" role="group" aria-label={label} onMouseLeave={() => setHover(0)}>
         {LEVELS_ASC.map((lvl, i) => {
           const n = i + 1;
@@ -23,9 +25,9 @@ function LevelDots({ value, onChange, label }: { value: string; onChange: (v: st
             <button
               key={lvl}
               type="button"
-              aria-label={`${label}: ${lvl}`}
+              aria-label={`${label}: ${tr(lvl)}`}
               aria-pressed={current === n}
-              title={lvl}
+              title={tr(lvl)}
               onClick={() => onChange(lvl)}
               onMouseEnter={() => setHover(n)}
               onFocus={() => setHover(n)}
@@ -51,6 +53,7 @@ export default function LanguagePicker({
   onChange: (list: LanguageEntry[]) => void;
   hideTitle?: boolean;
 }) {
+  const { tr } = useT();
   const [draft, setDraft] = useState("");
   const [level, setLevel] = useState<string>("Fluent");
   const taken = new Set(languages.map((l) => l.name.toLowerCase()));
@@ -65,8 +68,7 @@ export default function LanguagePicker({
   return (
     <div>
       {!hideTitle && (
-        <p className="mb-1.5 text-sm font-semibold">
-          Languages you speak <span className="font-normal text-muted-foreground">(optional)</span>
+        <p className="mb-1.5 text-sm font-semibold">{tr("Languages you speak")}{" "}<span className="font-normal text-muted-foreground">{tr("(optional)")}</span>
         </p>
       )}
       <div
@@ -79,12 +81,11 @@ export default function LanguagePicker({
         }}
       >
         <div className="min-w-[14rem] flex-1">
-          <SuggestInput value={draft} onChange={setDraft} options={LANGUAGES} placeholder="Start typing, e.g. Spanish" />
+          <SuggestInput value={draft} onChange={setDraft} options={LANGUAGES} placeholder={tr("Start typing, e.g. Spanish")} />
         </div>
-        <LevelDots value={level} onChange={setLevel} label="Level for the new language" />
+        <LevelDots value={level} onChange={setLevel} label={tr("Level for the new language")} />
         <Button type="button" variant="outline" onClick={() => add(draft)} disabled={!draft.trim()} className="h-10 gap-1">
-          <Plus className="h-4 w-4" /> Add
-        </Button>
+          <Plus className="h-4 w-4" />{" "}{tr("Add")}</Button>
       </div>
 
       {languages.length > 0 && (
@@ -94,12 +95,12 @@ export default function LanguagePicker({
               <span className="min-w-0 flex-1 truncate text-sm font-medium">{l.name}</span>
               <LevelDots
                 value={l.level}
-                label={`Level of ${l.name}`}
+                label={tr("Level of {name}", { name: l.name })}
                 onChange={(v) => onChange(languages.map((x) => (x.name === l.name ? { ...x, level: v } : x)))}
               />
               <button
                 type="button"
-                aria-label={`Remove ${l.name}`}
+                aria-label={tr("Remove {name}", { name: l.name })}
                 onClick={() => onChange(languages.filter((x) => x.name !== l.name))}
                 className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
               >
@@ -111,7 +112,7 @@ export default function LanguagePicker({
       )}
 
       <ul className="mt-3 flex flex-wrap gap-2">
-        {POPULAR_LANGUAGES.filter((n) => !taken.has(n.toLowerCase())).map((n) => (
+        {POPULAR_LANGUAGES.map((n) => tr(n)).filter((n) => !taken.has(n.toLowerCase())).map((n) => (
           <li key={n}>
             <button
               type="button"

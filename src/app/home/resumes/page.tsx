@@ -2,11 +2,12 @@
 
 // Resumes as a studio: your versions on a rail, the selected resume large on a desk with a dock of actions under it,
 // and what applicant tracking systems make of it on the right. A second tab holds the cover letters of your applications.
+import { asTemplateId } from "@/lib/templates";
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { format } from "date-fns";
-import { AlertTriangle, Check, ClipboardCopy, Download, FileDown, FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ClipboardCopy, Download, ExternalLink, FileDown, FileText, Pencil, Plus, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/authContext";
 import { useProfile } from "@/context/profileContext";
@@ -20,6 +21,7 @@ import ResumePreviewModal from "@/components/resumePreviewModal";
 import CompanyLogo from "@/components/companyLogo";
 import { Button } from "@/components/ui/button";
 import type { JobListing } from "@/lib/jobSearch";
+import { useT } from "@/i18n/provider";
 
 interface Resume {
   id: string;
@@ -35,7 +37,7 @@ interface Letter {
 }
 
 const prettyName = (f: string) => f.replace(/\.pdf$/i, "").replace(/_/g, " ");
-const lookOf = (r: Resume) => (r.metadata?.template === "modern" || r.metadata?.template === "creative" ? r.metadata.template : "classic");
+const lookOf = (r: Resume) => asTemplateId(r.metadata?.template);
 
 /** A score as a ring. */
 function Ring({ value, size = 96 }: { value: number; size?: number }) {
@@ -54,9 +56,10 @@ function Ring({ value, size = 96 }: { value: number; size?: number }) {
 }
 
 export default function ResumesPage() {
+  const { tr } = useT();
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { activeProfileId, activeProfile: profile } = useProfile();
+  const { activeProfileId, activeProfile: profile, setActiveProfileId } = useProfile();
   const toast = useToast();
   const dialog = useDialog();
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -71,6 +74,19 @@ export default function ResumesPage() {
     if (!loading && !user) router.push("/");
   }, [user, loading, router]);
 
+  // arriving from the guest builder after making an account: the resume is selected and its preview (with downloads) is open
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const id = q.get("open");
+    if (!id || !/^[a-f0-9]{24}$/i.test(id)) return;
+    const pid = q.get("profile");
+    if (pid && /^[a-f0-9]{24}$/i.test(pid)) setActiveProfileId(pid); // the profile the resume belongs to (an account can have several)
+    setSelId(id);
+    setPreviewFileId(id);
+    window.history.replaceState(null, "", "/home/resumes");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!activeProfileId) return;
     setIsLoadingResumes(true);
@@ -80,9 +96,9 @@ export default function ResumesPage() {
         return r.json();
       })
       .then((d: Resume[]) => setResumes(d))
-      .catch(() => toast.error("Failed to load resumes."))
+      .catch(() => toast.error(tr("Failed to load resumes.")))
       .finally(() => setIsLoadingResumes(false));
-    authFetch("/api/applications")
+    authFetch(`/api/applications?profileId=${activeProfileId}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((d: Letter[]) => setLetters(d.filter((a) => a.coverLetter)))
       .catch(() => {});
@@ -98,28 +114,28 @@ export default function ResumesPage() {
   const passed = checks.filter((c) => c.verdict === "pass").length;
 
   const handleDelete = async (id: string) => {
-    const ok = await dialog.confirm({ title: "Delete this resume?", description: "The PDF will be permanently removed from your library.", confirmText: "Delete resume", tone: "danger" });
+    const ok = await dialog.confirm({ title: tr("Delete this resume?"), description: tr("The PDF will be permanently removed from your library."), confirmText: tr("Delete resume"), tone: "danger" });
     if (!ok) return;
     try {
       const res = await authFetch(`/api/resumes?fileId=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       forgetPdfPage(id);
       setResumes((list) => list.filter((r) => r.id !== id));
-      toast.success("Resume deleted.");
+      toast.success(tr("Resume deleted."));
     } catch {
-      toast.error("Failed to delete resume.");
+      toast.error(tr("Failed to delete resume."));
     }
   };
 
   const rename = async (r: Resume) => {
-    const name = await dialog.prompt({ title: "Rename resume", description: "Pick a name you will recognise, like “Marketing, Acme”.", label: "Name", defaultValue: prettyName(r.filename), confirmText: "Save name" });
+    const name = await dialog.prompt({ title: tr("Rename resume"), description: tr("Pick a name you will recognise, like “Marketing, Acme”."), label: tr("Name"), defaultValue: prettyName(r.filename), confirmText: tr("Save name") });
     if (!name || name === prettyName(r.filename)) return;
     try {
       const res = await authFetch(`/api/resumes/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: name }) });
       if (!res.ok) throw new Error();
       setResumes((list) => list.map((x) => (x.id === r.id ? { ...x, filename: name } : x)));
     } catch {
-      toast.error("We couldn't rename it. Try again.");
+      toast.error(tr("We couldn't rename it. Try again."));
     }
   };
 
@@ -136,9 +152,21 @@ export default function ResumesPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success(`Downloaded as ${kind.toUpperCase()}.`);
+      toast.success(tr("Downloaded as {v0}.", { v0: kind.toUpperCase() }));
     } catch {
-      toast.error("We couldn't download it. Please try again.");
+      toast.error(tr("We couldn't download it. Please try again."));
+    }
+  };
+
+  const deleteLetter = async (l: Letter) => {
+    const ok = await dialog.confirm({ title: tr("Delete this cover letter?"), description: tr("Only the letter is removed. The job and its resume stay."), confirmText: tr("Delete letter"), tone: "danger" });
+    if (!ok) return;
+    try {
+      const res = await authFetch("/api/applications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: l.job.key, profileId: activeProfileId, clearCoverLetter: true }) });
+      if (!res.ok) throw new Error();
+      setLetters((list) => list.filter((x) => x.job.key !== l.job.key));
+    } catch {
+      toast.error(tr("We couldn't delete that cover letter."));
     }
   };
 
@@ -148,7 +176,7 @@ export default function ResumesPage() {
       setCopied(key);
       setTimeout(() => setCopied(""), 1800);
     } catch {
-      toast.error("We couldn't copy it. Select the text and copy it by hand.");
+      toast.error(tr("We couldn't copy it. Select the text and copy it by hand."));
     }
   };
 
@@ -166,7 +194,7 @@ export default function ResumesPage() {
       {/* title, the two shelves and the main button */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <h1 className="text-3xl font-black tracking-tight">Studio</h1>
+          <h1 className="text-3xl font-black tracking-tight">{tr("Studio")}</h1>
           <div role="tablist" className="inline-flex rounded-full border bg-card p-1 shadow-sm">
             {[
               { id: "resumes" as const, label: "Resumes", n: resumes.length },
@@ -179,7 +207,7 @@ export default function ResumesPage() {
                 onClick={() => setTab(t.id)}
                 className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-all ${tab === t.id ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {t.label} {t.n > 0 && <span className="opacity-70">{t.n}</span>}
+                {tr(t.label)} {t.n > 0 && <span className="opacity-70">{t.n}</span>}
               </button>
             ))}
           </div>
@@ -190,7 +218,7 @@ export default function ResumesPage() {
         <div className="mt-4 grid items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_19rem]">
           {/* the rail: every version */}
           <aside className="space-y-2 lg:sticky lg:top-24">
-            <p className="px-1 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Versions</p>
+            <p className="px-1 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("Versions")}</p>
             {isLoadingResumes ? (
               <div className="shimmer h-20 rounded-xl bg-muted" />
             ) : (
@@ -205,13 +233,13 @@ export default function ResumesPage() {
                     {active && <motion.span layoutId="rail-bar" className="absolute inset-y-2 -left-px w-1 rounded-full bg-blue-600" />}
                     <span className="h-14 w-11 shrink-0 overflow-hidden rounded-[3px] bg-white shadow-sm ring-1 ring-black/10">
                       <span className="block origin-top-left" style={{ width: "11rem", transform: "scale(0.25)" }} aria-hidden>
-                        <PdfPage fileId={r.id} width={176} alt={`${prettyName(r.filename)} preview`} />
+                        <PdfPage fileId={r.id} width={176} alt={tr("{v0} preview", { v0: prettyName(r.filename) })} />
                       </span>
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">{prettyName(r.filename)}</span>
                       <span className="block text-xs capitalize text-muted-foreground">
-                        {lookOf(r)} · {ago(r.uploadDate).toLowerCase()}
+                        {lookOf(r)} · {ago(r.uploadDate, tr).toLowerCase()}
                       </span>
                     </span>
                   </button>
@@ -219,8 +247,7 @@ export default function ResumesPage() {
               })
             )}
             <Link href="/home/resumes/new" className="flex items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm font-semibold text-muted-foreground transition-colors hover:border-blue-500 hover:text-blue-500">
-              <Plus className="h-4 w-4" /> New resume
-            </Link>
+              <Plus className="h-4 w-4" />{" "}{tr("New resume")}</Link>
           </aside>
 
           {/* the stage: the selected resume, big, and what you can do with it */}
@@ -237,30 +264,24 @@ export default function ResumesPage() {
                     style={{ width: "min(100%, max(13rem, calc((100dvh - 17.5rem) * 0.7727)))" }}
                     className="mx-auto overflow-hidden rounded-sm shadow-2xl ring-1 ring-black/10"
                   >
-                    <PdfPage fileId={sel.id} width={620} alt={`${prettyName(sel.filename)}, first page`} />
+                    <PdfPage fileId={sel.id} width={620} alt={tr("{v0}, first page", { v0: prettyName(sel.filename) })} />
                   </motion.div>
                 </div>
                 {/* the dock */}
                 <div className="mx-auto -mt-6 flex w-fit max-w-full flex-wrap items-center justify-center gap-1 rounded-full border bg-card p-1.5 shadow-xl">
                   <Button onClick={() => download(sel, "pdf")} className="gap-2 rounded-full font-bold">
-                    <Download className="h-4 w-4" /> PDF
-                  </Button>
+                    <Download className="h-4 w-4" />{" "}{tr("PDF")}</Button>
                   <Button onClick={() => download(sel, "docx")} variant="ghost" className="gap-2 rounded-full">
-                    <FileDown className="h-4 w-4" /> DOCX
-                  </Button>
+                    <FileDown className="h-4 w-4" />{" "}{tr("DOCX")}</Button>
                   <Button onClick={() => setPreviewFileId(sel.id)} variant="ghost" className="gap-2 rounded-full">
-                    <FileText className="h-4 w-4" /> Open
-                  </Button>
+                    <FileText className="h-4 w-4" />{" "}{tr("Open")}</Button>
                   <Button onClick={() => rename(sel)} variant="ghost" className="gap-2 rounded-full">
-                    <Pencil className="h-4 w-4" /> Rename
-                  </Button>
+                    <Pencil className="h-4 w-4" />{" "}{tr("Rename")}</Button>
                   <Button onClick={() => handleDelete(sel.id)} variant="ghost" className="gap-2 rounded-full text-red-500 hover:text-red-500">
-                    <Trash2 className="h-4 w-4" /> Delete
-                  </Button>
+                    <Trash2 className="h-4 w-4" />{" "}{tr("Delete")}</Button>
                 </div>
                 <p className="mt-3 hidden text-center text-sm text-muted-foreground 2xl:block">
-                  <span className="font-semibold text-foreground">{prettyName(sel.filename)}</span> · made {format(new Date(sel.metadata?.createdAt || sel.uploadDate), "d MMMM, HH:mm")} · <span className="capitalize">{lookOf(sel)}</span> look
-                </p>
+                  <span className="font-semibold text-foreground">{prettyName(sel.filename)}</span>{" "}{tr("· made")}{" "}{format(new Date(sel.metadata?.createdAt || sel.uploadDate), "d MMMM, HH:mm")} · <span className="capitalize">{lookOf(sel)}</span>{" "}{tr("look")}</p>
               </>
             ) : isLoadingResumes ? (
               <div className="shimmer h-[30rem] rounded-2xl bg-muted" />
@@ -269,10 +290,10 @@ export default function ResumesPage() {
                 <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
                   <FileText className="h-7 w-7 text-muted-foreground" />
                 </span>
-                <h2 className="text-xl font-extrabold">Your studio is empty</h2>
-                <p className="mx-auto mt-1 max-w-sm text-muted-foreground">Make your first resume from your profile. Every version you make will live here.</p>
+                <h2 className="text-xl font-extrabold">{tr("Your studio is empty")}</h2>
+                <p className="mx-auto mt-1 max-w-sm text-muted-foreground">{tr("Make your first resume from your profile. Every version you make will live here.")}</p>
                 <Button asChild className="mt-6 h-11 rounded-full px-6 font-bold">
-                  <Link href="/home/resumes/new">Make my first resume</Link>
+                  <Link href="/home/resumes/new">{tr("Make my first resume")}</Link>
                 </Button>
               </div>
             )}
@@ -281,27 +302,25 @@ export default function ResumesPage() {
           {/* what applicant tracking systems see */}
           {sel && (
             <aside className="min-w-0 xl:sticky xl:top-24">
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">What ATS software sees</p>
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("What ATS software sees")}</p>
               <div className="flex items-center gap-4">
                 <Ring value={score} />
                 <div>
-                  <p className="text-lg font-extrabold leading-tight">{score >= 80 ? "Easy to read" : score >= 60 ? "Mostly fine" : "Needs work"}</p>
+                  <p className="text-lg font-extrabold leading-tight">{score >= 80 ? tr("Easy to read") : score >= 60 ? tr("Mostly fine") : tr("Needs work")}</p>
                   <p className="text-sm text-muted-foreground">
-                    {passed} of {checks.length} checks pass
-                  </p>
+                    {passed}{" "}{tr("of")}{" "}{checks.length}{" "}{tr("checks pass")}</p>
                 </div>
               </div>
               <ul className="mt-5 space-y-3">
                 {worst.length === 0 ? (
                   <li className="flex items-start gap-2.5 text-sm">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" strokeWidth={3} /> Every check passes. Nothing to fix.
-                  </li>
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" strokeWidth={3} />{" "}{tr("Every check passes. Nothing to fix.")}</li>
                 ) : (
                   worst.slice(0, 5).map((c) => (
                     <li key={c.id} className="flex items-start gap-2.5 text-sm">
                       <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${c.verdict === "fail" ? "text-red-500" : "text-amber-500"}`} />
                       <span>
-                        <span className="block font-semibold">{c.label}</span>
+                        <span className="block font-semibold">{tr(c.label)}</span>
                         <span className="block text-xs leading-relaxed text-muted-foreground">{c.reason}</span>
                       </span>
                     </li>
@@ -310,8 +329,7 @@ export default function ResumesPage() {
               </ul>
               <Button asChild variant="outline" className="mt-5 w-full gap-2 rounded-full font-semibold">
                 <Link href="/home/profile">
-                  <Pencil className="h-4 w-4" /> Fix it in my profile
-                </Link>
+                  <Pencil className="h-4 w-4" />{" "}{tr("Fix it in my profile")}</Link>
               </Button>
             </aside>
           )}
@@ -325,10 +343,10 @@ export default function ResumesPage() {
               <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                 <FileText className="h-6 w-6 text-muted-foreground" />
               </span>
-              <p className="font-semibold">No cover letters yet</p>
-              <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">When you prepare an application for a job, Kaizo writes the cover letter and you find it here.</p>
+              <p className="font-semibold">{tr("No cover letters yet")}</p>
+              <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{tr("When you prepare an application for a job, Kaizo writes the cover letter and you find it here.")}</p>
               <Button asChild variant="outline" className="mt-5">
-                <Link href="/home/job-ads">Find a job</Link>
+                <Link href="/home/job-ads">{tr("Find a job")}</Link>
               </Button>
             </div>
           ) : (
@@ -338,15 +356,25 @@ export default function ResumesPage() {
                   <div className="flex items-center gap-3">
                     <CompanyLogo company={l.job.company} logo={l.job.logo} size={40} />
                     <div className="min-w-0">
-                      <p className="truncate font-bold">{l.job.title}</p>
+                      <p className="truncate font-bold">{tr(l.job.title)}</p>
                       <p className="truncate text-sm text-muted-foreground">{l.job.company}</p>
                     </div>
                   </div>
                   <p className="mt-4 line-clamp-6 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{l.coverLetter}</p>
-                  <Button variant="ghost" size="sm" onClick={() => copyLetter(l.job.key, l.coverLetter)} className="mt-3 w-fit gap-1.5 px-0 font-semibold text-blue-500 hover:bg-transparent hover:text-blue-600">
-                    {copied === l.job.key ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
-                    {copied === l.job.key ? "Copied" : "Copy cover letter"}
-                  </Button>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1">
+                    <Button variant="ghost" size="sm" onClick={() => copyLetter(l.job.key, l.coverLetter)} className="w-fit gap-1.5 px-0 font-semibold text-blue-500 hover:bg-transparent hover:text-blue-600">
+                      {copied === l.job.key ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
+                      {copied === l.job.key ? tr("Copied") : tr("Copy cover letter")}
+                    </Button>
+                    {l.job.url && (
+                      <Button asChild variant="ghost" size="sm" className="w-fit gap-1.5 px-0 font-semibold hover:bg-transparent">
+                        <a href={l.job.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" />{" "}{tr("Open the posting")}</a>
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => deleteLetter(l)} className="ml-auto w-fit gap-1.5 px-0 font-semibold text-red-500 hover:bg-transparent hover:text-red-600">
+                      <Trash2 className="h-4 w-4" />{" "}{tr("Delete")}
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>

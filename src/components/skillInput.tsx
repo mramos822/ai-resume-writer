@@ -3,7 +3,9 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { ALL_SKILLS, POPULAR_SKILLS } from "@/lib/skills";
+import { fold } from "@/lib/fold";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/i18n/provider";
 
 /**
  * Skill field with autocomplete from a big list of common resume skills, plus one-tap popular suggestions.
@@ -22,24 +24,29 @@ export default function SkillInput({
   onAdd: (raw: string) => void;
   autoFocus?: boolean;
 }) {
+  const { tr } = useT();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const wrap = useRef<HTMLDivElement>(null);
 
   const taken = useMemo(() => new Set(skills.map((s) => s.toLowerCase())), [skills]);
 
+  const allSkills = useMemo(() => ALL_SKILLS.map((s) => tr(s)), [tr]);
   const matches = useMemo(() => {
-    const q = draft.trim().toLowerCase();
+    // accents and capitals do not matter ("gestion" finds "Gestión de proyectos")
+    const q = fold(draft);
     if (!q) return [];
-    const pool = ALL_SKILLS.filter((s) => !taken.has(s.toLowerCase()));
+    const pool = allSkills.filter((s) => !taken.has(s.toLowerCase()));
     // exact match first, then names that start with the text (shortest first), then names that contain it
-    const exact = pool.filter((s) => s.toLowerCase() === q);
-    const starts = pool.filter((s) => s.toLowerCase() !== q && s.toLowerCase().startsWith(q)).sort((x, y) => x.length - y.length);
-    const inside = pool.filter((s) => !s.toLowerCase().startsWith(q) && s.toLowerCase().includes(q));
+    const exact = pool.filter((s) => fold(s) === q);
+    const starts = pool.filter((s) => fold(s) !== q && fold(s).startsWith(q)).sort((x, y) => x.length - y.length);
+    const inside = pool.filter((s) => !fold(s).startsWith(q) && fold(s).includes(q));
     return [...exact, ...starts, ...inside].slice(0, 8);
-  }, [draft, taken]);
+  }, [draft, taken, allSkills]);
 
-  const popular = useMemo(() => POPULAR_SKILLS.filter((s) => !taken.has(s.toLowerCase())).slice(0, 14), [taken]);
+  // on a phone only a few ideas show at first, so the list does not push everything else far down
+  const [more, setMore] = useState(false);
+  const popular = useMemo(() => POPULAR_SKILLS.map((s) => tr(s)).filter((s) => !taken.has(s.toLowerCase())).slice(0, 14), [taken, tr]);
 
   const pick = (s: string) => {
     onAdd(s);
@@ -62,7 +69,7 @@ export default function SkillInput({
         <Input
           value={draft}
           autoFocus={autoFocus}
-          placeholder="Start typing, e.g. Customer service, Python, Excel…"
+          placeholder={tr("Start typing, e.g. Customer service, Python, Excel…")}
           role="combobox"
           aria-expanded={open}
           autoComplete="off"
@@ -108,10 +115,10 @@ export default function SkillInput({
 
       {popular.length > 0 && (
         <div className="mt-5">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Popular on resumes</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("Popular on resumes")}</p>
           <ul className="flex flex-wrap gap-2">
-            {popular.map((s) => (
-              <li key={s}>
+            {popular.map((s, i) => (
+              <li key={s} className={!more && i >= 6 ? "hidden sm:block" : ""}>
                 <button
                   type="button"
                   onClick={() => onAdd(s)}
@@ -122,6 +129,9 @@ export default function SkillInput({
               </li>
             ))}
           </ul>
+          {!more && popular.length > 6 && (
+            <button type="button" onClick={() => setMore(true)} className="mt-2.5 text-sm font-semibold text-blue-600 hover:underline sm:hidden">{tr("More ideas")}</button>
+          )}
         </div>
       )}
     </div>

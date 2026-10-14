@@ -54,10 +54,23 @@ export function cleanRoleProfile(input: unknown, role: string, source: RoleProfi
 /** "Software Engineer " and "software   engineer" are the same role for caching. */
 export const roleKey = (role: string) => role.toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").trim();
 
-/** The role to judge against: the target job title, or else the most recent job's title. Empty when there is none. */
+/** What the person is studying right now (a degree in progress), as a student headline: "Systems Engineering student". Empty when nothing is in progress. */
+export function studentRoleOf(p: ProfileData): string {
+  const e = (p.education ?? []).find((x) => x.current && x.degree?.trim());
+  if (!e) return "";
+  const field = e.degree.replace(/^(b\.?s\.?c?\.?|b\.?a\.?|m\.?s\.?c?\.?|bachelor('s)?( of| in)?( science| arts)?|master('s)?( of| in)?|hochschulstudium:?|studium:?)\s*/i, "").trim();
+  return `${field || e.degree.trim()} student`;
+}
+
+/**
+ * The role to judge against: the target job title the person wrote. Without one, what they are studying when a degree is in progress
+ * (a student with a side job as a waiter is not aiming to be a waiter), else the most recent job's title. Empty when there is none.
+ */
 export function targetRoleOf(p: ProfileData): string {
   const t = p.jobTitle?.trim();
   if (t) return t;
+  const studying = studentRoleOf(p);
+  if (studying) return studying;
   return (p.jobHistory ?? []).find((j) => j.title?.trim())?.title.trim() ?? "";
 }
 

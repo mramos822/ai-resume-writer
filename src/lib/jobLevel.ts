@@ -31,7 +31,7 @@ export function levelOf(job: Pick<JobListing, "title" | "description" | "snippet
   if (/\b(intern|internship|trainee|apprentice|working student|werkstudent)\b/.test(title)) {
     label = "Internship";
     typical = 0;
-  } else if (/\b(entry[- ]level|junior|jr\.?|graduate|new grad|associate)\b/.test(title)) {
+  } else if (/\b(entry[- ]level|early[- ]career|early[- ]talent|junior|jr\.?|graduate|new[- ]?grad|recent grad|university|campus|apprentice|associate)\b/.test(title) || /\b(engineer|developer|analyst|designer|scientist)\s+(i|1)\b/.test(title)) {
     label = "Entry level";
     typical = 0;
   } else if (/\b(chief|vp|vice president|head of|director)\b/.test(title)) {
@@ -46,9 +46,18 @@ export function levelOf(job: Pick<JobListing, "title" | "description" | "snippet
   } else if (/\b(senior|sr\.?)\b/.test(title)) {
     label = "Senior";
     typical = 5;
+  } else if (/\b(iii|iv|v)\b|\b[a-z]+\s+(3|4)\s*$/.test(title)) {
+    // "Software Engineer III": the third rung of the ladder is a senior role (IV and above, more so)
+    label = "Senior";
+    typical = /\b(iv|v)\b|\s4\s*$/.test(title) ? 7 : 5;
+  } else if (/\b(ii)\b|\b[a-z]+\s+2\s*$/.test(title)) {
+    label = "Mid level";
+    typical = 3;
   }
-  // when the posting states the years, that is what counts; the title gives the usual number otherwise
-  return { label, years: stated ?? typical };
+  // when the posting states the years, that is what counts; the title gives the usual number otherwise.
+  // An entry level job never asks for more than a couple of years (a number elsewhere in the text is about other roles or "nice to have")
+  const years = label === "Entry level" || label === "Internship" ? Math.min(stated ?? 0, 2) : stated ?? typical;
+  return { label, years };
 }
 
 /** True when the job asks for clearly more experience than the person has (more than a year of difference). */

@@ -1,3 +1,5 @@
+import { EN, type Tr } from "@/i18n/translate";
+
 // Starter bullets, picked from the job title the person typed. They are examples to edit, never filled in automatically.
 const BANK: { match: RegExp; ideas: string[] }[] = [
   {
@@ -121,8 +123,8 @@ const GENERIC = [
 ];
 
 /** Example bullets for a job title (never empty). */
-export function ideasFor(title: string): string[] {
+export function ideasFor(title: string, tr: Tr = EN): string[] {
   const t = title.trim();
-  if (!t) return GENERIC;
-  return BANK.find((b) => b.match.test(t))?.ideas ?? GENERIC;
+  const list = !t ? GENERIC : BANK.find((b) => b.match.test(t))?.ideas ?? GENERIC;
+  return list.map((i) => tr(i));
 }

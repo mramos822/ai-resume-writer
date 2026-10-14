@@ -2,6 +2,9 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import SidePanel from "@/components/sidePanel";
 
+// the admin check asks the server: here nobody is an admin
+jest.mock("@/lib/authFetch", () => ({ authFetch: () => Promise.resolve({ ok: false }) }));
+
 jest.mock("next/link", () => ({
     __esModule: true,
     default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (

@@ -17,6 +17,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
     }
 
     const uid = await authUid(req);
+    // downloading needs an account (the front end asks guests to make one; this keeps it true for anyone calling the API)
+    if (uid.startsWith('guest-')) {
+      return NextResponse.json({ error: 'Create a free account to download your resume.', code: 'account-required' }, { status: 403 });
+    }
     await assertResumeOwner(uid, fileId);
 
     const downloadStream = bucket.openDownloadStream(new ObjectId(fileId));

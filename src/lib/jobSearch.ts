@@ -3,6 +3,10 @@
 //  - Arbeitnow: jobs, many in Europe + remote (no key)  https://www.arbeitnow.com/api/job-board-api
 //  - Adzuna: jobs by city in many countries, when ADZUNA_APP_ID and ADZUNA_APP_KEY are set  https://developer.adzuna.com
 // Every listing keeps its own link, so people apply on the original site.
+import { ADZUNA_COUNTRIES } from "@/lib/jobCountries";
+import { kmBetween, type Origin } from "@/lib/jobPlaces";
+import { nearestMajorCity } from "@/lib/jobMajorCities";
+import { REACH_ORDER, type Reach } from "@/lib/jobReach";
 
 export interface JobListing {
   /** stable id: "source:id" */
@@ -23,7 +27,16 @@ export interface JobListing {
   logo?: string;
   /** the description in plain text (shortened), used to tailor an application */
   description?: string;
+  /** in a search by place: how far the job is from it. Only search results have it. */
+  reach?: Reach;
 }
+
+const reachRank = (j: JobListing) => (j.reach ? REACH_ORDER.indexOf(j.reach) : 0);
+const byReachThenDate = (a: JobListing, b: JobListing) => reachRank(a) - reachRank(b) || +new Date(b.postedAt || 0) - +new Date(a.postedAt || 0);
+
+/** Up to this far (km) from the place a job counts as "in" it, and up to NEAR_KM as near it. */
+const HERE_KM = 25;
+const NEAR_KM = 80;
 
 export interface JobQuery {
   q: string;
@@ -31,6 +44,8 @@ export interface JobQuery {
   remoteOnly: boolean;
   /** ISO 3166 country code of the person (lower case is fine), used by sources that search by country */
   country: string;
+  /** where the place is, when it is known: jobs are then sorted by how far they are from it */
+  origin?: Origin;
 }
 
 const strip = (html: string) =>
@@ -119,7 +134,10 @@ async function arbeitnow(): Promise<JobListing[]> {
 }
 
 /* ---------- Adzuna (needs a free key) ---------- */
-const ADZUNA_COUNTRIES = ["at", "au", "be", "br", "ca", "ch", "de", "es", "fr", "gb", "in", "it", "mx", "nl", "nz", "pl", "sg", "us", "za"];
+const adzunaCountry = (code: string) => {
+  const c = code.toLowerCase();
+  return c === "uk" ? "gb" : ADZUNA_COUNTRIES.includes(c) ? c : null;
+};
 
 interface AdzunaRow {
   id?: string | number;
@@ -133,24 +151,32 @@ interface AdzunaRow {
   company?: { display_name?: string };
   location?: { display_name?: string };
   category?: { label?: string };
+  latitude?: number;
+  longitude?: number;
 }
 
-async function adzuna(q: JobQuery): Promise<JobListing[]> {
+async function adzuna(q: JobQuery, km = 0): Promise<JobListing[]> {
   const id = process.env.ADZUNA_APP_ID;
   const key = process.env.ADZUNA_APP_KEY;
   if (!id || !key) return [];
-  const c = q.country.toLowerCase();
-  const country = ADZUNA_COUNTRIES.includes(c) ? c : c === "uk" ? "gb" : "us";
+  const country = adzunaCountry(q.country);
+  if (!country) return []; // the board has no jobs in that country: better none than the jobs of another one
   const params = new URLSearchParams({ app_id: id, app_key: key, results_per_page: "40", "content-type": "application/json" });
   if (q.q) params.set("what", q.q);
-  if (q.location && !q.remoteOnly) params.set("where", q.location);
+  if (q.location && !q.remoteOnly) {
+    params.set("where", q.location);
+    if (km) params.set("distance", String(km));
+  }
   if (q.remoteOnly) params.set("what_or", "remote");
   const data = (await getJson(`https://api.adzuna.com/v1/api/jobs/${country}/search/1?${params}`)) as { results?: AdzunaRow[] };
   return (data.results ?? []).map((j) => {
     const min = j.salary_min ? Math.round(Number(j.salary_min)) : 0;
     const max = j.salary_max ? Math.round(Number(j.salary_max)) : 0;
     const fmt = (n: number) => n.toLocaleString("en-US");
+    // how far from the place it is, when both positions are known; otherwise it counts as in the place
+    const away = q.origin && km && j.latitude != null && j.longitude != null ? kmBetween(q.origin, { lat: Number(j.latitude), lon: Number(j.longitude) }) : 0;
     return {
+      reach: !q.location || q.remoteOnly ? undefined : away > HERE_KM ? ("near" as const) : ("here" as const),
       key: `adzuna:${j.id}`,
       source: "adzuna" as const,
       title: strip(String(j.title ?? "")),
@@ -167,19 +193,45 @@ async function adzuna(q: JobQuery): Promise<JobListing[]> {
   });
 }
 
-const cache = new Map<string, { at: number; jobs: JobListing[]; sources: string[] }>();
+/** How far a big city can be to be offered to a person who lives in a small town. */
+const BIG_CITY_MAX_KM = 200;
+
+/**
+ * The jobs of the place and up to NEAR_KM around it; when there are few and the nearest big city is farther than that, also the
+ * jobs of that city; and when there are still few, the ones of the rest of the country.
+ */
+async function adzunaAround(q: JobQuery, info: { city?: string }): Promise<JobListing[]> {
+  if (!q.location || q.remoteOnly) return adzuna(q);
+  const around = await adzuna(q, NEAR_KM);
+  const local = around.filter((j) => j.reach === "here").length;
+  let city: JobListing[] = [];
+  if (local < 10 && q.origin) {
+    const big = nearestMajorCity(q.country, q.origin, NEAR_KM, BIG_CITY_MAX_KM);
+    if (big) {
+      const found = await adzuna({ ...q, location: big.label, origin: big.at }, HERE_KM).catch(() => []);
+      city = found.map((j) => ({ ...j, reach: "city" as const }));
+      if (city.length) info.city = big.name;
+    }
+  }
+  if (around.length + city.length >= 10) return [...around, ...city];
+  const rest = await adzuna({ ...q, location: "" }).catch(() => []);
+  return [...around, ...city, ...rest.map((j) => ({ ...j, reach: (j.remote ? "remote" : "other") as JobListing["reach"] }))];
+}
+
+const cache = new Map<string, { at: number; jobs: JobListing[]; sources: string[]; bigCity?: string }>();
 const TTL = 5 * 60 * 1000;
 
 /** Searches every source, merges, removes repeats and puts the best matches and the newest first. */
-export async function searchJobs(q: JobQuery): Promise<{ jobs: JobListing[]; sources: string[] }> {
+export async function searchJobs(q: JobQuery): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
   const cacheKey = JSON.stringify([q.q.toLowerCase().trim(), q.location.toLowerCase().trim(), q.remoteOnly, q.country.toLowerCase()]);
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < TTL) return hit;
 
   const sources: string[] = [];
   const jobs: JobListing[] = [];
+  const info: { city?: string } = {};
   const tasks: [string, Promise<JobListing[]>][] = [["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()]];
-  if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY) tasks.push(["Adzuna", adzuna(q)]);
+  if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY && adzunaCountry(q.country)) tasks.push(["Adzuna", adzunaAround(q, info)]);
   const settled = await Promise.allSettled(tasks.map(([, p]) => p));
   settled.forEach((r, i) => {
     if (r.status === "fulfilled") {
@@ -195,7 +247,9 @@ export async function searchJobs(q: JobQuery): Promise<{ jobs: JobListing[]; sou
   else if (loc) {
     // keep jobs in that place, plus remote ones (they can be done from there)
     const lw = words(loc);
-    out = out.filter((j) => j.remote || lw.some((w) => j.location.toLowerCase().includes(w)) || j.source === "adzuna");
+    out = out
+      .filter((j) => j.reach || j.remote || lw.some((w) => j.location.toLowerCase().includes(w)))
+      .map((j) => (j.reach ? j : { ...j, reach: j.remote ? ("remote" as const) : ("here" as const) }));
   }
   const seen = new Set<string>();
   out = out.filter((j) => {
@@ -204,8 +258,8 @@ export async function searchJobs(q: JobQuery): Promise<{ jobs: JobListing[]; sou
     seen.add(k);
     return true;
   });
-  out.sort((a, b) => +new Date(b.postedAt || 0) - +new Date(a.postedAt || 0));
-  const result = { jobs: out.slice(0, 80), sources };
+  out.sort(byReachThenDate);
+  const result = { jobs: out.slice(0, 80), sources, bigCity: info.city };
   cache.set(cacheKey, { at: Date.now(), ...result });
   return result;
 }
@@ -238,15 +292,17 @@ export function relatedQueries(role: string, skills: string[] = []): string[] {
 }
 
 /** A wider search: several related searches at once, joined and without repeats. */
-export async function searchJobsWide(q: JobQuery, skills: string[] = []): Promise<{ jobs: JobListing[]; sources: string[] }> {
+export async function searchJobsWide(q: JobQuery, skills: string[] = []): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
   const queries = q.q.trim() ? relatedQueries(q.q, skills) : [q.q];
   const results = await Promise.allSettled(queries.map((one) => searchJobs({ ...q, q: one })));
   const jobs: JobListing[] = [];
   const sources = new Set<string>();
+  let bigCity: string | undefined;
   const seen = new Set<string>();
   for (const r of results) {
     if (r.status !== "fulfilled") continue;
     r.value.sources.forEach((x) => sources.add(x));
+    bigCity = bigCity ?? r.value.bigCity;
     for (const j of r.value.jobs) {
       const k = `${j.title}|${j.company}`.toLowerCase();
       if (seen.has(k) || seen.has(j.key)) continue;
@@ -255,8 +311,8 @@ export async function searchJobsWide(q: JobQuery, skills: string[] = []): Promis
       jobs.push(j);
     }
   }
-  jobs.sort((a, b) => +new Date(b.postedAt || 0) - +new Date(a.postedAt || 0));
-  return { jobs: jobs.slice(0, 150), sources: Array.from(sources) };
+  jobs.sort(byReachThenDate);
+  return { jobs: jobs.slice(0, 150), sources: Array.from(sources), bigCity };
 }
 
 /** Checks a listing that comes from the browser (to save it or to prepare an application) and keeps only known fields. */

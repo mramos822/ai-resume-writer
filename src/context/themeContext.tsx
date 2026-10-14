@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { flushSync } from "react-dom";
-import { usePathname } from "next/navigation";
+import { usePathname } from "@/i18n/navigation";
 import PageLoader from "@/components/pageLoader";
+import { AnimatePresence } from "framer-motion";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -138,14 +139,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
     }, []);
 
-    if (!authChecked && !isPublic) {
-        // suppressHydrationWarning: browser extensions inject attributes (e.g. bis_skin_checked) into this div before hydration
-        return <PageLoader />;
-    }
+    const waiting = !authChecked && !isPublic;
 
     return (
         <ThemeContext.Provider value={{ theme, setTheme }}>
-            {children}
+            {!waiting && children}
+            {/* the loading screen fades away instead of vanishing, while the page appears under it */}
+            <AnimatePresence>{waiting && <PageLoader key="loader" />}</AnimatePresence>
         </ThemeContext.Provider>
     );
 };

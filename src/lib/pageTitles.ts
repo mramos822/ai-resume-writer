@@ -7,4 +7,5 @@ export const PAGE_TITLES: Record<string, string> = {
   "/home/resumes/new": "New resume",
   "/home/settings": "Settings",
   "/home/help": "Help & tutorials",
+  "/home/admin/messages": "Messages",
 };

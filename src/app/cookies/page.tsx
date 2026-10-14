@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/i18n/navigation";
 import LegalLayout, { type LegalSection } from "@/components/legalLayout";
+import { getT } from "@/i18n/server";
+import { cookiesEs } from "@/app/cookies/content.es";
 
-export const metadata: Metadata = { title: "Cookie Policy | Kaizo" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { tr } = await getT();
+  return { title: { absolute: tr("Cookie Policy | Kaizo") } };
+}
 
 const stored = [
   { name: "Sign-in session", where: "Browser storage (Firebase)", why: "Keeps you signed in, including guest sessions.", howLong: "Until you log out or clear site data" },
   { name: "Theme", where: "Local storage", why: "Remembers light or dark mode.", howLong: "Until you clear site data" },
+  { name: "Language", where: "Cookie", why: "Remembers the language you chose (it is only saved when you choose it yourself).", howLong: "1 year" },
   { name: "Builder progress", where: "Local storage", why: "Saves your unfinished resume draft and remembers that you finished the first-time setup.", howLong: "Until you finish, start over or clear site data" },
   { name: "Cookie notice", where: "Local storage", why: "Remembers that you read this notice so we do not show it again.", howLong: "Until you clear site data" },
 ];
@@ -82,6 +88,7 @@ const sections: LegalSection[] = [
   },
 ];
 
-export default function CookiesPage() {
-  return <LegalLayout title="Cookie Policy" intro="Kaizo only stores what it needs to work: your sign-in, your theme and your unfinished resume. Nothing for ads, nothing for tracking." sections={sections} />;
+export default async function CookiesPage() {
+  const { tr, locale } = await getT();
+  return <LegalLayout title={tr("Cookie Policy")} intro={tr("Kaizo only stores what it needs to work: your sign-in, your theme and your unfinished resume. Nothing for ads, nothing for tracking.")} sections={locale === "es" ? cookiesEs : sections} />;
 }

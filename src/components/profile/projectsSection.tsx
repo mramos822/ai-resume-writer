@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { currentMonth } from "@/lib/dateFormat";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Pencil, Trash2, ExternalLink, FolderKanban } from "lucide-react";
 import { useProfile, ProjectEntry } from "@/context/profileContext";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 
 type Draft = Omit<ProjectEntry, "id">;
 
@@ -34,6 +36,7 @@ function ProjectForm({
   onSave: (data: Draft) => void;
   onCancel: () => void;
 }) {
+  const { tr } = useT();
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [link, setLink] = useState(initial?.link ?? "");
@@ -60,63 +63,60 @@ function ProjectForm({
   return (
     <form onSubmit={submit} className="space-y-4">
       <div>
-        <Label htmlFor="pj-name">Project name</Label>
-        <Input id="pj-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Budget tracker app" required autoFocus />
+        <Label htmlFor="pj-name">{tr("Project name")}</Label>
+        <Input id="pj-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("e.g. Budget tracker app")} required autoFocus />
       </div>
       <div>
-        <Label htmlFor="pj-desc">What is it?</Label>
+        <Label htmlFor="pj-desc">{tr("What is it?")}</Label>
         <Textarea
           id="pj-desc"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
-          placeholder="One or two sentences on what it does and why you built it."
+          placeholder={tr("One or two sentences on what it does and why you built it.")}
         />
       </div>
       <div>
-        <Label htmlFor="pj-tech">Tools and languages</Label>
-        <Input id="pj-tech" value={tech} onChange={(e) => setTech(e.target.value)} placeholder="React, Node.js, PostgreSQL" />
-        <p className="mt-1 text-xs text-muted-foreground">Separate them with commas.</p>
+        <Label htmlFor="pj-tech">{tr("Tools and languages")}</Label>
+        <Input id="pj-tech" value={tech} onChange={(e) => setTech(e.target.value)} placeholder={tr("React, Node.js, PostgreSQL")} />
+        <p className="mt-1 text-xs text-muted-foreground">{tr("Separate them with commas.")}</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="pj-start">Started (optional)</Label>
-          <Input id="pj-start" type="month" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <Label htmlFor="pj-start">{tr("Started (optional)")}</Label>
+          <Input id="pj-start" type="month" max={currentMonth()} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </div>
         <div>
-          <Label htmlFor="pj-end">Finished</Label>
-          <Input id="pj-end" type="month" value={current ? "" : endDate} onChange={(e) => setEndDate(e.target.value)} disabled={current} />
+          <Label htmlFor="pj-end">{tr("Finished")}</Label>
+          <Input id="pj-end" type="month" max={currentMonth()} min={startDate || undefined} value={current ? "" : endDate} onChange={(e) => setEndDate(e.target.value)} disabled={current} />
         </div>
       </div>
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={current} onChange={(e) => setCurrent(e.target.checked)} className="h-4 w-4 rounded" />
-        I&apos;m still working on it
-      </label>
+        <input type="checkbox" checked={current} onChange={(e) => setCurrent(e.target.checked)} className="h-4 w-4 rounded" />{tr("I'm still working on it")}</label>
       <div>
-        <Label htmlFor="pj-link">Link (optional)</Label>
-        <Input id="pj-link" value={link} onChange={(e) => setLink(e.target.value)} placeholder="github.com/you/project" />
+        <Label htmlFor="pj-link">{tr("Link (optional)")}</Label>
+        <Input id="pj-link" value={link} onChange={(e) => setLink(e.target.value)} placeholder={tr("github.com/you/project")} />
       </div>
       <div>
-        <Label htmlFor="pj-points">Highlights (one per line)</Label>
+        <Label htmlFor="pj-points">{tr("Highlights (one per line)")}</Label>
         <Textarea
           id="pj-points"
           value={points}
           onChange={(e) => setPoints(e.target.value)}
           rows={4}
-          placeholder={"Built the login system used by 200+ students\nCut load time in half by caching results"}
+          placeholder={tr("Built the login system used by 200+ students\nCut load time in half by caching results")}
         />
       </div>
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit">Save project</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>{tr("Cancel")}</Button>
+        <Button type="submit">{tr("Save project")}</Button>
       </DialogFooter>
     </form>
   );
 }
 
 const ProjectsSection: React.FC = () => {
+  const { tr } = useT();
   const { activeProfile, addProjectEntry, updateProjectEntry, deleteProjectEntry } = useProfile();
   const dialog = useDialog();
   const [editing, setEditing] = useState<ProjectEntry | null>(null);
@@ -145,9 +145,9 @@ const ProjectsSection: React.FC = () => {
 
   const remove = async (p: ProjectEntry) => {
     const ok = await dialog.confirm({
-      title: `Remove “${p.name || "this project"}”?`,
-      description: "It will disappear from your profile and from resumes you generate next.",
-      confirmText: "Remove",
+      title: tr("Remove “{v0}”?", { v0: p.name || "this project" }),
+      description: tr("It will disappear from your profile and from resumes you generate next."),
+      confirmText: tr("Remove"),
       tone: "danger",
     });
     if (ok) deleteProjectEntry(p.id);
@@ -156,12 +156,9 @@ const ProjectsSection: React.FC = () => {
   return (
     <div>
       <div className="mb-5 flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
-          Personal, school or side projects that show what you can build. Not the same as internships or jobs.
-        </p>
+        <p className="text-sm text-muted-foreground">{tr("Personal, school or side projects that show what you can build. Not the same as internships or jobs.")}</p>
         <Button onClick={openNew} size="sm" className="shrink-0 gap-1.5">
-          <Plus className="h-4 w-4" /> Add project
-        </Button>
+          <Plus className="h-4 w-4" />{" "}{tr("Add project")}</Button>
       </div>
 
       {projects.length === 0 ? (
@@ -169,13 +166,10 @@ const ProjectsSection: React.FC = () => {
           <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
             <FolderKanban className="h-7 w-7" />
           </span>
-          <p className="font-semibold">No projects yet</p>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Projects are great when you&apos;re starting out. Add one you&apos;re proud of.
-          </p>
+          <p className="font-semibold">{tr("No projects yet")}</p>
+          <p className="mt-1 max-w-sm text-sm text-muted-foreground">{tr("Projects are great when you're starting out. Add one you're proud of.")}</p>
           <Button onClick={openNew} className="mt-4 gap-1.5">
-            <Plus className="h-4 w-4" /> Add my first project
-          </Button>
+            <Plus className="h-4 w-4" />{" "}{tr("Add my first project")}</Button>
         </div>
       ) : (
         <ul className="space-y-3">
@@ -200,29 +194,29 @@ const ProjectsSection: React.FC = () => {
                       <button
                         onClick={() => openEdit(p)}
                         className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-blue-600"
-                        aria-label="Edit project"
-                        title="Edit"
+                        aria-label={tr("Edit project")}
+                        title={tr("Edit")}
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => remove(p)}
                         className="rounded-md p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600"
-                        aria-label="Remove project"
-                        title="Remove"
+                        aria-label={tr("Remove project")}
+                        title={tr("Remove")}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
 
-                  {p.description && <p className="mt-2 text-sm text-muted-foreground">{p.description}</p>}
+                  {p.description && <p className="mt-2 text-sm text-muted-foreground">{tr(p.description)}</p>}
 
                   {p.technologies?.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {p.technologies.map((t) => (
                         <span key={t} className="rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-200">
-                          {t}
+                          {tr(t)}
                         </span>
                       ))}
                     </div>
@@ -231,7 +225,7 @@ const ProjectsSection: React.FC = () => {
                   {p.accomplishments?.length > 0 && (
                     <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
                       {p.accomplishments.map((a, i) => (
-                        <li key={i}>{a}</li>
+                        <li key={i}>{tr(a)}</li>
                       ))}
                     </ul>
                   )}
@@ -256,8 +250,8 @@ const ProjectsSection: React.FC = () => {
       <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : close())}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit project" : "Add a project"}</DialogTitle>
-            <DialogDescription>Keep it short. A couple of highlights is plenty.</DialogDescription>
+            <DialogTitle>{editing ? tr("Edit project") : tr("Add a project")}</DialogTitle>
+            <DialogDescription>{tr("Keep it short. A couple of highlights is plenty.")}</DialogDescription>
           </DialogHeader>
           <ProjectForm key={editing?.id ?? "new"} initial={editing ?? undefined} onSave={save} onCancel={close} />
         </DialogContent>

@@ -1,9 +1,11 @@
 // Shared by the review API (server) and the review panel (client): types, the rule-based fallback review,
 // the validation of fixes the AI proposes, and the pure function that applies a fix to a profile.
+import { faithfulBullets } from "@/lib/bulletFidelity";
 import type { ProfileData, JobEntry } from "@/context/profileContext";
 import { MIN_RECENT_JOBS, evaluateAuto, isRecentJob, newestFirst, scoreOf, type CriterionResult, type PageFit } from "@/lib/reviewRubric";
 import { isRelevantJob, resumeText, type RoleProfile } from "@/lib/roleProfile";
 import { placeLine } from "@/lib/place";
+import { passesPage } from "@/lib/pageRules";
 
 export { dedupeProfile } from "@/lib/profileDedupe";
 export type { PageFit, CriterionResult } from "@/lib/reviewRubric";
@@ -41,6 +43,8 @@ export interface ReviewResult {
   target?: { kind: "general" | "job"; role: string; field: string; keywords: string[] };
   /** every guideline with its verdict, so the score is never a mystery */
   criteria: CriterionResult[];
+  /** points of every guideline except the layout one (the client re-measures that one when the look changes) */
+  atsRest?: { earned: number; total: number };
   issues: ReviewIssue[];
 }
 
@@ -51,7 +55,7 @@ export function scoreLabel(score: number): string {
   return "Needs work";
 }
 
-export const isCrowded = (fit?: PageFit | null) => Boolean(fit && (fit.pages > 1 || fit.scale < 0.82));
+export const isCrowded = (fit?: PageFit | null) => !passesPage(fit);
 
 /** The impact of a guideline depends on how many points it is worth. */
 export const impactOf = (weight: number): ReviewIssue["impact"] => (weight >= 8 ? "high" : weight >= 5 ? "medium" : "low");
@@ -59,14 +63,14 @@ export const impactOf = (weight: number): ReviewIssue["impact"] => (weight >= 8 
 /** What to say about a failed measurable guideline when the AI is not involved. */
 export const AUTO_ADVICE: Record<string, { title: string; detail: string }> = {
   contact: { title: "Complete your contact details", detail: "ATS and recruiters need your name, email, phone and city to contact you." },
-  skillsBacked: { title: "Back your skills up in your experience", detail: "Skills that never appear in your jobs, projects or studies look unsupported to a recruiter. Mention them in your bullets or drop them." },
+  skillsBacked: { title: "Show where you used your skills", detail: "Keep all your skills, the more the better. When a skill is not shown in your jobs, projects or studies, a bullet that uses it makes it more believable to a recruiter." },
   recentExperience: { title: "Keep your most recent jobs", detail: "Recruiters read your latest roles first. Keep at least your 3 most recent jobs listed." },
   chronology: { title: "Put your newest job first", detail: "ATS and recruiters expect reverse chronological order." },
   gaps: { title: "Explain gaps between jobs", detail: "A gap over 6 months stands out to HR. Add what you did in that time (studies, projects, freelance) as an entry." },
-  atsLayout: { title: "Make it easier for ATS to read", detail: "Use the Classic look, leave out the photo and skill ratings: ATS read plain single-column text best." },
+  atsLayout: { title: "Optional: a plainer look for ATS portals", detail: "Your look is a good one and you can keep it. Only if you apply through company portals that scan resumes automatically, the Classic look without the photo and skill ratings is the safest to read." },
   role: { title: "Add the job you are aiming for", detail: "A target title tells recruiters in one line what to read you for." },
   summaryLength: { title: "Write your profile as an introduction", detail: "Your profile is your cover letter: three to five sentences (250 to 700 characters) on who you are, your strongest experience and skills, and what you bring." },
-  skillsCount: { title: "Fix the number of skills", detail: "Eight or more skills that match the jobs you want give ATS enough keywords. Skills are a priority, so only exact repeats are removed." },
+  skillsCount: { title: "Fix the number of skills", detail: "Eight or more skills that match the jobs you want give ATS enough keywords. Skills are a priority: only repeats or redundant ones are removed, and only when the list is very long." },
   experience: { title: "Add your experience", detail: "Part-time jobs, volunteering, projects or internships all count." },
   bulletsPerJob: { title: "Give each recent job 3 to 5 bullets", detail: "Short bullets that say what you did are what recruiters scan for." },
   bulletLength: { title: "Keep bullets short and specific", detail: "Between one line and two lines (about 25 to 170 characters)." },
@@ -82,12 +86,18 @@ export const AUTO_ADVICE: Record<string, { title: string; detail: string }> = {
  * A review that uses only the measurable guidelines. Used when the AI is unavailable. The qualitative guidelines
  * are simply not scored, so the number is still comparable between runs.
  */
+/** The review only lists what really matters: points lost below this are details, and they stay out of the list. */
+export const MIN_POINTS_AT_STAKE = 2;
+export const MAX_ISSUES = 6;
+export const worthListing = (c: { weight: number; earned: number }) => c.weight - c.earned >= MIN_POINTS_AT_STAKE;
+
 export function basicReview(p: ProfileData, fit?: PageFit | null, template = "classic", role?: RoleProfile | null): ReviewResult {
   const criteria = evaluateAuto(p, fit, template, role);
   const issues: ReviewIssue[] = criteria
-    .filter((c) => c.verdict !== "pass")
-    .sort((a, b) => b.weight - b.earned - (a.weight - a.earned))
-    .slice(0, 8)
+    .filter((c) => c.verdict !== "pass" && worthListing(c))
+    // the look is the person's choice: a change of look is always the last thing listed
+    .sort((a, b) => Number(a.id === "atsLayout") - Number(b.id === "atsLayout") || b.weight - b.earned - (a.weight - a.earned))
+    .slice(0, MAX_ISSUES)
     .map((c, i) => {
       const advice = AUTO_ADVICE[c.id] ?? { title: c.label, detail: c.reason };
       const fix = autoFixFor(c.id, p, role);
@@ -122,7 +132,10 @@ export function reviewForTemplate(review: ReviewResult, p: ProfileData, template
     const advice = AUTO_ADVICE.atsLayout;
     issues = [...issues, { id: "atsLayout", criterionId: "atsLayout", title: advice.title, detail: `${advice.detail} ${now.reason}`.trim(), impact: impactOf(now.weight), fix: { type: "atsClean" } }];
   }
-  return { ...review, criteria, issues, score: scoreOf(criteria) };
+  // the rest of the guidelines come as two totals (their points are not sent), so the score is rebuilt from them
+  const rest = review.atsRest;
+  const score = rest && rest.total + now.weight > 0 ? Math.round((100 * (rest.earned + now.earned)) / (rest.total + now.weight)) : review.score;
+  return { ...review, criteria, issues, score };
 }
 
 /**
@@ -219,8 +232,12 @@ export function cleanFix(input: unknown, p: ProfileData): ReviewFix | null {
     }
     case "bullets": {
       const jobId = str(raw.jobId, 80);
-      if (!(p.jobHistory ?? []).some((j) => j.id === jobId)) return null;
-      const bullets = (Array.isArray(raw.bullets) ? raw.bullets : []).map((b: unknown) => str(b, 220)).filter(Boolean).slice(0, 8);
+      const job = (p.jobHistory ?? []).find((j) => j.id === jobId);
+      if (!job) return null;
+      const proposed = (Array.isArray(raw.bullets) ? raw.bullets : []).map((b: unknown) => str(b, 220)).filter(Boolean).slice(0, 8);
+      // a rewrite may say the same better, but not more: a bullet that adds a tool or a number the job never showed goes back as the
+      // person wrote it (this is the path of "Fix it for me" in the general review, which saves into the profile)
+      const bullets = faithfulBullets(job, proposed).bullets;
       return bullets.length ? { type: "bullets", jobId, bullets } : null;
     }
     case "addSkills": {
@@ -295,6 +312,18 @@ export function applyFixes(p: ProfileData, fixes: ReviewFix[]): ProfilePatch {
   if (skills) patch.skills = skills;
   if (jobs) patch.jobHistory = jobs;
   return patch;
+}
+
+/** True when applying the patch would really change the profile (a fix can already be in place, and then nothing happens). */
+export function patchChangesProfile(p: ProfileData, patch: ProfilePatch): boolean {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  if ("careerObjective" in patch && !same(patch.careerObjective, p.careerObjective ?? "")) return true;
+  if ("jobTitle" in patch && !same(patch.jobTitle, p.jobTitle ?? "")) return true;
+  if ("skills" in patch && !same(patch.skills, p.skills ?? [])) return true;
+  if ("photo" in patch && !same(patch.photo ?? "", p.photo ?? "")) return true;
+  if ("skillLevels" in patch && !same(patch.skillLevels ?? {}, p.skillLevels ?? {})) return true;
+  if ("jobHistory" in patch && !same(patch.jobHistory, p.jobHistory ?? [])) return true;
+  return false;
 }
 
 /** The current values of the fields a patch would change, to undo it later. */

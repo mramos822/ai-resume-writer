@@ -4,6 +4,7 @@
 // the profile looks like today (the profile keeps changing, a resume you made does not).
 import React, { useEffect, useState } from "react";
 import { authFetch } from "@/lib/authFetch";
+import { useT } from "@/i18n/provider";
 
 type PdfJs = typeof import("pdfjs-dist");
 
@@ -61,6 +62,7 @@ export function forgetPdfPage(fileId: string) {
 }
 
 export default function PdfPage({ fileId, width, alt, className = "" }: { fileId: string; width: number; alt: string; className?: string }) {
+  const { tr } = useT();
   const [src, setSrc] = useState<string | null>(() => drawn.get(`${fileId}:${width}`) ?? null);
   const [failed, setFailed] = useState(false);
 
@@ -83,12 +85,10 @@ export default function PdfPage({ fileId, width, alt, className = "" }: { fileId
 
   if (failed) {
     return (
-      <div className={`flex aspect-[8.5/11] w-full items-center justify-center bg-muted p-3 text-center text-xs text-muted-foreground ${className}`} role="img" aria-label={alt}>
-        Preview not available
-      </div>
+      <div className={`flex aspect-[8.5/11] w-full items-center justify-center bg-muted p-3 text-center text-xs text-muted-foreground ${className}`} role="img" aria-label={alt}>{tr("Preview not available")}</div>
     );
   }
-  if (!src) return <div className={`shimmer aspect-[8.5/11] w-full bg-muted ${className}`} aria-busy aria-label={`Loading: ${alt}`} />;
+  if (!src) return <div className={`shimmer aspect-[8.5/11] w-full bg-muted ${className}`} aria-busy aria-label={tr("Loading: {alt}", { alt })} />;
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={src} alt={alt} draggable={false} className={`block w-full select-none bg-white ${className}`} />;
 }

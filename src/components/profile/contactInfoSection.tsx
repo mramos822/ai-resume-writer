@@ -15,6 +15,8 @@ import { loadGeo, regionLabel, type Geo } from "@/lib/geo";
 import { formatPhoneInput, phoneExample } from "@/lib/phone";
 import { realName } from "@/lib/previewData";
 import { US_STATES, fullState } from "@/lib/place";
+import { useT, useLocale } from "@/i18n/provider";
+import { countryNamer } from "@/i18n/places";
 
 /** Splits a full name into first names and the last name (a single word is only a first name). */
 function splitName(full: string): [string, string] {
@@ -28,6 +30,7 @@ function splitName(full: string): [string, string] {
  * (so the live preview next to it follows along) and is saved with "Save changes".
  */
 const ContactInfoSection: React.FC = () => {
+  const { tr } = useT();
   const { activeProfile: profile, updateContactInfo, updateName, updatePhoto } = useProfile();
   const c = profile.contactInfo;
   const countryCode = c.countryCode || "US";
@@ -38,6 +41,9 @@ const ContactInfoSection: React.FC = () => {
   const [last, setLast] = useState(() => splitName(realName(profile.name))[1]);
   const lastWritten = useRef([first, last].filter(Boolean).join(" "));
   useEffect(() => {
+    // while the person is typing in these fields, what they type is what counts (clearing one must not bring the old name back)
+    const typing = typeof document !== "undefined" && ["first-name", "last-name"].includes(document.activeElement?.id ?? "");
+    if (typing) return;
     const full = realName(profile.name);
     if (full !== lastWritten.current) {
       // the profile changed from elsewhere (for example a re-read of the resume)
@@ -56,6 +62,8 @@ const ContactInfoSection: React.FC = () => {
   };
 
   const [geo, setGeo] = useState<Geo | null>(null);
+  const locale = useLocale();
+  const countryShown = React.useMemo(() => countryNamer(locale, geo?.countries), [locale, geo]);
   useEffect(() => {
     loadGeo().then(setGeo).catch(() => {});
   }, []);
@@ -72,29 +80,29 @@ const ContactInfoSection: React.FC = () => {
       {/* two groups side by side on wide screens, each one compact: what you write is short, so the fields are too */}
       <div className="grid gap-x-14 gap-y-10 xl:grid-cols-2">
         <section className="space-y-5">
-          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">About you</h3>
+          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{tr("About you")}</h3>
           {/* Photo (optional): templates adjust when there is one */}
           <PhotoPicker value={profile.photo || ""} onChange={updatePhoto} />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="first-name">First name *</Label>
-              <Input id="first-name" value={first} onChange={(e) => setNameParts(e.target.value, last)} placeholder="Alex" name="given-name" autoComplete="given-name" />
+              <Label htmlFor="first-name">{tr("First name *")}</Label>
+              <Input id="first-name" value={first} onChange={(e) => setNameParts(e.target.value, last)} placeholder={tr("Alex")} name="given-name" autoComplete="given-name" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="last-name">Last name</Label>
-              <Input id="last-name" value={last} onChange={(e) => setNameParts(first, e.target.value)} placeholder="Johnson" name="family-name" autoComplete="family-name" />
+              <Label htmlFor="last-name">{tr("Last name")}</Label>
+              <Input id="last-name" value={last} onChange={(e) => setNameParts(first, e.target.value)} placeholder={tr("Johnson")} name="family-name" autoComplete="family-name" />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-[3fr_2fr]">
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email">{tr("Email *")}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input id="email" type="email" value={c.email || ""} onChange={(e) => updateContactInfo({ email: e.target.value })} className="pl-10" placeholder="alex@email.com" name="email" autoComplete="email" />
+                <Input id="email" type="email" value={c.email || ""} onChange={(e) => updateContactInfo({ email: e.target.value })} className="pl-10" placeholder={tr("alex@email.com")} name="email" autoComplete="email" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone *</Label>
+              <Label htmlFor="phone">{tr("Phone *")}</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -113,27 +121,27 @@ const ContactInfoSection: React.FC = () => {
         </section>
 
         <section className="space-y-5">
-          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Where you live</h3>
+          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{tr("Where you live")}</h3>
           <div className="space-y-2">
-            <Label htmlFor="address">Street address</Label>
-            <Input id="address" value={c.address || ""} onChange={(e) => updateContactInfo({ address: e.target.value })} placeholder="123 Main St" name="address-line1" autoComplete="address-line1" />
+            <Label htmlFor="address">{tr("Street address")}</Label>
+            <Input id="address" value={c.address || ""} onChange={(e) => updateContactInfo({ address: e.target.value })} placeholder={tr("123 Main St")} name="address-line1" autoComplete="address-line1" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="city">City</Label>
-              <Input id="city" value={c.city || ""} onChange={(e) => updateContactInfo({ city: e.target.value })} placeholder="Springfield" name="address-level2" autoComplete="address-level2" />
+              <Label htmlFor="city">{tr("City")}</Label>
+              <Input id="city" value={c.city || ""} onChange={(e) => updateContactInfo({ city: e.target.value })} placeholder={tr("Springfield")} name="address-level2" autoComplete="address-level2" />
             </div>
             {regions.length > 0 ? (
               <div className="space-y-2">
-                <Label>{regionLabel(countryCode)}</Label>
-                <PickSelect value={state} onChange={(v) => updateContactInfo({ state: v })} options={regions} label={regionLabel(countryCode)} name="address-level1" placeholder={`Choose a ${regionLabel(countryCode).toLowerCase()}`} />
+                <Label>{regionLabel(countryCode, tr)}</Label>
+                <PickSelect value={state} onChange={(v) => updateContactInfo({ state: v })} options={regions} label={regionLabel(countryCode, tr)} name="address-level1" placeholder={tr("Choose a {v0}", { v0: regionLabel(countryCode, tr).toLowerCase() })} />
               </div>
             ) : (
               <div />
             )}
           </div>
           <div className="space-y-2 sm:max-w-sm">
-            <Label>Country</Label>
+            <Label>{tr("Country")}</Label>
             <PickSelect
               value={country}
               onChange={(name) => {
@@ -143,9 +151,10 @@ const ContactInfoSection: React.FC = () => {
                 updateContactInfo({ country: g.name, countryCode: g.isoCode, state: "", phone: formatPhoneInput((c.phone || "").replace(/[^\d+]/g, ""), g.isoCode) });
               }}
               options={geo ? geo.countries.map((x) => x.name) : [country]}
-              label="Country"
+                  display={countryShown}
+              label={tr("Country")}
               name="country-name"
-              placeholder="Choose a country"
+              placeholder={tr("Choose a country")}
               leading={(n) => {
                 const iso = (geo?.countries.find((x) => x.name === n)?.isoCode ?? (n === country ? countryCode : "")).toLowerCase();
                 return iso ? <span className={`fi fi-${iso} h-4 w-6 rounded-[3px] shadow-sm ring-1 ring-black/10`} aria-hidden /> : null;
@@ -159,9 +168,9 @@ const ContactInfoSection: React.FC = () => {
       {/* Additional emails */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label>Additional email addresses</Label>
+          <Label>{tr("Additional email addresses")}</Label>
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowAdditionalEmails((v) => !v)}>
-            {showAdditionalEmails ? "Hide" : "Show"}
+            {showAdditionalEmails ? tr("Hide") : tr("Show")}
           </Button>
         </div>
         {showAdditionalEmails && (
@@ -175,7 +184,7 @@ const ContactInfoSection: React.FC = () => {
                     value={email}
                     onChange={(e) => updateContactInfo({ additionalEmails: emails.map((x, j) => (j === i ? e.target.value : x)) })}
                     className="pl-10"
-                    placeholder="other.email@example.com"
+                    placeholder={tr("other.email@example.com")}
                   />
                 </div>
                 <Button type="button" variant="ghost" size="icon" onClick={() => updateContactInfo({ additionalEmails: emails.filter((_, j) => j !== i) })} className="text-destructive hover:text-destructive">
@@ -184,8 +193,7 @@ const ContactInfoSection: React.FC = () => {
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={() => updateContactInfo({ additionalEmails: [...emails, ""] })}>
-              <Plus className="mr-2 h-4 w-4" /> Add email
-            </Button>
+              <Plus className="mr-2 h-4 w-4" />{" "}{tr("Add email")}</Button>
           </div>
         )}
       </div>
@@ -193,9 +201,9 @@ const ContactInfoSection: React.FC = () => {
       {/* Additional phones */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label>Additional phone numbers</Label>
+          <Label>{tr("Additional phone numbers")}</Label>
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowAdditionalPhones((v) => !v)}>
-            {showAdditionalPhones ? "Hide" : "Show"}
+            {showAdditionalPhones ? tr("Hide") : tr("Show")}
           </Button>
         </div>
         {showAdditionalPhones && (
@@ -218,8 +226,7 @@ const ContactInfoSection: React.FC = () => {
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={() => updateContactInfo({ additionalPhones: [...phones, ""] })}>
-              <Plus className="mr-2 h-4 w-4" /> Add phone
-            </Button>
+              <Plus className="mr-2 h-4 w-4" />{" "}{tr("Add phone")}</Button>
           </div>
         )}
       </div>

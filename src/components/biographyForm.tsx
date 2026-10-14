@@ -15,12 +15,14 @@ import { useToast } from "@/context/toastContext";
 
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useT } from "@/i18n/provider";
 
 interface FormValues {
   biography: string;
 }
 
 const BiographyForm: React.FC = () => {
+  const { tr } = useT();
   const [isProcessing, setIsProcessing] = useState(false);
   const { user } = useAuth();
   const { 
@@ -43,12 +45,12 @@ const BiographyForm: React.FC = () => {
 
   const onSubmit = async (data: FormValues) => {
     if (!data.biography.trim()) {
-      toast.error("Please enter your career biography");
+      toast.error(tr("Please enter your career biography"));
       return;
     }
 
     if (!activeProfileId) {
-      toast.error("No active profile selected");
+      toast.error(tr("No active profile selected"));
       return;
     }
 
@@ -67,7 +69,7 @@ const BiographyForm: React.FC = () => {
         headers: { Authorization: `Bearer ${idToken}` },
         body: formData,
       });
-      if (!uploadRes.ok) throw new Error("Text upload failed");
+      if (!uploadRes.ok) throw new Error(tr("Text upload failed"));
       const { fileId, filename, type } = await uploadRes.json();
 
       // 2. Parse the biography text
@@ -111,11 +113,11 @@ const BiographyForm: React.FC = () => {
         );
       }
 
-      toast.success("Biography processed & saved!");
+      toast.success(tr("Biography processed & saved!"));
       reset();
     } catch (error) {
       console.error("Biography processing error:", error);
-      toast.error("Failed to process biography");
+      toast.error(tr("Failed to process biography"));
     } finally {
       setIsProcessing(false);
     }
@@ -132,9 +134,7 @@ const BiographyForm: React.FC = () => {
           <label
             htmlFor="biography"
             className="block text-sm font-medium text-foreground mb-2"
-          >
-            Career Biography
-          </label>
+          >{tr("Career Biography")}</label>
           <textarea
             id="biography"
             {...register("biography", {
@@ -146,15 +146,11 @@ const BiographyForm: React.FC = () => {
             })}
             rows={12}
             className="w-full px-4 py-3 border border-input rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            placeholder={`Write your professional biography here. Include your career objectives, work experience, education, skills, and accomplishments. The more detailed you are, the better our AI can structure your information.
-
-Example:
-I am a software engineer with 5 years of experience in full-stack development. I graduated from XYZ University with a Computer Science degree in 2019. I have worked at ABC Company as a Junior Developer and then Senior Developer, where I built web applications using React, Node.js, and PostgreSQL. My skills include JavaScript, Python, AWS, and project management. I am passionate about creating user-friendly applications and leading development teams...
-            `}
+            placeholder={tr("Write your professional biography here. Include your career objectives, work experience, education, skills, and accomplishments. The more detailed you are, the better our AI can structure your information.") + "\n\n" + tr("Example:") + "\n" + tr("I am a software engineer with 5 years of experience in full-stack development. I graduated from XYZ University with a Computer Science degree in 2019. I have worked at ABC Company as a Junior Developer and then Senior Developer, where I built web applications using React, Node.js, and PostgreSQL. My skills include JavaScript, Python, AWS, and project management. I am passionate about creating user-friendly applications and leading development teams...")}
           />
           {errors.biography && (
             <p className="mt-1 text-sm text-red-500">
-              {errors.biography.message}
+              {tr(errors.biography.message)}
             </p>
           )}
         </div>
@@ -170,12 +166,12 @@ I am a software engineer with 5 years of experience in full-stack development. I
           {isProcessing ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>Processing with AI...</span>
+              <span>{tr("Processing with AI...")}</span>
             </>
           ) : (
             <>
               <Sparkles className="h-5 w-5 text-blue-600" />
-              <span>Process Biography</span>
+              <span>{tr("Process Biography")}</span>
             </>
           )}
         </motion.button>
@@ -185,26 +181,22 @@ I am a software engineer with 5 years of experience in full-stack development. I
       <div className="bg-card rounded-lg p-4">
         <h4 className="font-semibold text-blue-600 mb-2 flex items-center space-x-2">
           <FileText className="h-5 w-5 text-blue-600" />
-          <span>✍️ Writing Tips:</span>
+          <span>{tr("✍️ Writing Tips:")}</span>
         </h4>
         <ul className="text-sm text-foreground space-y-1">
-          <li>• Include your career objectives and goals</li>
-          <li>• List work experience with company, title, dates</li>
-          <li>• Mention education, degrees, institutions</li>
-          <li>• Describe key skills and technologies</li>
-          <li>• Add specific accomplishments and achievements</li>
-          <li>• Write in a natural, conversational style</li>
+          <li>{tr("• Include your career objectives and goals")}</li>
+          <li>{tr("• List work experience with company, title, dates")}</li>
+          <li>{tr("• Mention education, degrees, institutions")}</li>
+          <li>{tr("• Describe key skills and technologies")}</li>
+          <li>{tr("• Add specific accomplishments and achievements")}</li>
+          <li>{tr("• Write in a natural, conversational style")}</li>
         </ul>
       </div>
 
       {/* Example */}
       <div className="bg-card rounded-lg p-4">
-        <h4 className="font-semibold text-foreground mb-2">
-          💡 Example Biography:
-        </h4>
-        <p className="text-sm text-muted-foreground italic">
-          I am a marketing professional with 7 years of experience in digital marketing and brand management. I graduated from State University with a Marketing degree in 2017. I started my career at StartupCo as a Marketing Coordinator, then moved to TechCorp as a Senior Marketing Manager where I led campaigns that increased brand awareness by 40%. My skills include SEO, social media marketing, Google Analytics, and team leadership. I&apos;m passionate about data-driven marketing strategies and building strong brand identities...
-        </p>
+        <h4 className="font-semibold text-foreground mb-2">{tr("💡 Example Biography:")}</h4>
+        <p className="text-sm text-muted-foreground italic">{tr("I am a marketing professional with 7 years of experience in digital marketing and brand management. I graduated from State University with a Marketing degree in 2017. I started my career at StartupCo as a Marketing Coordinator, then moved to TechCorp as a Senior Marketing Manager where I led campaigns that increased brand awareness by 40%. My skills include SEO, social media marketing, Google Analytics, and team leadership. I'm passionate about data-driven marketing strategies and building strong brand identities...")}</p>
       </div>
     </div>
   );

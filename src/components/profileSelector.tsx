@@ -5,8 +5,10 @@ import React, { useState } from "react";
 import { useProfile } from "@/context/profileContext";
 import { Button } from "@/components/ui/button";
 import { useDialog } from "@/context/dialogContext";
+import { useT } from "@/i18n/provider";
 
 export default function ProfileSelector() {
+  const { tr } = useT();
   const {
     profiles,
     activeProfileId,
@@ -32,15 +34,13 @@ export default function ProfileSelector() {
         ))}
       </select>
 
-      <Button onClick={createProfile} size="sm">
-        + New
-      </Button>
+      <Button onClick={createProfile} size="sm">{tr("+ New")}</Button>
 
       <input
         type="text"
         value={newName}
         onChange={(e) => setNewName(e.target.value)}
-        placeholder="Rename to…"
+        placeholder={tr("Rename to…")}
         className="border p-1 rounded w-32"
       />
       <Button
@@ -49,26 +49,22 @@ export default function ProfileSelector() {
           setNewName("");
         }}
         size="sm"
-      >
-        Rename
-      </Button>
+      >{tr("Rename")}</Button>
 
       <Button
         onClick={async () => {
           if (!activeProfileId) return;
           const ok = await dialog.confirm({
-            title: "Delete this profile?",
-            description: "All of its details and uploads will be removed for good.",
-            confirmText: "Delete profile",
+            title: tr("Delete this profile?"),
+            description: tr("All of its details and uploads will be removed for good."),
+            confirmText: tr("Delete profile"),
             tone: "danger",
           });
           if (ok) deleteProfile(activeProfileId);
         }}
         size="sm"
         variant="destructive"
-      >
-        Delete
-      </Button>
+      >{tr("Delete")}</Button>
     </div>
   );
 }

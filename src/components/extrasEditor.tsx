@@ -12,13 +12,15 @@ import JobDescriptionEditor from "@/components/jobDescriptionEditor";
 import MonthPicker from "@/components/monthPicker";
 import SuggestInput from "@/components/suggestInput";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/i18n/provider";
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  const { tr } = useT();
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-semibold">{label}</span>
+      <span className="mb-1.5 block text-sm font-semibold">{tr(label)}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-muted-foreground">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-muted-foreground">{tr(hint)}</span>}
     </label>
   );
 }
@@ -27,11 +29,12 @@ function Field({ label, children, hint }: { label: string; children: React.React
 const BareContext = React.createContext(false);
 
 function Section({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+  const { tr } = useT();
   const bare = React.useContext(BareContext);
   return (
     <div className="border-t pt-8 first:border-t-0 first:pt-0">
-      {!bare && <h4 className="text-lg font-bold">{title}</h4>}
-      <p className={`mb-5 text-sm text-muted-foreground ${bare ? "" : "mt-0.5"}`}>{hint}</p>
+      {!bare && <h4 className="text-lg font-bold">{tr(title)}</h4>}
+      <p className={`mb-5 text-sm text-muted-foreground ${bare ? "" : "mt-0.5"}`}>{tr(hint)}</p>
       {children}
     </div>
   );
@@ -55,13 +58,14 @@ function Entry({
   removeLabel: string;
   children: React.ReactNode;
 }) {
+  const { tr } = useT();
   return (
     <li className={`overflow-hidden rounded-xl border bg-card transition-shadow ${open ? "shadow-md ring-1 ring-blue-500/30" : "hover:shadow-sm"}`}>
       <div className="flex items-center pr-2">
         <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3.5 text-left">
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold">{title}</span>
-            {summary && <span className="block truncate text-xs text-muted-foreground">{summary}</span>}
+            <span className="block truncate font-semibold">{tr(title)}</span>
+            {summary && <span className="block truncate text-xs text-muted-foreground">{tr(summary)}</span>}
           </span>
           <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
         </button>
@@ -131,7 +135,7 @@ function Bullets({ value, onChange, title }: { value: string[]; onChange: (b: st
  * Everything optional that can make a resume richer: links, projects, internships, certifications and, last, languages.
  * Projects, internships, links and certifications are edited straight in the profile; languages come from the wizard.
  */
-type ExtrasPart = "links" | "projects" | "internships" | "certifications" | "languages";
+type ExtrasPart = "links" | "projects" | "internships" | "certifications" | "interests" | "languages";
 
 export default function ExtrasEditor({
   languages = [],
@@ -143,6 +147,7 @@ export default function ExtrasEditor({
   /** Show only some of the parts (the profile page edits them one section at a time). Everything by default. */
   only?: ExtrasPart[];
 }) {
+  const { tr } = useT();
   const show = (part: ExtrasPart) => !only || only.includes(part);
   const [openId, setOpenId] = useState<string | null>(null);
   const {
@@ -155,10 +160,20 @@ export default function ExtrasEditor({
     deleteInternshipEntry,
     updateLinks,
     updateCertifications,
+    updateInterests,
   } = useProfile();
 
   const links: LinkEntry[] = p.links ?? [];
   const certs: CertificationEntry[] = p.certifications ?? [];
+  const interests: string[] = p.interests ?? [];
+  const noExperience = !(p.jobHistory ?? []).some((j) => j.title?.trim() || j.company?.trim());
+  const [interestDraft, setInterestDraft] = useState("");
+  const addInterests = (raw: string) => {
+    const parts = raw.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+    if (parts.length === 0) return;
+    updateInterests([...interests, ...parts.filter((x) => !interests.some((y) => y.toLowerCase() === x.toLowerCase()))].slice(0, 12));
+    setInterestDraft("");
+  };
   const projects: ProjectEntry[] = useMemo(() => p.projects ?? [], [p.projects]);
   const internships: JobEntry[] = useMemo(() => p.internships ?? [], [p.internships]);
 
@@ -175,7 +190,7 @@ export default function ExtrasEditor({
     <div className="space-y-6">
       {/* ---------- links ---------- */}
       {show("links") && (
-      <Section title="Links" hint="LinkedIn, GitHub, your portfolio… Recruiters love to click through.">
+      <Section title={tr("Links")} hint="LinkedIn, GitHub, your portfolio… Recruiters love to click through.">
         <ul className="space-y-2">
           {links.map((l, i) => (
             <li key={i} className="flex flex-wrap items-center gap-2">
@@ -184,7 +199,7 @@ export default function ExtrasEditor({
                   value={l.label}
                   onChange={(v) => updateLinks(links.map((x, j) => (j === i ? { ...x, label: v } : x)))}
                   options={LINK_LABELS}
-                  placeholder="LinkedIn"
+                  placeholder={tr("LinkedIn")}
                   max={6}
                 />
               </div>
@@ -192,26 +207,26 @@ export default function ExtrasEditor({
                 <Input
                   value={l.url}
                   onChange={(e) => updateLinks(links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
-                  placeholder="linkedin.com/in/your-name"
+                  placeholder={tr("linkedin.com/in/your-name")}
                   inputMode="url"
                 />
               </div>
-              <RemoveButton label={`Remove ${l.label || "link"}`} onClick={() => updateLinks(links.filter((_, j) => j !== i))} />
+              <RemoveButton label={tr("Remove {v0}", { v0: l.label || "link" })} onClick={() => updateLinks(links.filter((_, j) => j !== i))} />
             </li>
           ))}
         </ul>
-        <AddButton onClick={() => updateLinks([...links, { label: "", url: "" }])}>Add a link</AddButton>
+        <AddButton onClick={() => updateLinks([...links, { label: "", url: "" }])}>{tr("Add a link")}</AddButton>
       </Section>
       )}
 
       {/* ---------- projects ---------- */}
       {show("projects") && (
-      <Section title="Projects" hint="Class, personal or open-source projects. Great when you have little work experience.">
+      <Section title={tr("Projects")} hint="Class, personal or open-source projects. Great when you have little work experience.">
         <ul className="space-y-3">
           {projects.map((pr) => (
             <Entry
               key={pr.id}
-              title={pr.name || "New project"}
+              title={pr.name || tr("New project")}
               summary={period(pr.startDate, pr.endDate, pr.current)}
               open={openId === pr.id}
               onToggle={() => setOpenId(openId === pr.id ? null : pr.id)}
@@ -219,43 +234,41 @@ export default function ExtrasEditor({
               removeLabel={`Remove ${pr.name || "project"}`}
             >
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Project name">
-                  <Input value={pr.name} onChange={(e) => updateProjectEntry(pr.id, { name: e.target.value })} placeholder="Campus Events App" />
+                <Field label={tr("Project name")}>
+                  <Input value={pr.name} onChange={(e) => updateProjectEntry(pr.id, { name: e.target.value })} placeholder={tr("Campus Events App")} />
                 </Field>
-                <Field label="Link" hint="Optional">
-                  <Input value={pr.link ?? ""} onChange={(e) => updateProjectEntry(pr.id, { link: e.target.value })} placeholder="github.com/you/project" />
+                <Field label={tr("Link")} hint="Optional">
+                  <Input value={pr.link ?? ""} onChange={(e) => updateProjectEntry(pr.id, { link: e.target.value })} placeholder={tr("github.com/you/project")} />
                 </Field>
-                <Field label="Started" hint="Optional">
-                  <MonthPicker label="Project start" value={pr.startDate} onChange={(v) => updateProjectEntry(pr.id, { startDate: v })} />
+                <Field label={tr("Started")} hint="Optional">
+                  <MonthPicker label={tr("Project start")} value={pr.startDate} onChange={(v) => updateProjectEntry(pr.id, { startDate: v })} />
                 </Field>
-                <Field label="Ended" hint="Optional">
-                  <MonthPicker label="Project end" value={pr.endDate} disabled={Boolean(pr.current)} onChange={(v) => updateProjectEntry(pr.id, { endDate: v })} />
+                <Field label={tr("Ended")} hint="Optional">
+                  <MonthPicker label={tr("Project end")} value={pr.endDate} min={pr.startDate} disabled={Boolean(pr.current)} onChange={(v) => updateProjectEntry(pr.id, { endDate: v })} />
                   <span className="mt-2 flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
                       checked={Boolean(pr.current)}
                       onChange={(e) => updateProjectEntry(pr.id, { current: e.target.checked, endDate: e.target.checked ? "" : pr.endDate })}
-                    />
-                    I still work on it
-                  </span>
+                    />{tr("I still work on it")}</span>
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="What is it about?" hint="The context in a sentence or two: what the project is, who it is for, your role.">
+                  <Field label={tr("What is it about?")} hint="The context in a sentence or two: what the project is, who it is for, your role.">
                     <textarea
                       value={pr.description ?? ""}
                       onChange={(e) => updateProjectEntry(pr.id, { description: e.target.value })}
                       rows={2}
-                      placeholder="A mobile app that helps students find campus events. I led a team of 4 and built the backend."
+                      placeholder={tr("A mobile app that helps students find campus events. I led a team of 4 and built the backend.")}
                       className="w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
                     />
                   </Field>
                 </div>
                 <div className="sm:col-span-2">
-                  <Field label="Tools and technologies" hint="Separate with commas. Not printed on the resume: they only help the review and applicant tracking systems.">
+                  <Field label={tr("Tools and technologies")} hint="Separate with commas. Not printed on the resume: they only help the review and applicant tracking systems.">
                     <Input
                       defaultValue={(pr.technologies ?? []).join(", ")}
                       onChange={(e) => updateProjectEntry(pr.id, { technologies: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })}
-                      placeholder="React, Node.js, PostgreSQL"
+                      placeholder={tr("React, Node.js, PostgreSQL")}
                     />
                   </Field>
                 </div>
@@ -270,20 +283,18 @@ export default function ExtrasEditor({
           onClick={() =>
             addProjectEntry({ name: "", description: "", link: "", technologies: [], startDate: "", endDate: "", current: false, accomplishments: [] })
           }
-        >
-          Add a project
-        </AddButton>
+        >{tr("Add a project")}</AddButton>
       </Section>
       )}
 
       {/* ---------- internships ---------- */}
       {show("internships") && (
-      <Section title="Internships" hint="Formal internships, co-ops or traineeships.">
+      <Section title={tr("Internships")} hint="Formal internships, co-ops or traineeships.">
         <ul className="space-y-3">
           {internships.map((it) => (
             <Entry
               key={it.id}
-              title={[it.title, it.company].filter(Boolean).join(" · ") || "New internship"}
+              title={[it.title, it.company].filter(Boolean).join(" · ") || tr("New internship")}
               summary={period(it.startDate, it.endDate, it.current)}
               open={openId === it.id}
               onToggle={() => setOpenId(openId === it.id ? null : it.id)}
@@ -291,30 +302,28 @@ export default function ExtrasEditor({
               removeLabel={`Remove ${it.title || "internship"}`}
             >
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Title">
-                  <Input value={it.title} onChange={(e) => updateInternshipEntry(it.id, { title: e.target.value })} placeholder="Marketing Intern" />
+                <Field label={tr("Title")}>
+                  <Input value={it.title} onChange={(e) => updateInternshipEntry(it.id, { title: e.target.value })} placeholder={tr("Marketing Intern")} />
                 </Field>
-                <Field label="Company">
-                  <Input value={it.company} onChange={(e) => updateInternshipEntry(it.id, { company: e.target.value })} placeholder="Acme Inc." />
+                <Field label={tr("Company")}>
+                  <Input value={it.company} onChange={(e) => updateInternshipEntry(it.id, { company: e.target.value })} placeholder={tr("Acme Inc.")} />
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="Location">
-                    <Input value={it.location ?? ""} onChange={(e) => updateInternshipEntry(it.id, { location: e.target.value })} placeholder="Austin, TX" />
+                  <Field label={tr("Location")}>
+                    <Input value={it.location ?? ""} onChange={(e) => updateInternshipEntry(it.id, { location: e.target.value })} placeholder={tr("Austin, TX")} />
                   </Field>
                 </div>
-                <Field label="Started">
-                  <MonthPicker label={`Internship start`} value={it.startDate} onChange={(v) => updateInternshipEntry(it.id, { startDate: v })} />
+                <Field label={tr("Started")}>
+                  <MonthPicker label={tr("Internship start")} value={it.startDate} onChange={(v) => updateInternshipEntry(it.id, { startDate: v })} />
                 </Field>
-                <Field label="Ended">
-                  <MonthPicker label={`Internship end`} value={it.endDate} disabled={Boolean(it.current)} onChange={(v) => updateInternshipEntry(it.id, { endDate: v })} />
+                <Field label={tr("Ended")}>
+                  <MonthPicker label={tr("Internship end")} value={it.endDate} min={it.startDate} disabled={Boolean(it.current)} onChange={(v) => updateInternshipEntry(it.id, { endDate: v })} />
                   <span className="mt-2 flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
                       checked={Boolean(it.current)}
                       onChange={(e) => updateInternshipEntry(it.id, { current: e.target.checked, endDate: e.target.checked ? "" : it.endDate })}
-                    />
-                    I still do this
-                  </span>
+                    />{tr("I still do this")}</span>
                 </Field>
                 <div className="sm:col-span-2">
                   <Bullets value={it.accomplishments ?? []} onChange={(b) => updateInternshipEntry(it.id, { accomplishments: b, description: "" })} title={it.title} />
@@ -327,15 +336,13 @@ export default function ExtrasEditor({
           onClick={() =>
             addInternshipEntry({ title: "", company: "", location: "", description: "", startDate: "", endDate: "", current: false, accomplishments: [] })
           }
-        >
-          Add an internship
-        </AddButton>
+        >{tr("Add an internship")}</AddButton>
       </Section>
       )}
 
       {/* ---------- certifications ---------- */}
       {show("certifications") && (
-      <Section title="Certifications and awards" hint="Courses, licenses or awards worth mentioning.">
+      <Section title={tr("Certifications and awards")} hint="Courses, licenses or awards worth mentioning.">
         <ul className="space-y-2">
           {certs.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center gap-2">
@@ -343,14 +350,14 @@ export default function ExtrasEditor({
                 <Input
                   value={c.name}
                   onChange={(e) => updateCertifications(certs.map((x) => (x.id === c.id ? { ...x, name: e.target.value } : x)))}
-                  placeholder="AWS Cloud Practitioner"
+                  placeholder={tr("AWS Cloud Practitioner")}
                 />
               </div>
               <div className="min-w-[8rem] flex-1">
                 <Input
                   value={c.issuer}
                   onChange={(e) => updateCertifications(certs.map((x) => (x.id === c.id ? { ...x, issuer: e.target.value } : x)))}
-                  placeholder="Issuer"
+                  placeholder={tr("Issuer")}
                 />
               </div>
               <div className="w-24">
@@ -362,19 +369,68 @@ export default function ExtrasEditor({
                   placeholder="2025"
                 />
               </div>
-              <RemoveButton label={`Remove ${c.name || "certification"}`} onClick={() => updateCertifications(certs.filter((x) => x.id !== c.id))} />
+              <RemoveButton label={tr("Remove {v0}", { v0: c.name || "certification" })} onClick={() => updateCertifications(certs.filter((x) => x.id !== c.id))} />
             </li>
           ))}
         </ul>
-        <AddButton onClick={() => updateCertifications([...certs, { id: `cert-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: "", issuer: "", year: "" }])}>
-          Add a certification or award
-        </AddButton>
+        <AddButton onClick={() => updateCertifications([...certs, { id: `cert-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: "", issuer: "", year: "" }])}>{tr("Add a certification or award")}</AddButton>
+      </Section>
+      )}
+
+      {/* ---------- volunteering, clubs and interests: the way to fill a resume with no jobs yet ---------- */}
+      {show("interests") && (
+      <Section
+        title={tr("Volunteering and interests")}
+        hint={noExperience ? "No work experience yet? Volunteering, clubs, odd jobs (babysitting, tutoring, a family business) and interests show who you are and that you take initiative." : "Volunteering, clubs and interests, in short lines. Optional."}
+      >
+        {interests.length > 0 && (
+          <ul className="mb-3 flex flex-wrap gap-2">
+            {interests.map((x, i) => (
+              <li key={x} className="inline-flex items-center gap-1 rounded-full border bg-card py-1 pl-3 pr-1 text-sm">
+                {x}
+                <button type="button" aria-label={tr("Remove {v0}", { v0: x })} onClick={() => updateInterests(interests.filter((_, j) => j !== i))} className="rounded-full p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-2">
+          <Input
+            value={interestDraft}
+            onChange={(e) => setInterestDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addInterests(interestDraft);
+              }
+            }}
+            placeholder={tr("e.g. Food bank volunteer, Chess club captain")}
+            maxLength={80}
+          />
+          <button type="button" onClick={() => addInterests(interestDraft)} disabled={!interestDraft.trim()} className="shrink-0 rounded-md border px-4 text-sm font-semibold hover:bg-accent disabled:opacity-40">
+            {tr("Add")}
+          </button>
+        </div>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {["Community volunteer", "Student club member", "Peer tutor", "Sports team", "Family business helper", "Photography", "Reading", "Traveling"]
+            .map((x) => tr(x))
+            .filter((x) => !interests.some((y) => y.toLowerCase() === x.toLowerCase()))
+            .slice(0, 6)
+            .map((x) => (
+              <li key={x}>
+                <button type="button" onClick={() => addInterests(x)} className="inline-flex items-center gap-1 rounded-full border border-dashed px-3 py-1 text-sm text-muted-foreground transition-colors hover:border-blue-500 hover:bg-accent hover:text-foreground">
+                  <Plus className="h-3 w-3" /> {x}
+                </button>
+              </li>
+            ))}
+        </ul>
       </Section>
       )}
 
       {/* ---------- languages, always last ---------- */}
       {show("languages") && (
-      <Section title="Languages" hint="Languages you speak, with your level in each.">
+      <Section title={tr("Languages")} hint="Languages you speak, with your level in each.">
         <LanguagePicker languages={languages} onChange={onLanguagesChange} hideTitle />
       </Section>
       )}

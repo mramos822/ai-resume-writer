@@ -1,8 +1,10 @@
 // src/components/onboarding.tsx
 "use client";
 
+import { dndAccessibility } from "@/i18n/dnd";
+import LanguageSwitch from "@/components/languageSwitch";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { createPortal } from "react-dom";
 import { useDropzone } from "react-dropzone";
 import { AnimatePresence, motion } from "framer-motion";
@@ -48,11 +50,13 @@ import { loadGeo, regionLabel, type Geo } from "@/lib/geo";
 import "flag-icons/css/flag-icons.min.css";
 import JobTitleInput from "@/components/jobTitleInput";
 import SuggestInput from "@/components/suggestInput";
-import { US_SCHOOLS, DEGREES } from "@/lib/schools";
+import { DEGREES } from "@/lib/schools";
+import { allSchools, countryOfSchool, placeOfSchool, schoolsOf } from "@/lib/worldSchools";
+import { schoolTerms } from "@/lib/schoolTerms";
 import SkillInput from "@/components/skillInput";
 import ExtrasEditor from "@/components/extrasEditor";
 import SkillLevelPicker from "@/components/skillLevelPicker";
-import Link from "next/link";
+import Link from "@/i18n/navigation";
 import { loadTemplates } from "@/lib/templatePreload";
 import { ThemeSwitch } from "@/components/themeSwitch";
 import { previewFromProfile, realName } from "@/lib/previewData";
@@ -64,19 +68,28 @@ import ResumeReview, { forgetReview } from "@/components/resumeReview";
 import { dedupeProfile } from "@/lib/resumeReview";
 import { normalizeBullets } from "@/lib/bullets";
 import type { SkillLevels } from "@/lib/skillLevels";
+import { cleanSkillGroups, type SkillGroups } from "@/lib/skillGroups";
+import SkillGroupsEditor from "@/components/skillGroupsEditor";
+import AccentPicker from "@/components/accentPicker";
 import type { LanguageEntry } from "@/lib/languages";
 import MonthPicker from "@/components/monthPicker";
+import { useTranslationOffer } from "@/components/useTranslationOffer";
 import JobDescriptionEditor from "@/components/jobDescriptionEditor";
 import { toBullets } from "@/lib/bullets";
 import { formatPeriod } from "@/lib/dateFormat";
 import PhotoPicker from "@/components/photoPicker";
 import KaizoLogo from "@/components/kaizoLogo";
+import { isTemplateId } from "@/lib/templates";
+import SignupGate from "@/components/signupGate";
 import { formatPhoneInput, phoneExample } from "@/lib/phone";
 import LivePreview, { type PreviewData, type PreviewSection } from "@/components/livePreview";
+import { useT, useLocale } from "@/i18n/provider";
+import { countryNamer } from "@/i18n/places";
 
 
 export const ONBOARDING_KEY = "kaizo_onboarding_done";
 export const TEMPLATE_KEY = "kaizo_template";
+export const ACCENT_KEY = "kaizo_accent";
 const TOUR_KEY = "kaizo_tour_done";
 export const DRAFT_KEY = "kaizo_onboarding_draft";
 
@@ -105,6 +118,8 @@ const blankJob = (): JobDraft => ({
 interface EduDraft {
   id: string;
   school: string;
+  /** country the school suggestions come from: an ISO code, "ALL" for every country, "" = the country of the person */
+  schoolCountry: string;
   degree: string;
   location: string;
   startDate: string;
@@ -115,9 +130,13 @@ interface EduDraft {
   coursework: string;
 }
 
+/** Countries where degrees are written in English. */
+const ENGLISH_COUNTRIES = ["US", "GB", "IE", "CA", "AU", "NZ", "SG", "IN", "ZA", "NG", "KE", "GH", "PH"];
+
 const blankEdu = (): EduDraft => ({
   id: `edu-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   school: "",
+  schoolCountry: "",
   degree: "",
   location: "",
   startDate: "",
@@ -130,6 +149,8 @@ const blankEdu = (): EduDraft => ({
 
 /** Everything typed in the wizard, so a reload doesn't lose progress. */
 interface Draft {
+  /** when it was last written (shown when the person comes back) */
+  savedAt?: number;
   step: Step;
   flow: "scratch" | "upload";
   customize: boolean;
@@ -147,6 +168,8 @@ interface Draft {
   skills: string[];
   languages?: LanguageEntry[];
   skillLevels?: SkillLevels;
+  skillGroups?: SkillGroups;
+  accent?: string;
   skillDraft: string;
   jobs: JobDraft[];
   /** older drafts stored a single job */
@@ -180,17 +203,19 @@ function remember(key: string, value = "1") {
 }
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  const { tr } = useT();
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-semibold">{label}</span>
+      <span className="mb-1.5 block text-sm font-semibold">{tr(label)}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-muted-foreground">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-muted-foreground">{tr(hint)}</span>}
     </label>
   );
 }
 
 /** Main action button: ink pill with a blue arrow chip that floods the whole button on hover. */
 function ContinueButton({ onClick, disabled, label = "Continue" }: { onClick: () => void; disabled?: boolean; label?: string }) {
+  const { tr } = useT();
   return (
     <button
       type="button"
@@ -202,7 +227,7 @@ function ContinueButton({ onClick, disabled, label = "Continue" }: { onClick: ()
         aria-hidden
         className="absolute right-2 top-1/2 h-10 w-10 -translate-y-1/2 rounded-full bg-blue-600 transition-transform duration-500 ease-out group-hover:scale-[9]"
       />
-      <span className="relative z-10 pr-7 transition-colors duration-300 group-hover:text-white">{label}</span>
+      <span className="relative z-10 pr-7 transition-colors duration-300 group-hover:text-white">{tr(label)}</span>
       <span className="relative z-10 flex h-10 w-10 items-center justify-center text-white">
         <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
       </span>
@@ -236,6 +261,7 @@ const FIXED_SECTIONS = ["contact", "about"];
 
 /** A section of the final screen that can be dragged by its handle to a new place in the list. */
 function SortableSection({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  const { tr } = useT();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
     <SectionView
@@ -250,8 +276,8 @@ function SortableSection({ id, title, children }: { id: string; title: string; c
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
-          aria-label={`Move ${title}`}
-          title="Drag to move this section"
+          aria-label={tr("Move {title}", { title })}
+          title={tr("Drag to move this section")}
           className="flex h-10 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/60 hover:bg-accent hover:text-foreground active:cursor-grabbing"
         >
           <GripVertical className="h-4 w-4" />
@@ -281,6 +307,7 @@ function SectionView({
   style?: React.CSSProperties;
   dragging?: boolean;
 }) {
+  const { tr } = useT();
   const { closed, toggle } = React.useContext(BlocksContext);
   const isOpen = !closed.includes(title);
   const meta = SECTION_META[id] ?? SECTION_META.extras;
@@ -308,8 +335,8 @@ function SectionView({
             <Icon className="h-5 w-5" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-base font-bold leading-tight">{title}</span>
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{meta.hint}</span>
+            <span className="block text-base font-bold leading-tight">{tr(title)}</span>
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{tr(meta.hint)}</span>
           </span>
           <span
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all duration-300 group-hover:border-blue-500/50 ${
@@ -338,6 +365,7 @@ function SectionView({
 }
 
 export default function Onboarding({ embedded = false }: { embedded?: boolean } = {}) {
+  const { tr, trd } = useT();
   const router = useRouter();
   // "Make a resume" (the Resumes section) uses the same builder: every detail on the left, the live preview on the right
   const pathname = usePathname();
@@ -362,13 +390,19 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   const { user } = useAuth();
   // Guests (no account yet) only get the resume builder: the dashboard stays locked until they have an account
   const isGuest = Boolean(user?.uid.startsWith("guest-"));
+  const [gateOpen, setGateOpen] = useState(false);
+  const [gateQuick, setGateQuick] = useState(false); // opened from "this email already has an account": only a log in
+  const [loggedInHere, setLoggedInHere] = useState(false); // logged in from the builder: downloading takes them to their resumes
   const toast = useToast();
+  const offerTranslation = useTranslationOffer();
   const {
     profiles,
     activeProfileId,
     activeProfile: profile,
     parseFile,
+    applyProfileData,
     saveChanges,
+    setActiveProfileId,
     updateName,
     updateJobTitle,
     updatePhoto,
@@ -377,6 +411,9 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     updateSkills,
     updateLanguages,
     updateSkillLevels,
+    updateSkillGroups,
+    updateAccentColor,
+    updateFillPage,
     updateSectionOrder,
     setJobHistory,
     deleteJobEntry,
@@ -418,6 +455,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   const [step, setStep] = useState<Step>("template");
   const [flow, setFlow] = useState<"scratch" | "upload">("scratch");
   const [template, setTemplate] = useState("");
+  const [accent, setAccent] = useState(""); // id of the color of the look ("" = the look's own)
+  const [fillPage, setFillPage] = useState(false); // grow the text to fill the page when there is little content
   const [customize, setCustomize] = useState(false);
 
   // form state for the "from scratch" path
@@ -447,6 +486,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   const [country, setCountry] = useState("United States");
   const [countryCode, setCountryCode] = useState("US");
   const [geo, setGeo] = useState<Geo | null>(null);
+  const locale = useLocale();
+  const countryShown = React.useMemo(() => countryNamer(locale, geo?.countries), [locale, geo]);
   useEffect(() => {
     loadGeo().then(setGeo).catch(() => {});
   }, []);
@@ -456,14 +497,40 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   const [skills, setSkills] = useState<string[]>([]);
   const [languages, setLanguages] = useState<LanguageEntry[]>([]);
   const [skillLevels, setSkillLevels] = useState<SkillLevels>({});
+  const [skillGroups, setSkillGroups] = useState<SkillGroups>({});
   const [skillDraft, setSkillDraft] = useState("");
   const [jobs, setJobs] = useState<JobDraft[]>(() => [blankJob()]);
   const [openJobId, setOpenJobId] = useState(""); // "" = the first job, "none" = all collapsed
   const patchJob = (id: string, patch: Partial<JobDraft>) => setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, ...patch } : j)));
   const [edus, setEdus] = useState<EduDraft[]>(() => [blankEdu()]);
   const [openEduId, setOpenEduId] = useState(""); // "" = the first school, "none" = all collapsed
+  const [eduClosed, setEduClosed] = useState<string[]>([]); // on the final screen every school is open unless it was folded
   const [extrasOpen, setExtrasOpen] = useState<Record<string, boolean>>({});
-  const patchEdu = (id: string, patch: Partial<EduDraft>) => setEdus((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  // a school of the catalog brings its place ("Newark, NJ", "Lima, Peru"): it replaces whatever the location said, because the
+  // school was just changed. A school that is not in the catalog leaves the location alone.
+  // the country whose universities are suggested for a school (the person's own country until they say another)
+  const ALL_COUNTRIES = "All countries";
+  const eduCountryName = (sc: string) => (sc === "ALL" ? ALL_COUNTRIES : geo?.countries.find((x) => x.isoCode === (sc || countryCode))?.name ?? country);
+  const schoolOptions = (sc: string) => (sc === "ALL" ? allSchools() : schoolsOf(sc || countryCode));
+  // a school of an English-speaking country gives its degree in English, even when the site is in Spanish (it can be changed by hand)
+  const englishSchool = (e: EduDraft) => ENGLISH_COUNTRIES.includes(countryOfSchool(e.school) || (e.schoolCountry === "ALL" ? "" : e.schoolCountry || countryCode));
+  const patchEdu = (id: string, patch: Partial<EduDraft>) =>
+    setEdus((prev) =>
+      prev.map((e) => {
+        if (e.id !== id) return e;
+        const next = { ...e, ...patch };
+        if (patch.school !== undefined && patch.school !== e.school) {
+          const place = placeOfSchool(patch.school);
+          if (place) {
+            next.location = place;
+            // a school of another country than the filter moves the filter to its country
+            const c = countryOfSchool(patch.school);
+            if (c && next.schoolCountry !== "ALL" && c !== (next.schoolCountry || countryCode)) next.schoolCountry = c;
+          }
+        }
+        return next;
+      })
+    );
 
   const [working, setWorking] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -486,7 +553,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       setShowPreview(true);
       try {
         const t = localStorage.getItem("kaizo_template");
-        if (t === "classic" || t === "modern" || t === "creative") setTemplate(t);
+        if (isTemplateId(t)) setTemplate(t);
+        setAccent(localStorage.getItem(ACCENT_KEY) ?? "");
       } catch {
         /* ignore */
       }
@@ -526,6 +594,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       setSkills(d.skills ?? []);
       setLanguages(d.languages ?? []);
       setSkillLevels(d.skillLevels ?? {});
+      setSkillGroups(d.skillGroups ?? {});
+      setAccent(d.accent ?? "");
       setSkillDraft(d.skillDraft ?? "");
       const restored = d.jobs?.length ? d.jobs.map((j) => ({ ...blankJob(), ...j })) : d.job ? [{ ...blankJob(), ...d.job }] : [blankJob()];
       setJobs(restored);
@@ -581,6 +651,9 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     setObjective(src.careerObjective || "");
     setSkills(src.skills || []);
     setSkillLevels(src.skillLevels || {});
+    setSkillGroups(src.skillGroups || {});
+    if (src.accentColor) setAccent(src.accentColor);
+    setFillPage(Boolean(src.fillPage));
     setLanguages(src.languages || []);
     const jobDrafts: JobDraft[] = (src.jobHistory || []).map((j) => ({
       id: j.id,
@@ -597,6 +670,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     const eduDrafts: EduDraft[] = (src.education || []).map((e) => ({
       id: e.id,
       school: e.school || "",
+      schoolCountry: countryOfSchool(e.school) || "",
       degree: e.degree || "",
       location: e.location || "",
       startDate: e.startDate || "",
@@ -610,7 +684,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     setOpenEduId("none");
   };
 
-  const syncSnap = JSON.stringify([name, photo, email, phone, address, city, state, country, countryCode, jobTitle, objective, skills, languages, skillLevels, jobs, edus]);
+  const syncSnap = JSON.stringify([name, photo, email, phone, address, city, state, country, countryCode, jobTitle, objective, skills, languages, skillLevels, skillGroups, accent, jobs, edus]);
   // (declared before the effect that loads the forms, so it only ever sees values that were really loaded)
   useEffect(() => {
     if (step === "finish" && syncing.current && baseline.current === null) baseline.current = syncSnap;
@@ -631,7 +705,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       if (patch.skills) updateSkills(patch.skills);
       if (patch.languages) updateLanguages(patch.languages);
       setSaveTick((t) => t + 1);
-      toast.info(`Removed ${removed} repeated ${removed === 1 ? "entry" : "entries"} from your resume.`);
+      toast.info(tr("Removed {removed} repeated {v1} from your resume.", { removed, v1: removed === 1 ? "entry" : "entries" }));
     }
     hydrate({ ...profile, ...patch });
     syncing.current = true;
@@ -689,6 +763,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       updateSkills(skills);
       updateLanguages(languages);
       updateSkillLevels(Object.fromEntries(Object.entries(skillLevels).filter(([k]) => skills.includes(k))));
+      updateSkillGroups(cleanSkillGroups(skills, skillGroups));
+      if (accent) updateAccentColor(accent);
       setJobHistory(
         jobs
           .filter((j) => j.title.trim() || j.company.trim())
@@ -724,7 +800,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     }, 700);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, name, photo, email, phone, address, city, state, country, countryCode, jobTitle, objective, skills, languages, skillLevels, jobs, edus]);
+  }, [step, name, photo, email, phone, address, city, state, country, countryCode, jobTitle, objective, skills, languages, skillLevels, skillGroups, accent, jobs, edus]);
 
   const extrasSig = JSON.stringify([profile.projects, profile.internships, profile.links, profile.certifications]);
   const extrasBase = useRef<string | null>(null);
@@ -776,7 +852,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
 
   useEffect(() => {
     if (!open || buildMode) return;
-    const draft: Draft = { step, flow, customize, name, photo, email, phone, address, city, state, country, countryCode, jobTitle, objective, skills, languages, skillLevels, skillDraft, jobs, edus };
+    const draft: Draft = { savedAt: Date.now(), step, flow, customize, name, photo, email, phone, address, city, state, country, countryCode, jobTitle, objective, skills, languages, skillLevels, skillGroups, accent, skillDraft, jobs, edus };
     // written after a short pause (it includes the photo), so a click or a key never waits for the storage
     const t = setTimeout(() => {
       try {
@@ -786,7 +862,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       }
     }, 350);
     return () => clearTimeout(t);
-  }, [open, buildMode, step, flow, customize, name, photo, email, phone, address, city, state, country, countryCode, jobTitle, objective, skills, languages, skillLevels, skillDraft, jobs, edus]);
+  }, [open, buildMode, step, flow, customize, name, photo, email, phone, address, city, state, country, countryCode, jobTitle, objective, skills, languages, skillLevels, skillGroups, accent, skillDraft, jobs, edus]);
 
   const close = useCallback(() => {
     remember(ONBOARDING_KEY);
@@ -803,6 +879,16 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     setTemplate(id);
     remember(TEMPLATE_KEY, id);
   }, []);
+  const onAccent = useCallback((id: string) => {
+    setAccent(id);
+    remember(ACCENT_KEY, id);
+    updateAccentColor(id);
+  }, [updateAccentColor]);
+
+  const onFill = useCallback((on: boolean) => {
+    setFillPage(on);
+    updateFillPage(on);
+  }, [updateFillPage]);
 
   const order = flow === "upload" ? UPLOAD : SCRATCH;
   const pct = Math.max(4, ((order.indexOf(step) + 1) / order.length) * 100);
@@ -821,7 +907,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       const form = new FormData();
       form.append("file", file);
       const up = await authFetch("/api/uploads", { method: "POST", body: form });
-      if (!up.ok) throw new Error("We couldn't upload that file. Try a PDF or Word document.");
+      if (!up.ok) throw new Error(tr("We couldn't upload that file. Try a PDF or Word document."));
       const { fileId, filename, type } = (await up.json()) as { fileId: string; filename: string; type: string };
       await addDoc(collection(db, "users", user.uid, "uploadedFiles"), {
         fileId,
@@ -829,12 +915,18 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         type,
         createdAt: serverTimestamp(),
       });
-      const parsed = await parseFile(fileId);
+      let parsed = await parseFile(fileId);
+      // a resume in another language than the one shown: offer to translate it before it fills the forms
+      const translated = await offerTranslation(parsed);
+      if (translated) {
+        parsed = translated;
+        await applyProfileData(translated).catch(() => {});
+      }
       // load what was read from the resume into the forms, so each section can be checked and corrected
       hydrate(parsed as unknown as typeof profile);
       setStep("found");
     } catch (err) {
-      toast.error((err as Error).message || "We couldn't read that file.");
+      toast.error((err as Error).message || tr("We couldn't read that file."));
     } finally {
       setWorking(false);
     }
@@ -868,18 +960,25 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
 
   /* ---- finish ---- */
   const generate = async () => {
+    // a guest needs an account to download: the sign-in window moves the resume to it and sends them to the dashboard
+    if (isGuest && !buildMode) {
+      setGateQuick(false);
+      setGateOpen(true);
+      return;
+    }
     setWorking(true);
     try {
       const res = await authFetch("/api/generate-resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileId: activeProfileId, template: template || "classic", format: "pdf", builder: !buildMode, create: buildMode }),
+        body: JSON.stringify({ profileId: activeProfileId, template: template || "classic", format: "pdf", builder: !buildMode && !loggedInHere, create: buildMode || loggedInHere, lang: locale }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.fileId) throw new Error(data.error || "We couldn't make your resume yet.");
-      if (buildMode) {
-        // "Create resume": it is added to the list of resumes, and that is where the person lands
-        toast.success(data.reused ? "You already have this exact resume in your list." : "Your resume was created.");
+      if (!res.ok || !data.fileId) throw new Error(trd(data.error) || tr("We couldn't make your resume yet."));
+      if (buildMode || loggedInHere) {
+        // "Create resume" (or a download after logging in here): it is added to the list of resumes, and that is where the person lands
+        toast.success(data.reused ? tr("You already have this exact resume in your list.") : tr("Your resume was created."));
+        if (loggedInHere) try { sessionStorage.removeItem("kaizo_claiming"); } catch { /* storage unavailable */ }
         router.push("/home/resumes");
         return;
       }
@@ -914,12 +1013,13 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   const on = (id: Step) => step === id || (reviewing && ["contact", "about", "skills", "job", "education", "extras"].includes(id));
   const split = customizing || (flow === "upload" && step === "found") || ["contact", "about", "skills", "job", "education", "extras"].includes(step);
   const fromProfile: PreviewData = {
-    ...previewFromProfile(profile),
+    ...previewFromProfile(profile, locale === "es" ? "es" : "en"),
     sectionOrder: orderTouched ? ["about", ...blockOrder.filter((x) => !FIXED_SECTIONS.includes(x))] : undefined,
   };
   const extrasPreview = {
     links: fromProfile.links,
     certifications: fromProfile.certifications,
+    interests: fromProfile.interests,
     projects: fromProfile.projects,
     internships: fromProfile.internships,
     sectionOrder: fromProfile.sectionOrder,
@@ -936,6 +1036,9 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     skills: [...skills, ...skillDraft.split(",").map((x) => x.trim()).filter(Boolean)],
     languages,
     skillLevels,
+    skillGroups,
+    accent,
+    fillPage,
     ...extrasPreview,
     sectionOrder: orderTouched ? ["about", ...blockOrder.filter((x) => !FIXED_SECTIONS.includes(x))] : undefined,
     jobs: jobs.map((j) => ({ ...j, description: "", bullets: toBullets(j.description) })),
@@ -987,16 +1090,15 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     createPortal(
     <div className="flex items-center justify-between py-3">
       <Button variant="ghost" onClick={back} disabled={working}>
-        <ArrowLeft className="h-4 w-4" /> Back
-      </Button>
+        <ArrowLeft className="h-4 w-4" />{" "}{tr("Back")}</Button>
       <div className="flex items-center gap-3">
         {opts.skip && (
           <button onClick={opts.onSkip ?? next} className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            {opts.skipLabel ?? "Skip this step"}
+            {opts.skipLabel ?? tr("Skip this step")}
           </button>
         )}
         <Button onClick={opts.onNext} disabled={opts.disabled || working} className="h-11 gap-2 px-6">
-          {opts.label ?? "Continue"} <ArrowRight className="h-4 w-4" />
+          {opts.label ?? tr("Continue")} <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
     </div>,
@@ -1007,50 +1109,47 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   const blocks: Record<string, React.ReactNode> = {
     contact: on("contact") && (
           <Block reviewing={reviewing} id="contact" title="Contact info and photo">
-            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">Let&apos;s start with you</h1>
-            <p className="mt-2 text-muted-foreground">So employers know who you are and how to reach you.</p>
+            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("Let's start with you")}</h1>
+            <p className="mt-2 text-muted-foreground">{tr("So employers know who you are and how to reach you.")}</p>
             <div className="mt-8">
               <PhotoPicker value={photo} onChange={setPhoto} />
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <Field label="First name">
-                <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Alex" autoFocus name="given-name" autoComplete="given-name" />
+              <Field label={tr("First name")}>
+                <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder={tr("Alex")} autoFocus name="given-name" autoComplete="given-name" />
               </Field>
-              <Field label="Last name">
-                <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Johnson" name="family-name" autoComplete="family-name" />
+              <Field label={tr("Last name")}>
+                <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder={tr("Johnson")} name="family-name" autoComplete="family-name" />
               </Field>
-              <Field label="Email">
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="alex@email.com" name="email" autoComplete="email" />
+              <Field label={tr("Email")}>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={tr("alex@email.com")} name="email" autoComplete="email" />
                 {emailTaken && (
-                  <span className="mt-2 block rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-snug">
-                    This email already has an account.{" "}
-                    <Link href="/login?view=login" className="font-semibold text-blue-500 underline underline-offset-2">
-                      Log in
-                    </Link>
+                  <span className="mt-2 block rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-snug">{tr("This email already has an account.")}{" "}
+                    <button type="button" onClick={() => { setGateQuick(true); setGateOpen(true); }} className="font-semibold text-blue-500 underline underline-offset-2">{tr("Log in")}</button>
                   </span>
                 )}
               </Field>
-              <Field label="Phone">
+              <Field label={tr("Phone")}>
                 <Input type="tel" value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value, countryCode))} placeholder={phoneExample(countryCode)} name="tel" autoComplete="tel" />
               </Field>
               <div className="sm:col-span-2">
-                <Field label="Address">
-                  <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St" name="address-line1" autoComplete="address-line1" />
+                <Field label={tr("Address")}>
+                  <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder={tr("123 Main St")} name="address-line1" autoComplete="address-line1" />
                 </Field>
               </div>
-              <Field label="City">
-                <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Springfield" name="address-level2" autoComplete="address-level2" />
+              <Field label={tr("City")}>
+                <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder={tr("Springfield")} name="address-level2" autoComplete="address-level2" />
               </Field>
               {regions.length > 0 ? (
                 <div>
-                  <span className="mb-1.5 block text-sm font-semibold">{regionLabel(countryCode)}</span>
-                  <PickSelect value={state} onChange={setState} options={regions} label={regionLabel(countryCode)} name="address-level1" placeholder={`Choose a ${regionLabel(countryCode).toLowerCase()}`} />
+                  <span className="mb-1.5 block text-sm font-semibold">{regionLabel(countryCode, tr)}</span>
+                  <PickSelect value={state} onChange={setState} options={regions} label={regionLabel(countryCode, tr)} name="address-level1" placeholder={tr("Choose a {v0}", { v0: regionLabel(countryCode, tr).toLowerCase() })} />
                 </div>
               ) : (
                 <div />
               )}
               <div className="sm:col-span-2">
-                <span className="mb-1.5 block text-sm font-semibold">Country</span>
+                <span className="mb-1.5 block text-sm font-semibold">{tr("Country")}</span>
                 <PickSelect
                   value={country}
                   onChange={(name) => {
@@ -1062,13 +1161,14 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                     setPhone((ph) => formatPhoneInput(ph.replace(/[^\d+]/g, ""), c.isoCode)); // same digits, the new country's look
                   }}
                   options={geo ? geo.countries.map((x) => x.name) : [country]}
-                  label="Country"
+                  display={countryShown}
+                  label={tr("Country")}
                   name="country-name"
                   leading={(n) => {
                     const iso = (geo?.countries.find((x) => x.name === n)?.isoCode ?? (n === country ? countryCode : "")).toLowerCase();
                     return iso ? <span className={`fi fi-${iso} h-4 w-6 rounded-[3px] shadow-sm ring-1 ring-black/10`} aria-hidden /> : null;
                   }}
-                  placeholder="Choose a country"
+                  placeholder={tr("Choose a country")}
                 />
               </div>
             </div>
@@ -1086,13 +1186,13 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         ),
     about: on("about") && (
           <Block reviewing={reviewing} id="about" title="Job you want and summary">
-            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">What kind of work do you want?</h1>
-            <p className="mt-2 text-muted-foreground">Two short lines are enough.</p>
+            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("What kind of work do you want?")}</h1>
+            <p className="mt-2 text-muted-foreground">{tr("Two short lines are enough.")}</p>
             <div className="mt-5 space-y-4">
-              <Field label="Job you are aiming for" hint="Pick one from the list, or type your own.">
-                <JobTitleInput value={jobTitle} onChange={setJobTitle} placeholder="Start typing, e.g. Software Engineer" autoFocus />
+              <Field label={tr("Job you are aiming for")} hint="Pick one from the list, or type your own.">
+                <JobTitleInput value={jobTitle} onChange={setJobTitle} placeholder={tr("Start typing, e.g. Software Engineer")} autoFocus />
               </Field>
-              <Field label="About you" hint="Example: Computer science student who enjoys building web apps and learning fast.">
+              <Field label={tr("About you")} hint="Example: Computer science student who enjoys building web apps and learning fast.">
                 <textarea
                   value={objective}
                   onChange={(e) => setObjective(e.target.value)}
@@ -1114,8 +1214,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         ),
     skills: on("skills") && (
           <Block reviewing={reviewing} id="skills" title="Skills">
-            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">What are you good at?</h1>
-            <p className="mt-2 text-muted-foreground">Pick from the list or type your own. Aim for at least three.</p>
+            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("What are you good at?")}</h1>
+            <p className="mt-2 text-muted-foreground">{tr("Pick from the list or type your own. Aim for at least three.")}</p>
             <div className="mt-8">
               <SkillInput draft={skillDraft} onDraftChange={setSkillDraft} skills={skills} onAdd={addSkill} autoFocus />
               <ul className="mt-5 flex flex-wrap gap-2">
@@ -1123,10 +1223,11 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                   <li key={s} className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm">
                     {s}
                     <button
-                      aria-label={`Remove ${s}`}
+                      aria-label={tr("Remove {s}", { s })}
                       onClick={() => {
                         setSkills((prev) => prev.filter((x) => x !== s));
                         setSkillLevels((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== s)));
+                        setSkillGroups((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== s)));
                       }}
                       className="text-muted-foreground hover:text-red-600"
                     >
@@ -1136,7 +1237,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                 ))}
               </ul>
             </div>
-            <SkillLevelPicker skills={skills} levels={skillLevels} onChange={setSkillLevels} />
+            <SkillLevelPicker skills={skills} levels={skillLevels} onChange={setSkillLevels} template={template} />
+            <SkillGroupsEditor skills={skills} groups={skillGroups} onChange={setSkillGroups} />
             {nav({
               disabled: skills.length === 0 && !skillDraft.trim(),
               onNext: () => {
@@ -1147,6 +1249,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                 saveStep(() => {
                   updateSkills(all);
                   updateSkillLevels(Object.fromEntries(Object.entries(skillLevels).filter(([k]) => all.includes(k))));
+                  updateSkillGroups(cleanSkillGroups(all, skillGroups));
                 });
               },
               skip: true,
@@ -1155,10 +1258,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         ),
     job: on("job") && (
           <Block reviewing={reviewing} id="job" title="Professional experience">
-            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">Professional experience</h1>
-            <p className="mt-2 text-muted-foreground">
-              Add every job you have had, most recent first. Tap a job to show or hide its details. No experience yet? Skip this step.
-            </p>
+            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("Professional experience")}</h1>
+            <p className="mt-2 text-muted-foreground">{tr("Add every job you have had, most recent first. Tap a job to show or hide its details. No experience yet? Skip this step.")}</p>
             <ul className="mt-5 space-y-2.5">
               <AnimatePresence initial={false}>
               {jobs.map((j, idx) => {
@@ -1187,11 +1288,11 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-semibold">
-                            {j.title.trim() || "New job"}
+                            {j.title.trim() || tr("New job")}
                             {j.company.trim() && <span className="font-normal text-muted-foreground"> · {j.company.trim()}</span>}
                           </span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {[dates, j.location.trim(), n ? `${n} bullet${n > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ") || "Tap to fill in"}
+                            {[dates, j.location.trim(), n ? `${n} bullet${n > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ") || tr("Tap to fill in")}
                           </span>
                         </span>
                         <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
@@ -1199,8 +1300,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                       {(jobs.length > 1 || j.title || j.company || j.description) && (
                         <button
                           type="button"
-                          aria-label={`Remove ${j.title || "this job"}`}
-                          title="Remove this job"
+                          aria-label={tr("Remove {v0}", { v0: j.title || "this job" })}
+                          title={tr("Remove this job")}
                           onClick={() => removeJob(j)}
                           className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
                         >
@@ -1220,30 +1321,28 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                         style={{ overflow: "hidden" }}
                       >
                       <div className="grid gap-4 border-t px-4 pb-4 pt-4 sm:grid-cols-2">
-                        <Field label="Job title">
-                          <Input value={j.title} onChange={(e) => patchJob(j.id, { title: e.target.value })} placeholder="Barista" autoFocus={idx === 0} />
+                        <Field label={tr("Job title")}>
+                          <Input value={j.title} onChange={(e) => patchJob(j.id, { title: e.target.value })} placeholder={tr("Barista")} autoFocus={idx === 0} />
                         </Field>
-                        <Field label="Company">
-                          <Input value={j.company} onChange={(e) => patchJob(j.id, { company: e.target.value })} placeholder="Corner Cafe" />
+                        <Field label={tr("Company")}>
+                          <Input value={j.company} onChange={(e) => patchJob(j.id, { company: e.target.value })} placeholder={tr("Corner Cafe")} />
                         </Field>
                         <div className="sm:col-span-2">
-                          <Field label="Location" hint="City and state, or Remote.">
-                            <Input value={j.location} onChange={(e) => patchJob(j.id, { location: e.target.value })} placeholder="Austin, TX" />
+                          <Field label={tr("Location")} hint="City and state, or Remote.">
+                            <Input value={j.location} onChange={(e) => patchJob(j.id, { location: e.target.value })} placeholder={tr("Austin, TX")} />
                           </Field>
                         </div>
-                        <Field label="Started">
-                          <MonthPicker label={`Job ${idx + 1} start`} value={j.startDate} onChange={(v) => patchJob(j.id, { startDate: v })} />
+                        <Field label={tr("Started")}>
+                          <MonthPicker label={tr("Job {v0} start", { v0: idx + 1 })} value={j.startDate} onChange={(v) => patchJob(j.id, { startDate: v })} />
                         </Field>
-                        <Field label="Ended">
-                          <MonthPicker label={`Job ${idx + 1} end`} value={j.endDate} disabled={j.current} onChange={(v) => patchJob(j.id, { endDate: v })} />
+                        <Field label={tr("Ended")}>
+                          <MonthPicker label={tr("Job {v0} end", { v0: idx + 1 })} value={j.endDate} min={j.startDate} disabled={j.current} onChange={(v) => patchJob(j.id, { endDate: v })} />
                           <span className="mt-2 flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={j.current}
                               onChange={(e) => patchJob(j.id, { current: e.target.checked, endDate: e.target.checked ? "" : j.endDate })}
-                            />
-                            I still work here
-                          </span>
+                            />{tr("I still work here")}</span>
                         </Field>
                         <div className="sm:col-span-2">
                           <JobDescriptionEditor value={j.description} onChange={(v) => patchJob(j.id, { description: v })} jobTitle={j.title} />
@@ -1263,8 +1362,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
               onClick={addJob}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-3 text-sm font-semibold text-blue-600 transition-colors hover:border-blue-500 hover:bg-accent"
             >
-              <Plus className="h-4 w-4" /> Add another job
-            </button>
+              <Plus className="h-4 w-4" />{" "}{tr("Add another job")}</button>
 
             {nav({
               disabled: validJobs.length === 0,
@@ -1300,14 +1398,12 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         ),
     education: on("education") && (
           <Block reviewing={reviewing} id="education" title="Education">
-            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">Where did you study?</h1>
-            <p className="mt-2 text-muted-foreground">
-              Add every school, most recent first. Tap one to show or hide its details. GPA, honors and coursework are optional.
-            </p>
+            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("Where did you study?")}</h1>
+            <p className="mt-2 text-muted-foreground">{tr("Add every school, most recent first. Tap one to show or hide its details. GPA, honors and coursework are optional.")}</p>
             <ul className="mt-5 space-y-2.5">
               <AnimatePresence initial={false}>
                 {edus.map((e, idx) => {
-                  const isOpen = reviewing || e.id === openEdu;
+                  const isOpen = reviewing ? !eduClosed.includes(e.id) : e.id === openEdu;
                   const dates = formatPeriod({ startDate: e.startDate, endDate: e.endDate, current: e.current }, " – ");
                   const showExtras = extrasOpen[e.id] ?? Boolean(e.gpa || e.honors || e.coursework);
                   return (
@@ -1324,16 +1420,16 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                         <button
                           type="button"
                           aria-expanded={isOpen}
-                          onClick={() => setOpenEduId(isOpen ? "none" : e.id)}
+                          onClick={() => (reviewing ? setEduClosed((c) => (isOpen ? [...c, e.id] : c.filter((x) => x !== e.id))) : setOpenEduId(isOpen ? "none" : e.id))}
                           className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3.5 text-left"
                         >
                           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-blue-600">
                             {idx + 1}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate font-semibold">{e.school.trim() || "New school"}</span>
+                            <span className="block truncate font-semibold">{e.school.trim() || tr("New school")}</span>
                             <span className="block truncate text-xs text-muted-foreground">
-                              {[e.degree.trim(), dates, e.gpa.trim() ? `GPA ${e.gpa.trim()}` : ""].filter(Boolean).join(" · ") || "Tap to fill in"}
+                              {[e.degree.trim(), dates, e.gpa.trim() ? `GPA ${e.gpa.trim()}` : ""].filter(Boolean).join(" · ") || tr("Tap to fill in")}
                             </span>
                           </span>
                           <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
@@ -1341,8 +1437,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                         {(edus.length > 1 || e.school || e.degree) && (
                           <button
                             type="button"
-                            aria-label={`Remove ${e.school || "this school"}`}
-                            title="Remove this school"
+                            aria-label={tr("Remove {v0}", { v0: e.school || "this school" })}
+                            title={tr("Remove this school")}
                             onClick={() => removeEdu(e)}
                             className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
                           >
@@ -1362,30 +1458,52 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                             style={{ overflow: "hidden" }}
                           >
                             <div className="grid gap-4 border-t px-4 pb-4 pt-4 sm:grid-cols-2">
-                              <Field label="School">
-                                <SuggestInput value={e.school} onChange={(v) => patchEdu(e.id, { school: v })} options={US_SCHOOLS} placeholder="Start typing, e.g. State University" autoFocus={idx === 0} />
-                              </Field>
-                              <Field label="Degree">
-                                <SuggestInput value={e.degree} onChange={(v) => patchEdu(e.id, { degree: v })} options={DEGREES} placeholder="Start typing, e.g. B.S. Biology" />
-                              </Field>
                               <div className="sm:col-span-2">
-                                <Field label="Location" hint="City and state of the school.">
-                                  <Input value={e.location} onChange={(ev) => patchEdu(e.id, { location: ev.target.value })} placeholder="Austin, TX" />
+                                <Field label={tr("Country of the school")} hint="The suggestions below are the main universities of that country. Pick another one if you studied abroad.">
+                                  <PickSelect
+                                    value={eduCountryName(e.schoolCountry)}
+                                    onChange={(n) => {
+                                      const next = n === ALL_COUNTRIES ? "ALL" : geo?.countries.find((x) => x.name === n)?.isoCode ?? "";
+                                      if (next === (e.schoolCountry || countryCode)) return;
+                                      // another country: the school, the degree and the place belonged to the old one, so they start over
+                                      patchEdu(e.id, { schoolCountry: next, school: "", degree: "", location: "" });
+                                    }}
+                                    options={geo ? [ALL_COUNTRIES, ...geo.countries.map((x) => x.name)] : [eduCountryName(e.schoolCountry)]}
+                                    display={(n: string) => (n === ALL_COUNTRIES ? tr("All countries") : countryShown(n))}
+                                    label={tr("Country of the school")}
+                                    name="school-country"
+                                    leading={(n: string) => {
+                                      const iso = n === ALL_COUNTRIES ? "" : (geo?.countries.find((x) => x.name === n)?.isoCode ?? "").toLowerCase();
+                                      return iso ? <span className={`fi fi-${iso} h-4 w-6 rounded-[3px] shadow-sm ring-1 ring-black/10`} aria-hidden /> : null;
+                                    }}
+                                    placeholder={tr("Choose a country")}
+                                  />
                                 </Field>
                               </div>
-                              <Field label="Started">
-                                <MonthPicker label={`School ${idx + 1} start`} value={e.startDate} onChange={(v) => patchEdu(e.id, { startDate: v })} />
+                              <div className="sm:col-span-2">
+                                <Field label={tr("School")}>
+                                  <SuggestInput value={e.school} onChange={(v) => patchEdu(e.id, { school: v })} options={schoolOptions(e.schoolCountry)} browse terms={schoolTerms} placeholder={tr("Start typing, e.g. State University")} autoFocus={idx === 0} />
+                                </Field>
+                              </div>
+                              <Field label={tr("Degree")}>
+                                <SuggestInput value={e.degree} onChange={(v) => patchEdu(e.id, { degree: v })} options={DEGREES} browse translate={!englishSchool(e)} terms={englishSchool(e) ? (o) => [tr(o)] : undefined} placeholder={tr("Start typing, e.g. B.S. Biology")} />
                               </Field>
-                              <Field label="Ended">
-                                <MonthPicker label={`School ${idx + 1} end`} value={e.endDate} disabled={e.current} onChange={(v) => patchEdu(e.id, { endDate: v })} />
+                              <div className="sm:col-span-2">
+                                <Field label={tr("Location")} hint="City and state of the school.">
+                                  <Input value={e.location} onChange={(ev) => patchEdu(e.id, { location: ev.target.value })} placeholder={tr("Austin, TX")} />
+                                </Field>
+                              </div>
+                              <Field label={tr("Started")}>
+                                <MonthPicker label={tr("School {v0} start", { v0: idx + 1 })} value={e.startDate} onChange={(v) => patchEdu(e.id, { startDate: v })} />
+                              </Field>
+                              <Field label={tr("Ended")}>
+                                <MonthPicker label={tr("School {v0} end", { v0: idx + 1 })} value={e.endDate} min={e.startDate} allowFuture disabled={e.current} onChange={(v) => patchEdu(e.id, { endDate: v })} />
                                 <span className="mt-2 flex items-center gap-2 text-sm">
                                   <input
                                     type="checkbox"
                                     checked={e.current}
                                     onChange={(ev) => patchEdu(e.id, { current: ev.target.checked, endDate: ev.target.checked ? "" : e.endDate })}
-                                  />
-                                  I&apos;m still studying here
-                                </span>
+                                  />{tr("I'm still studying here")}</span>
                               </Field>
 
                               <div className="sm:col-span-2">
@@ -1395,8 +1513,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                                   onClick={() => setExtrasOpen((prev) => ({ ...prev, [e.id]: !showExtras }))}
                                   className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:underline"
                                 >
-                                  <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${showExtras ? "rotate-180" : ""}`} />
-                                  Additional details <span className="font-normal text-muted-foreground">(optional)</span>
+                                  <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${showExtras ? "rotate-180" : ""}`} />{tr("Additional details")}{" "}<span className="font-normal text-muted-foreground">{tr("(optional)")}</span>
                                 </button>
                                 <AnimatePresence initial={false}>
                                   {showExtras && (
@@ -1409,17 +1526,17 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                                       style={{ overflow: "hidden" }}
                                     >
                                       <div className="grid gap-4 pt-4 sm:grid-cols-3">
-                                        <Field label="GPA" hint="Only if it helps you, usually 3.5 or higher.">
+                                        <Field label={tr("GPA")} hint="Only if it helps you, usually 3.5 or higher.">
                                           <Input value={e.gpa} onChange={(ev) => patchEdu(e.id, { gpa: ev.target.value })} placeholder="3.8 / 4.0" />
                                         </Field>
                                         <div className="sm:col-span-2">
-                                          <Field label="Honors and awards" hint="Dean's List, Magna Cum Laude, scholarships…">
-                                            <Input value={e.honors} onChange={(ev) => patchEdu(e.id, { honors: ev.target.value })} placeholder="Dean's List, Merit Scholarship" />
+                                          <Field label={tr("Honors and awards")} hint="Dean's List, Magna Cum Laude, scholarships…">
+                                            <Input value={e.honors} onChange={(ev) => patchEdu(e.id, { honors: ev.target.value })} placeholder={tr("Dean's List, Merit Scholarship")} />
                                           </Field>
                                         </div>
                                         <div className="sm:col-span-3">
-                                          <Field label="Relevant coursework" hint="Three to six classes that match the jobs you want.">
-                                            <Input value={e.coursework} onChange={(ev) => patchEdu(e.id, { coursework: ev.target.value })} placeholder="Data Structures, Algorithms, Databases" />
+                                          <Field label={tr("Relevant coursework")} hint="Three to six classes that match the jobs you want.">
+                                            <Input value={e.coursework} onChange={(ev) => patchEdu(e.id, { coursework: ev.target.value })} placeholder={tr("Data Structures, Algorithms, Databases")} />
                                           </Field>
                                         </div>
                                       </div>
@@ -1442,8 +1559,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
               onClick={addEdu}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-3 text-sm font-semibold text-blue-600 transition-colors hover:border-blue-500 hover:bg-accent"
             >
-              <Plus className="h-4 w-4" /> Add another school
-            </button>
+              <Plus className="h-4 w-4" />{" "}{tr("Add another school")}</button>
 
             {nav({
               disabled: validEdus.length === 0,
@@ -1480,8 +1596,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         ),
     extras: on("extras") && (
             <Block reviewing={reviewing} id="extras" title="More to add (optional)">
-              <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">Anything else to add?</h1>
-              <p className="mt-2 text-muted-foreground">Everything here is optional: links, projects, internships, certifications and, last, the languages you speak.</p>
+              <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("Anything else to add?")}</h1>
+              <p className="mt-2 text-muted-foreground">{tr("Everything here is optional: links, projects, internships, certifications and, last, the languages you speak.")}</p>
               <div className="mt-5">
                 <ExtrasEditor languages={languages} onLanguagesChange={setLanguages} />
               </div>
@@ -1510,13 +1626,13 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                   onClick={() => setCustomize(t.id)}
                   className={`inline-flex h-8 items-center gap-1.5 rounded-full px-4 transition-colors ${customize === t.id ? "bg-blue-600 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 >
-                  <t.icon className="h-4 w-4" /> {t.label}
+                  <t.icon className="h-4 w-4" /> {tr(t.label)}
                 </button>
               ))}
             </div>
             <Button onClick={generate} disabled={working} className="h-9 gap-2 rounded-full px-5 font-bold">
               {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {working ? "Making your resume…" : "Create resume"}
+              {working ? tr("Making your resume…") : tr("Create resume")}
             </Button>
           </div>,
           topSlot
@@ -1529,7 +1645,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       className={`${intro ? "animate-wizard-in " : ""}${embedded ? "relative" : "no-scrollbar fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-background"}`}
       role={embedded ? undefined : "dialog"}
       aria-modal={embedded ? undefined : true}
-      aria-label="Set up your resume"
+      aria-label={tr("Set up your resume")}
     >
       {!embedded && (
         <div
@@ -1544,8 +1660,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         <div className="h-0.5 w-full bg-border">
           <div className="h-full bg-blue-600 transition-[width] duration-500 ease-out" style={{ width: `${pct}%` }} />
         </div>
-        <div className="mx-auto grid h-[3.75rem] max-w-[1840px] grid-cols-[1fr_auto_1fr] items-center px-5 lg:px-10 [&>:last-child]:justify-self-end">
-          <KaizoLogo width={84} />
+        <div className="mx-auto flex h-[3.75rem] max-w-[1840px] items-center justify-between gap-2 px-3 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:px-5 lg:px-10 [&>:last-child]:justify-self-end">
+          <Link href="/" aria-label={tr("Back to home")} className="hidden w-fit rounded-md transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring sm:block"><KaizoLogo width={84} /></Link>
           {showTabs ? (
             <div className="inline-flex rounded-md border bg-card p-0.5 text-sm font-semibold" role="tablist">
               {[
@@ -1557,11 +1673,11 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                   role="tab"
                   aria-selected={customize === t.id}
                   onClick={() => setCustomize(t.id)}
-                  className={`inline-flex items-center gap-1.5 rounded px-3.5 py-1.5 transition-colors ${
+                  className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 transition-colors sm:px-3.5 ${
                     customize === t.id ? "bg-blue-600 text-white" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <t.icon className="h-4 w-4" /> {t.label}
+                  <t.icon className="h-4 w-4" /> {tr(t.label)}
                 </button>
               ))}
             </div>
@@ -1570,23 +1686,23 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
                 {step === "template" ? 1 : 2}
               </span>
-              {step === "template" ? "Choose a look" : "Add your details"}
+              {step === "template" ? tr("Choose a look") : tr("Add your details")}
             </p>
           )}
           <div className="flex items-center gap-2 sm:gap-3">
             {step === "finish" && (
               <>
                 {!isGuest && (
-                  <Button size="sm" variant="outline" onClick={() => finishTo("/home")} disabled={working} className="hidden sm:inline-flex">
-                    Go to my dashboard
-                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => finishTo("/home")} disabled={working} className="hidden sm:inline-flex">{tr("Go to my dashboard")}</Button>
                 )}
                 <Button size="sm" onClick={generate} disabled={working} className="gap-1.5">
                   {working ? <Loader2 className="h-4 w-4 animate-spin" /> : buildMode ? <Plus className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-                  {working ? "Making your resume…" : buildMode ? "Create resume" : "Download"}
+                  {working ? tr("Making your resume…") : buildMode ? tr("Create resume") : tr("Download")}
                 </Button>
               </>
             )}
+            <LanguageSwitch tone="app" className="hidden sm:inline-flex" />
+            <LanguageSwitch tone="app" compact className="sm:hidden" />
             <ThemeSwitch dark={dark} onToggle={() => setTheme(dark ? "light" : "dark")} />
           </div>
         </div>
@@ -1595,15 +1711,15 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
 
       <div
         key={step}
-        className={`${intro ? "" : "animate-pop-in"} mx-auto w-full flex-1 pt-1 ${embedded ? "" : "px-5 lg:px-10"} ${step === "template" && !customizing ? "pb-4" : "pb-6"} ${reviewing ? (embedded ? "lg:h-[calc(100dvh-7.5rem)] lg:flex-none lg:overflow-hidden lg:pb-0" : "lg:h-[calc(100dvh-4rem-3.75rem)] lg:flex-none lg:overflow-hidden lg:pb-4") : ""} ${
+        className={`${intro || step === "template" ? "" : "animate-pop-in"} mx-auto w-full flex-1 pt-1 ${embedded ? "" : "px-5 lg:px-10"} ${step === "template" && !customizing ? "pb-4" : "pb-6"} ${reviewing ? (embedded ? "lg:h-[calc(100dvh-7.5rem)] lg:flex-none lg:overflow-hidden lg:pb-0" : "lg:h-[calc(100dvh-4rem-3.75rem)] lg:flex-none lg:overflow-hidden lg:pb-4") : ""} ${
           split ? "grid max-w-[1840px] gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,720px)]" : step === "template" || reviewing ? "max-w-[1840px]" : "max-w-4xl"
         }`}
       >
-        <div className={`${intro ? "enter-stagger " : ""}${reviewing ? "grid min-w-0 items-start gap-4 lg:h-full lg:grid-cols-[minmax(0,760px)_minmax(0,1fr)] lg:gap-x-10" : "min-w-0"}`}>
+        <div className={`${intro && step !== "template" ? "enter-stagger " : ""}${reviewing ? "grid min-w-0 items-start gap-4 lg:h-full lg:grid-cols-[minmax(0,760px)_minmax(0,1fr)] lg:gap-x-10" : "min-w-0"}`}>
         {customizing ? (
           <>
-            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">Choose another look</h1>
-            <p className="mt-2 text-muted-foreground">Your content stays exactly as it is. Pick one and watch the preview change.</p>
+            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("Choose another look")}</h1>
+            <p className="mt-2 text-muted-foreground">{tr("Your content stays exactly as it is. Pick one and watch the preview change.")}</p>
             <div className="mt-8">
               {/* choosing a look applies it right away; you stay here until you go back to Edit */}
               <TemplateSelector onTemplateSelect={onTemplate} showcase />
@@ -1613,12 +1729,13 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         <>
         {step === "template" && (
           <div className="text-center">
-            <h1 className="text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">Pick a look for your resume</h1>
-            <p className="mx-auto mt-3 max-w-md text-muted-foreground">You can change it any time. Your content stays put.</p>
+            <h1 className="text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">{tr("Pick a look for your resume")}</h1>
+            <p className="mx-auto mt-3 max-w-md text-muted-foreground">{tr("You can change it any time. Your content stays put.")}</p>
             <div className="mt-6 text-left">
               <TemplateSelector onTemplateSelect={onTemplate} showcase />
             </div>
-            <div className="mt-6 flex justify-center">
+            {/* pinned to the bottom of the screen so it is always in reach, however long the list of looks is */}
+            <div className="sticky bottom-0 z-20 -mx-5 mt-6 flex justify-center bg-gradient-to-t from-background via-background/90 to-transparent px-5 pb-4 pt-6 lg:-mx-10">
               <ContinueButton onClick={() => go("path")} disabled={!template} />
             </div>
           </div>
@@ -1626,8 +1743,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
 
         {step === "path" && (
           <div className="text-center">
-            <h1 className="text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">How do you want to start?</h1>
-            <p className="mx-auto mt-3 max-w-md text-muted-foreground">Already have a resume? We&apos;ll read it so you don&apos;t type anything twice.</p>
+            <h1 className="text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">{tr("How do you want to start?")}</h1>
+            <p className="mx-auto mt-3 max-w-md text-muted-foreground">{tr("Already have a resume? We'll read it so you don't type anything twice.")}</p>
             <div className="mx-auto mt-10 grid max-w-3xl gap-5 text-left sm:grid-cols-2">
               <button
                 onClick={() => {
@@ -1640,11 +1757,9 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/30">
                   <FileUp className="h-6 w-6" />
                 </span>
-                <p className="mt-4 text-lg font-bold">Upload my resume</p>
-                <p className="mt-1 text-sm text-muted-foreground">PDF or Word. We fill in your details in a few seconds.</p>
-                <span className="mt-3 inline-block rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                  Fastest
-                </span>
+                <p className="mt-4 text-lg font-bold">{tr("Upload my resume")}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{tr("PDF or Word. We fill in your details in a few seconds.")}</p>
+                <span className="mt-3 inline-block rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">{tr("Fastest")}</span>
               </button>
               <button
                 onClick={() => {
@@ -1657,22 +1772,21 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent text-blue-600">
                   <PenLine className="h-6 w-6" />
                 </span>
-                <p className="mt-4 text-lg font-bold">Start from scratch</p>
-                <p className="mt-1 text-sm text-muted-foreground">Answer a few short questions, one at a time.</p>
+                <p className="mt-4 text-lg font-bold">{tr("Start from scratch")}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{tr("Answer a few short questions, one at a time.")}</p>
               </button>
             </div>
             <div className="mt-10">
               <Button variant="ghost" onClick={() => go("template")}>
-                <ArrowLeft className="h-4 w-4" /> Back
-              </Button>
+                <ArrowLeft className="h-4 w-4" />{" "}{tr("Back")}</Button>
             </div>
           </div>
         )}
 
         {step === "upload" && (
           <div className="mx-auto max-w-2xl text-center">
-            <h1 className="text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">Upload your resume</h1>
-            <p className="mx-auto mt-3 max-w-md text-muted-foreground">We&apos;ll read it and fill in your profile. You can fix anything afterwards.</p>
+            <h1 className="text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">{tr("Upload your resume")}</h1>
+            <p className="mx-auto mt-3 max-w-md text-muted-foreground">{tr("We'll read it and fill in your profile. You can fix anything afterwards.")}</p>
             <div
               {...getRootProps()}
               className={`mt-10 cursor-pointer rounded-2xl border-2 border-dashed bg-card/60 p-14 text-center backdrop-blur transition-all ${
@@ -1683,21 +1797,20 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
               {working ? (
                 <>
                   <Loader2 className="mx-auto h-10 w-10 animate-spin text-blue-600" />
-                  <p className="mt-4 text-lg font-semibold">Reading {fileName}…</p>
-                  <p className="mt-1 text-sm text-muted-foreground">This takes about 10 to 20 seconds.</p>
+                  <p className="mt-4 text-lg font-semibold">{tr("Reading")}{" "}{fileName}…</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{tr("This takes about 10 to 20 seconds.")}</p>
                 </>
               ) : (
                 <>
                   <FileUp className="mx-auto h-10 w-10 text-blue-600" />
-                  <p className="mt-4 text-lg font-semibold">{isDragActive ? "Drop it here" : "Drag your resume here, or click to choose"}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">PDF, DOCX or TXT, up to 10 MB</p>
+                  <p className="mt-4 text-lg font-semibold">{isDragActive ? tr("Drop it here") : tr("Drag your resume here, or click to choose")}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{tr("PDF, DOCX or TXT, up to 10 MB")}</p>
                 </>
               )}
             </div>
             <div className="mt-8 flex items-center justify-between text-left">
               <Button variant="ghost" onClick={back} disabled={working}>
-                <ArrowLeft className="h-4 w-4" /> Back
-              </Button>
+                <ArrowLeft className="h-4 w-4" />{" "}{tr("Back")}</Button>
               <button
                 onClick={() => {
                   setFlow("scratch");
@@ -1705,17 +1818,15 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                 }}
                 disabled={working}
                 className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
-              >
-                Skip for now
-              </button>
+              >{tr("Skip for now")}</button>
             </div>
           </div>
         )}
 
         {step === "found" && (
           <>
-            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">Here&apos;s what we found</h1>
-            <p className="mt-2 text-muted-foreground">We filled your profile from your resume. Go through each part to check and fix it, or jump straight to the final review.</p>
+            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("Here's what we found")}</h1>
+            <p className="mt-2 text-muted-foreground">{tr("We filled your profile from your resume. Go through each part to check and fix it, or jump straight to the final review.")}</p>
             <ul className="mt-5 grid gap-3 sm:grid-cols-2">
               {summary.map((s) => (
                 <li key={s.label} className="flex items-center gap-3 rounded-lg border bg-card p-4">
@@ -1727,8 +1838,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                     {s.value ? <Check className="h-4 w-4" strokeWidth={3} /> : <X className="h-3.5 w-3.5" />}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">{s.label}</p>
-                    <p className="truncate text-sm font-semibold">{s.value || "Not found"}</p>
+                    <p className="text-xs text-muted-foreground">{tr(s.label)}</p>
+                    <p className="truncate text-sm font-semibold">{s.value || tr("Not found")}</p>
                   </div>
                 </li>
               ))}
@@ -1737,20 +1848,24 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
           </>
         )}
 
-        <DndContext sensors={sectionSensors} collisionDetection={closestCenter} onDragEnd={onSectionDrag}>
+        <DndContext accessibility={dndAccessibility(tr)} sensors={sectionSensors} collisionDetection={closestCenter} onDragEnd={onSectionDrag}>
         <BlocksContext.Provider value={{ closed: closedBlocks, toggle: (t) => setClosedBlocks((c) => (c.includes(t) ? c.filter((x) => x !== t) : [...c, t])) }}>
         <div className={reviewing ? "min-w-0 space-y-4 lg:col-start-1 lg:h-full no-scrollbar lg:overflow-y-auto lg:overscroll-contain" : "contents"}>
         {reviewing && (
           <div className="lg:col-start-1">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-2xl font-extrabold">Your details</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Change anything here. It saves by itself, and the review on the right can use it. Drag a section by its handle to reorder it.</p>
+                <h2 className="text-2xl font-extrabold">{tr("Your details")}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{tr("Change anything here. It saves by itself, and the review on the right can use it. Drag a section by its handle to reorder it.")}</p>
               </div>
             </div>
-            {/* what the right-hand side shows, and fold / unfold everything */}
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-              <div role="tablist" aria-label="Right-hand side" className="inline-flex rounded-full border bg-card p-1 shadow-sm">
+          </div>
+        )}
+        {reviewing && (
+          // what the right-hand side shows, and fold / unfold everything: it stays at the top while the sections scroll under it
+          <div className="sticky top-[3.75rem] z-20 -mx-2 border-b bg-background/90 px-2 pb-3 pt-3 backdrop-blur lg:top-0 lg:col-start-1">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <div role="tablist" aria-label={tr("Right-hand side")} className="inline-flex rounded-full border bg-card p-1 shadow-sm">
                 {[
                   { show: false, label: "AI review", icon: Sparkles },
                   { show: true, label: "Live preview", icon: Eye },
@@ -1765,7 +1880,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                       showPreview === t.show ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    <t.icon className="h-4 w-4" /> {t.label}
+                    <t.icon className="h-4 w-4" /> {tr(t.label)}
                   </button>
                 ))}
               </div>
@@ -1775,7 +1890,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                 className="inline-flex w-[15.5rem] items-center justify-center gap-2 whitespace-nowrap rounded-full border bg-card px-5 py-3 text-sm font-semibold shadow-sm transition-colors hover:border-blue-500/50 hover:bg-accent"
               >
                 {closedBlocks.length === 0 ? <ChevronsDownUp className="h-4 w-4 text-blue-600" /> : <ChevronsUpDown className="h-4 w-4 text-blue-600" />}
-                {closedBlocks.length === 0 ? "Collapse all sections" : "Expand all sections"}
+                {closedBlocks.length === 0 ? tr("Collapse all sections") : tr("Expand all sections")}
               </button>
             </div>
           </div>
@@ -1804,7 +1919,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
 
         {split && (
           <div className="min-w-0">
-            <LivePreview d={previewData} template={template} active={customizing ? null : (step as PreviewSection)} sample={customizing} enter={intro} onCustomize={customizing ? undefined : () => setCustomize(true)} />
+            <LivePreview d={previewData} template={template} active={customizing ? null : (step as PreviewSection)} sample={customizing} enter={intro} onCustomize={customizing ? undefined : () => setCustomize(true)} overlay={customizing ? <AccentPicker template={template} value={accent} onChange={onAccent} fill={fillPage} onFill={onFill} /> : undefined} />
           </div>
         )}
       </div>
@@ -1814,8 +1929,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         <div className="sticky bottom-0 z-20 border-t bg-background/90 backdrop-blur">
           <div className="mx-auto flex h-[3.75rem] w-full max-w-[1840px] items-center px-5 lg:px-10">
             <Button variant="ghost" onClick={back} disabled={working}>
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Button>
+              <ArrowLeft className="h-4 w-4" />{" "}{tr("Back")}</Button>
           </div>
         </div>
       )}
@@ -1835,6 +1949,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         </div>
       )}
       </div>
+
+      <SignupGate open={gateOpen} onClose={() => setGateOpen(false)} template={template || "classic"} startMode={gateQuick ? "login" : "register"} quick={gateQuick} onLoggedIn={(id) => { setLoggedInHere(true); if (id) setActiveProfileId(id); toast.success(tr("You are logged in. Keep going: when you download, your resume will be in Resumes.")); }} />
 
       <ResumePreviewModal
         isOpen={!!previewId}

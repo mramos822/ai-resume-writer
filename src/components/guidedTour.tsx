@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/i18n/navigation";
 import {
   Rocket,
   UploadCloud,
@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Button } from "@/components/ui/button";
 import { useProfile } from "@/context/profileContext";
 import { getProfileProgress } from "@/lib/profileProgress";
+import { useT } from "@/i18n/provider";
 
 export const OPEN_TOUR_EVENT = "kaizo:open-tour";
 const STORAGE_KEY = "kaizo_tour_done";
@@ -75,6 +76,7 @@ const STEPS = [
 ];
 
 export default function GuidedTour() {
+  const { tr } = useT();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const { profiles, activeProfile } = useProfile();
@@ -133,19 +135,18 @@ export default function GuidedTour() {
             <span className="flex h-12 w-12 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
               <Icon className="h-6 w-6" />
             </span>
-            <span className="text-xs font-medium text-muted-foreground">
-              Step {step + 1} of {STEPS.length}
+            <span className="text-xs font-medium text-muted-foreground">{tr("Step")}{" "}{step + 1}{" "}{tr("of")}{" "}{STEPS.length}
             </span>
           </div>
 
-          <DialogTitle className="text-2xl font-bold leading-tight">{s.title}</DialogTitle>
+          <DialogTitle className="text-2xl font-bold leading-tight">{tr(s.title)}</DialogTitle>
           <DialogDescription className="mt-2 text-base leading-relaxed text-muted-foreground">
-            {s.body}
+            {tr(s.body)}
           </DialogDescription>
 
           <div className="mt-5 flex gap-3 rounded-md border bg-accent/60 p-3 text-sm">
             <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-            <p className="text-muted-foreground">{s.tip}</p>
+            <p className="text-muted-foreground">{tr(s.tip)}</p>
           </div>
 
           {s.href && (
@@ -164,14 +165,14 @@ export default function GuidedTour() {
             onClick={finish}
             className="text-sm text-muted-foreground hover:text-foreground"
           >
-            {last ? "Close" : "Skip tour"}
+            {last ? tr("Close") : tr("Skip tour")}
           </button>
 
           <div className="hidden items-center gap-1.5 sm:flex">
             {STEPS.map((_, i) => (
               <button
                 key={i}
-                aria-label={`Go to step ${i + 1}`}
+                aria-label={tr("Go to step {v0}", { v0: i + 1 })}
                 onClick={() => setStep(i)}
                 className={`h-2 rounded-full transition-all ${
                   i === step ? "w-6 bg-blue-600" : "w-2 bg-border hover:bg-muted-foreground"
@@ -183,11 +184,10 @@ export default function GuidedTour() {
           <div className="flex gap-2">
             {step > 0 && (
               <Button variant="outline" size="sm" onClick={() => setStep((n) => n - 1)}>
-                <ArrowLeft className="h-4 w-4" /> Back
-              </Button>
+                <ArrowLeft className="h-4 w-4" />{" "}{tr("Back")}</Button>
             )}
             <Button size="sm" onClick={() => (last ? finish() : setStep((n) => n + 1))}>
-              {last ? "Get started" : "Next"} {!last && <ArrowRight className="h-4 w-4" />}
+              {last ? tr("Get started") : tr("Next")} {!last && <ArrowRight className="h-4 w-4" />}
             </Button>
           </div>
         </div>

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useT } from "@/i18n/provider";
 
 interface InternshipFormProps {
   initialData?: JobEntry;
@@ -18,6 +19,7 @@ interface InternshipFormProps {
 }
 
 const InternshipForm: React.FC<InternshipFormProps> = ({ initialData, onSave, onCancel }) => {
+  const { tr } = useT();
   const [company, setCompany] = useState(initialData?.company || '');
   const [title, setTitle] = useState(initialData?.title || '');
   const [startDate, setStartDate] = useState(initialData?.startDate || '');
@@ -40,42 +42,43 @@ const InternshipForm: React.FC<InternshipFormProps> = ({ initialData, onSave, on
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label htmlFor="company">Company</Label>
+        <Label htmlFor="company">{tr("Company")}</Label>
         <Input id="company" value={company} onChange={(e) => setCompany(e.target.value)} required />
       </div>
       <div>
-        <Label htmlFor="title">Title</Label>
+        <Label htmlFor="title">{tr("Title")}</Label>
         <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="startDate">Start Date</Label>
-          <Input id="startDate" value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="e.g., May 2023" required />
+          <Label htmlFor="startDate">{tr("Start Date")}</Label>
+          <Input id="startDate" value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder={tr("e.g., May 2023")} required />
         </div>
         <div>
-          <Label htmlFor="endDate">End Date</Label>
-          <Input id="endDate" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder="e.g., Aug 2023 or Present" required />
+          <Label htmlFor="endDate">{tr("End Date")}</Label>
+          <Input id="endDate" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder={tr("e.g., Aug 2023 or Present")} required />
         </div>
       </div>
       <div>
-        <Label htmlFor="accomplishments">Accomplishments (one per line)</Label>
+        <Label htmlFor="accomplishments">{tr("Accomplishments (one per line)")}</Label>
         <Textarea
           id="accomplishments"
           value={accomplishments}
           onChange={(e) => setAccomplishments(e.target.value)}
           rows={5}
-          placeholder="List key achievements, one per line."
+          placeholder={tr("List key achievements, one per line.")}
         />
       </div>
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit">Save Internship</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>{tr("Cancel")}</Button>
+        <Button type="submit">{tr("Save Internship")}</Button>
       </DialogFooter>
     </form>
   );
 };
 
 export default function InternshipSection() {
+  const { tr } = useT();
   const { activeProfile, addInternshipEntry, updateInternshipEntry, deleteInternshipEntry } = useProfile();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const dialog = useDialog();
@@ -84,9 +87,9 @@ export default function InternshipSection() {
   /** For entries the importer put here by mistake: turn them into a project. */
   const moveToProjects = async (internship: JobEntry) => {
     const ok = await dialog.confirm({
-      title: "Move this to Projects?",
-      description: "Use this if it's a personal, school or side project rather than an internship at a company.",
-      confirmText: "Move to Projects",
+      title: tr("Move this to Projects?"),
+      description: tr("Use this if it's a personal, school or side project rather than an internship at a company."),
+      confirmText: tr("Move to Projects"),
     });
     if (!ok) return;
     addProjectEntry({
@@ -124,9 +127,9 @@ export default function InternshipSection() {
 
   const handleDeleteInternship = async (id: string) => {
     const ok = await dialog.confirm({
-      title: "Remove this internship?",
-      description: "It will disappear from your profile and from resumes you generate next.",
-      confirmText: "Remove",
+      title: tr("Remove this internship?"),
+      description: tr("It will disappear from your profile and from resumes you generate next."),
+      confirmText: tr("Remove"),
       tone: "danger",
     });
     if (ok) deleteInternshipEntry(id);
@@ -135,22 +138,19 @@ export default function InternshipSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex justify-between items-center">
-          Internship History
-          <Button onClick={handleAddClick} size="sm">
-            <PlusCircle className="h-4 w-4 mr-2" /> Add Internship
-          </Button>
+        <CardTitle className="flex justify-between items-center">{tr("Internship History")}<Button onClick={handleAddClick} size="sm">
+            <PlusCircle className="h-4 w-4 mr-2" />{" "}{tr("Add Internship")}</Button>
         </CardTitle>
       </CardHeader>
       <CardContent>
         {activeProfile.internships.length === 0 ? (
-          <p className="text-muted-foreground">No internship entries yet. Click &quot;Add Internship&quot; to get started.</p>
+          <p className="text-muted-foreground">{tr("No internship entries yet. Click \"Add Internship\" to get started.")}</p>
         ) : (
           <div className="space-y-4">
             {activeProfile.internships.map((internship) => (
               <div key={internship.id} className="border rounded-md p-4 flex justify-between items-center">
                 <div>
-                  <h4 className="font-semibold">{internship.title} at {internship.company}</h4>
+                  <h4 className="font-semibold">{tr(internship.title)}{" "}{tr("at")}{" "}{internship.company}</h4>
                   <p className="text-sm text-muted-foreground">{internship.startDate} - {internship.endDate}</p>
                   {internship.accomplishments && internship.accomplishments.length > 0 && (
                     <ul className="list-disc list-inside text-sm text-muted-foreground mt-2">
@@ -165,8 +165,8 @@ export default function InternshipSection() {
                     variant="outline"
                     size="sm"
                     onClick={() => moveToProjects(internship)}
-                    title="This is a project, not an internship. Move it to Projects"
-                    aria-label="Move to Projects"
+                    title={tr("This is a project, not an internship. Move it to Projects")}
+                    aria-label={tr("Move to Projects")}
                   >
                     <FolderInput className="h-4 w-4" />
                   </Button>
@@ -185,7 +185,7 @@ export default function InternshipSection() {
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>{editingInternship ? 'Edit Internship' : 'Add New Internship'}</DialogTitle>
+              <DialogTitle>{editingInternship ? tr("Edit Internship") : tr("Add New Internship")}</DialogTitle>
             </DialogHeader>
             <InternshipForm
               initialData={editingInternship}

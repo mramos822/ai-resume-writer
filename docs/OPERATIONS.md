@@ -35,3 +35,27 @@ pasted in a chat, a screenshot or a log, treat it as leaked and rotate it (datab
 - Access and deletion are self-service in Settings (`/api/account`). Contact-form messages are in the `contact_messages` collection:
   read them, answer by email, and set `status` when done.
 - When you add a new collection that holds user data, add it to `src/lib/accountData.ts` (export and delete) in the same change.
+
+## Environment variables for the policies
+| Variable | What for |
+|----------|----------|
+| `ADMIN_EMAILS` | Comma-separated emails (verified) that see **Messages** in the sidebar and can read contact messages. |
+| `CONTACT_WEBHOOK_URL` | Optional Slack/Discord/Teams incoming webhook: a note for every new contact message. |
+| `CRON_SECRET` | 16+ random characters. Lets a scheduler call `POST /api/admin/cleanup` (header `Authorization: Bearer <secret>`). |
+
+## Retention (promised in the Privacy Policy)
+- A guest session unused for 30 days is deleted with everything in it. This runs by itself, at most once an hour, whenever someone
+  starts a guest session; a daily scheduler calling `/api/admin/cleanup` makes it exact.
+- Contact messages older than 24 months are deleted by the same cleanup.
+- Numbers live in `src/lib/retentionRules.ts`. Change the policy text in the same commit if you change them.
+
+## Answering privacy requests
+The policy promises an answer within 45 days. Open **Messages** (admins only) every week: anything marked amber is older than 30
+days, red is older than 45. Use the **appeal** topic for people who disagree with an answer.
+
+## If personal data leaks (incident)
+1. Contain it: rotate the leaked secrets, disable the affected feature, keep the logs.
+2. Find out whose data and what kind (the request id in the logs helps).
+3. Notify the affected people and the authorities as the law requires: New Jersey requires notice to affected residents "in the most
+   expedient time possible" and to the State Police before notifying customers; the GDPR requires 72 hours to the authority.
+4. Write down what happened and what changed so it does not repeat.

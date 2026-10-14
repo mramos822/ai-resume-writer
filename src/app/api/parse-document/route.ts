@@ -8,6 +8,9 @@ import { AI_MODEL as MODEL } from "@/lib/aiConfig";
 import mammoth from "mammoth";
 import { authUid, errorResponse } from "@/lib/apiAuth";
 import { cleanParsedProfile } from "@/lib/parseCleanup";
+import { canReadScans, transcribePdf } from "@/lib/ocr";
+import { ANY_LANGUAGE_RULES, MIN_READABLE_CHARS, cleanExtractedText, extractJsonObject } from "@/lib/resumeText";
+import { placeOfSchool } from "@/lib/worldSchools";
 import type { ProfileData, ContactInfo } from "@/context/profileContext";
 
 // 1) Capture the original
@@ -104,6 +107,15 @@ export async function POST(request: Request) {
   } else {
     text = new TextDecoder("utf-8").decode(uint8);
   }
+  text = cleanExtractedText(text);
+  // a scan or a photo saved as PDF has no text: the provider reads the pages and gives the text back
+  if (text.length < MIN_READABLE_CHARS && file.type === "application/pdf" && canReadScans()) {
+    text = cleanExtractedText(await transcribePdf(Buffer.from(uint8)).catch(() => ""));
+  }
+  if (text.length < MIN_READABLE_CHARS) {
+    return NextResponse.json({ error: "We couldn't find any text in that file. If it is a scan or a photo, export it as a PDF with selectable text, or upload a Word file." }, { status: 422 });
+  }
+  text = text.slice(0, 40000);
 
   // d) prompt
   const systemPrompt = `
@@ -123,6 +135,7 @@ Field rules (follow exactly):
 - "location" is ONLY the city and state or country ("Newark, NJ", "Remote"). Never put a place inside company, school, description or accomplishments.
 - "accomplishments" holds ONLY what the person did or achieved, one short sentence each. NEVER put the job title, company, location, dates or a heading in it. Use [] if there are none.
 - "school" is ONLY the institution name, without city, state or address; the place goes in "location".
+${ANY_LANGUAGE_RULES}
 
 Output only the JSON, no explanation.
   `.trim();
@@ -141,13 +154,15 @@ Output only the JSON, no explanation.
 
   // f) parse JSON
   const raw = completion.content ?? "";
-  const match = raw.match(/\{[\s\S]*\}$/);
-  if (!match) {
+  const json = extractJsonObject(raw);
+  if (!json) {
     return NextResponse.json({ error: "Invalid JSON from parser", raw }, { status: 502 });
   }
   let parsed: Partial<ProfileData>;
   try {
-    parsed = cleanParsedProfile(JSON.parse(match[0]) as Partial<ProfileData>);
+    parsed = cleanParsedProfile(JSON.parse(json) as Partial<ProfileData>);
+    // a known school brings its place when the resume did not give one
+    parsed = { ...parsed, education: (parsed.education ?? []).map((e) => (e.location?.trim() ? e : { ...e, location: placeOfSchool(e.school) || e.location || "" })) };
   } catch {
     return NextResponse.json({ error: "JSON.parse failed", raw }, { status: 502 });
   }

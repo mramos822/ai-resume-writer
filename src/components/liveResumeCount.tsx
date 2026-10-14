@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useT } from "@/i18n/provider";
 
 /** The number of resumes created, kept live: it connects to /api/stats/stream and moves the moment someone creates one. */
 function useLiveResumeCount(): number | null {
@@ -55,6 +56,7 @@ function useTween(target: number | null): number {
 }
 
 export default function LiveResumeCount({ tone = "light", size = "lg", variant = "plain" }: { tone?: "light" | "dark"; size?: "md" | "lg"; variant?: "plain" | "tiles" }) {
+  const { tr } = useT();
   const total = useLiveResumeCount();
   const shown = useTween(total);
   const [pulse, setPulse] = useState(0);
@@ -72,14 +74,12 @@ export default function LiveResumeCount({ tone = "light", size = "lg", variant =
   if (variant === "tiles") {
     const text = total === null ? "" : shown.toLocaleString("en-US");
     return (
-      <div aria-live="polite" aria-label={total === null ? "Loading resumes created" : `${text} resumes created`}>
+      <div aria-live="polite" aria-label={total === null ? tr("Loading resumes created") : tr("{text} resumes created", { text })}>
         <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-blue-100">
           <span className="relative flex h-2 w-2" aria-hidden>
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
-          </span>
-          Live now
-        </div>
+          </span>{tr("Live now")}</div>
         <div key={pulse} className={`flex items-end gap-1.5 ${pulse > 0 ? "animate-[pulse_0.7s_ease-out_1]" : ""}`} aria-hidden>
           {total === null
             ? [0, 1].map((i) => <span key={i} className="h-14 w-10 animate-pulse rounded-lg bg-white/15" />)
@@ -96,7 +96,7 @@ export default function LiveResumeCount({ tone = "light", size = "lg", variant =
                 ),
               )}
         </div>
-        <p className="mt-3 text-sm text-blue-100">resumes created with Kaizo</p>
+        <p className="mt-3 text-sm text-blue-100">{tr("resumes created with Kaizo")}</p>
       </div>
     );
   }
@@ -110,9 +110,7 @@ export default function LiveResumeCount({ tone = "light", size = "lg", variant =
         <span className="relative flex h-2 w-2" aria-hidden>
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-        </span>
-        resumes created, live
-      </p>
+        </span>{tr("resumes created, live")}</p>
     </div>
   );
 }

@@ -26,15 +26,19 @@ import {
   type ReviewFix,
   type ReviewIssue,
   type ReviewResult,
+  worthListing,
+  MAX_ISSUES,
 } from "@/lib/resumeReview";
 
 /** Bump when the rubric changes, so cached reviews are not reused. */
-export const RUBRIC_VERSION = "v3";
+export const RUBRIC_VERSION = "v5";
 
 export interface PreviousReview {
   verdicts: { id: string; verdict: Verdict }[];
   /** titles of the fixes the person applied since that review */
   applied: string[];
+  /** guidelines those fixes were for: they are not raised again just because the AI still would like it "better" */
+  appliedCriteria?: string[];
 }
 
 export const REVIEW_SYSTEM = `You are a resume reviewer who follows a FIXED rubric. You never invent criteria, and you judge the same text the same way every time.
@@ -69,11 +73,13 @@ Rules, in order of importance:
 5. Use ONLY facts that are in the data. Never invent employers, dates, tools, degrees, metrics or numbers. If a bullet has no number, improve verb and clarity but do not add one.
 6. Experience: the 3 most recent jobs must stay on the resume. NEVER propose removing any of them, and never propose removing a job when 3 or fewer remain. Only older, clearly less relevant jobs can be removed, and only when "onePage" is not passing.
 7. The profile (careerObjective) is the person's cover letter: a short narrative of 3 to 5 sentences (250 to 700 characters), never a one-liner. When you rewrite it, keep it in that range, name the target role or field, include their strongest real experience and skills, and say what they bring. Do not make it shorter than the original unless the original is over 700 characters.
-8. Skills must be consistent with the rest of the resume: only add skills clearly shown by the person's jobs, projects, education or coursework, and treat skills as a PRIORITY: never remove a skill just because the resume does not mention it or to save space. Remove a skill ONLY when it is a repeat of another one, very redundant, or clearly useless for any job (for example a joke or an empty word). Prefer adding the missing evidence (a bullet that uses the skill) over deleting the skill. For keyword coverage, use the standard terms of the target role, written the way ATS expect (for example "PostgreSQL", not "Postgres DB").
+8. Skills must be consistent with the rest of the resume: only add skills clearly shown by the person's jobs, projects, education or coursework, and treat skills as a PRIORITY: never remove a skill just because the resume does not mention it or to save space. Important and in-demand skills and languages (programming languages, frameworks, tools, spoken languages) are NEVER removed, and it is never an issue that no job or project shows them: more skills is better. Remove a skill ONLY when it is a repeat of another one (like "JS" and "JavaScript"), very redundant, or clearly useless for any job (for example a joke or an empty word). Suggest removing redundant skills only when the list is very long (over 40); then say in "detail" that the list is long and which ones are redundant. Prefer adding the missing evidence (a bullet that uses the skill) over deleting the skill. For keyword coverage, use the standard terms of the target role, written the way ATS expect (for example "PostgreSQL", not "Postgres DB").
 9. ATS and HR: plain wording, standard terms, no first person, consistent tense (current job in present, past jobs in past), no abbreviations that only insiders know.
 10. If "onePage" is not passing, the fix must remove content: "removeJob" for the oldest or least relevant job (never the most recent one), or a shorter "bullets" rewrite. NEVER remove skills for space. If it is passing, do NOT suggest removing content.
 11. EVERY issue should come with a usable "fix" (the person presses "Fix it for me"): rewrite the bullets, the summary, the skills. Only set "fix" to null when the guideline needs a fact only the person knows (a phone number, an address, a job they never listed); then say exactly what to add in "detail". Never invent employers, dates, degrees or numbers: when a bullet needs a metric you do not have, rewrite it stronger without a made-up number.
-12. Plain language, no emojis, no markdown.`;
+12. Plain language, no emojis, no markdown.
+14. The target role is what the person is AIMING for. A student (a degree in progress) with a side job that has nothing to do with their field (waiter, cashier, delivery...) is NOT aiming for that job: judge them against the field they study, as an entry-level or student candidate, treat the side job only as evidence of reliability and customer service, and never propose a job title or a summary that presents them as that side job.
+13. The person chose their look (template) on purpose. Respect it: improve the content (summary, bullets, skills, order, length) so the resume works well in THAT look. Never suggest changing the look or removing the photo in your issues or fixes; the layout guideline is handled separately and always comes last.`;
 
 export function reviewSystemPrompt(): string {
   return REVIEW_SYSTEM.replace("{{RUBRIC}}", rubricForPrompt());
@@ -136,6 +142,27 @@ export async function interpretAi(
     .filter((x): x is { id: string; verdict: Verdict; reason: string } => Boolean(x));
   if (verdicts.length === 0) return null;
 
+  // The AI can word a verdict differently from one review to the next, which made the score jump (95 to 91) for a resume that got
+  // better. So the judgements are kept steady between two reviews of the same resume:
+  //  - something the person had fixed for them counts as done (the fix was checked against the same rubric before it was offered);
+  //  - a guideline never gets worse than it was last time just because the AI phrased it differently. It can only go up.
+  // (a measurable guideline is judged by code, so it is never touched here: it moves only when the resume really changes)
+  const fixedBefore = new Set(ctx.previous?.appliedCriteria ?? []);
+  const before = new Map((ctx.previous?.verdicts ?? []).map((x) => [x.id, x.verdict] as const));
+  const rank: Record<Verdict, number> = { fail: 0, partial: 1, pass: 2 };
+  for (const v of verdicts) {
+    if (fixedBefore.has(v.id) && v.verdict !== "pass") {
+      v.verdict = "pass";
+      v.reason = "You fixed this earlier.";
+      continue;
+    }
+    const was = before.get(v.id);
+    if (was && rank[was] > rank[v.verdict]) {
+      v.verdict = was;
+      v.reason = "Same as in your last review.";
+    }
+  }
+
   const auto = evaluateAuto(p, ctx.fit, ctx.template, ctx.role);
   const criteria = [...auto, ...aiResults(verdicts)];
   const failing = new Map(criteria.filter((c) => c.verdict !== "pass").map((c) => [c.id, c]));
@@ -187,8 +214,14 @@ export async function interpretAi(
     const c = failing.get(id ?? "");
     return c ? c.weight - c.earned : 0;
   };
-  issues.sort((a, b) => lost(b.criterionId) - lost(a.criterionId));
-  const final = issues.slice(0, 8).map((i, n) => ({ ...i, id: `a${n + 1}` }));
+  // the look is the person's choice: improving the resume in that look comes first, so a change of look is always the last thing listed
+  issues.sort((a, b) => Number(a.criterionId === "atsLayout") - Number(b.criterionId === "atsLayout") || lost(b.criterionId) - lost(a.criterionId));
+  // only what matters: details worth less than 2 points stay out, and the list is short enough to act on
+  const worth = issues.filter((i) => {
+    const c = failing.get(i.criterionId ?? "");
+    return c ? worthListing(c) : true;
+  });
+  const final = worth.slice(0, MAX_ISSUES).map((i, n) => ({ ...i, id: `a${n + 1}` }));
 
   const strengths = (Array.isArray(raw.strengths) ? raw.strengths : []).map((s: unknown) => str(s, 140)).filter(Boolean).slice(0, 3);
   return {
@@ -215,5 +248,6 @@ export function cleanPrevious(input: unknown): PreviousReview | undefined {
     })
     .filter((x): x is { id: string; verdict: Verdict } => Boolean(x));
   const applied = (Array.isArray(r.applied) ? r.applied : []).map((a: unknown) => str(a, 90)).filter(Boolean).slice(0, 12);
-  return verdicts.length || applied.length ? { verdicts, applied } : undefined;
+  const appliedCriteria = (Array.isArray(r.appliedCriteria) ? r.appliedCriteria : []).map((a: unknown) => String(a)).filter((a) => CRITERION_IDS.has(a)).slice(0, 30);
+  return verdicts.length || applied.length ? { verdicts, applied, appliedCriteria } : undefined;
 }

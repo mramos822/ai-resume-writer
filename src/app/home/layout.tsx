@@ -10,8 +10,9 @@ import { ToastProvider } from "@/context/toastContext";
 import { DialogProvider } from "@/context/dialogContext";
 import { ProfileProvider } from "@/context/profileContext";
 import { useAuth } from "@/context/authContext";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname } from "@/i18n/navigation";
 import { PAGE_TITLES } from "@/lib/pageTitles";
+import { useT } from "@/i18n/provider";
 
 const appDisplay = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-app-display" });
 const appBody = Figtree({ subsets: ["latin"], variable: "--font-app-body" });
@@ -29,10 +30,11 @@ export default function HomeLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const { tr } = useT();
   // the browser tab and screen readers get the name of the page
   useEffect(() => {
-    document.title = `${PAGE_TITLES[pathname] ?? "Kaizo"} | Kaizo`;
-  }, [pathname]);
+    document.title = `${tr(PAGE_TITLES[pathname] ?? "Kaizo")} | Kaizo`;
+  }, [pathname, tr]);
   const isGuest = Boolean(user?.uid.startsWith("guest-"));
   useEffect(() => {
     if (isGuest) router.replace("/build");

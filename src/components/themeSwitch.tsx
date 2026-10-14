@@ -3,15 +3,17 @@
 import React, { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "@/context/themeContext";
+import { useT } from "@/i18n/provider";
 
 /** The look of the day / night switch: a pill with a sun and a moon and a sliding knob. */
 export function ThemeSwitch({ dark, onToggle }: { dark: boolean; onToggle: () => void }) {
+  const { tr } = useT();
   return (
     <button
       type="button"
       role="switch"
       aria-checked={dark}
-      aria-label="Dark mode"
+      aria-label={tr("Dark mode")}
       onClick={onToggle}
       className={`relative h-8 w-14 shrink-0 rounded-full p-0.5 transition-colors duration-300 ${dark ? "bg-blue-600" : "bg-neutral-300"}`}
     >
@@ -28,6 +30,7 @@ export function ThemeSwitch({ dark, onToggle }: { dark: boolean; onToggle: () =>
 
 /** The switch wired to the app's theme (for the places that are not the builder). */
 export default function ThemeToggle({ compact = false }: { compact?: boolean }) {
+  const { tr } = useT();
   const { setTheme } = useTheme();
   const [dark, setDark] = useState(false);
   useEffect(() => {
@@ -44,7 +47,7 @@ export default function ThemeToggle({ compact = false }: { compact?: boolean }) 
     <button
       type="button"
       onClick={toggle}
-      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={dark ? tr("Switch to light mode") : tr("Switch to dark mode")}
       className="relative flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
       <Sun className={`absolute h-[18px] w-[18px] transition-all duration-300 ${dark ? "rotate-90 scale-0 opacity-0" : "rotate-0 scale-100 opacity-100"}`} />

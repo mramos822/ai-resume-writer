@@ -1,6 +1,7 @@
 // src/app/home/profile/page.tsx
 "use client";
 
+import SkillGroupsEditor from "@/components/skillGroupsEditor";
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -27,7 +28,6 @@ import JobHistorySection from "@/components/profile/jobHistorySection";
 import EducationSection from "@/components/profile/educationSection";
 import ExtrasEditor from "@/components/extrasEditor";
 import SkillLevelPicker from "@/components/skillLevelPicker";
-import PageHeader from "@/components/pageHeader";
 import AdviceView from "@/components/adviceView";
 import { getProfileProgress } from "@/lib/profileProgress";
 
@@ -35,8 +35,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/context/toastContext";
 import { useDialog } from "@/context/dialogContext";
-import { usePathname } from "next/navigation";
+import { useTranslationOffer } from "@/components/useTranslationOffer";
+import { usePathname } from "@/i18n/navigation";
 import { authFetch } from "@/lib/authFetch";
+import { useT } from "@/i18n/provider";
 
 const VALID_SECTIONS = ["contact", "objective", "skills", "jobs", "education", "projects", "internships", "links", "languages"] as const;
 type SectionKey = (typeof VALID_SECTIONS)[number];
@@ -148,6 +150,7 @@ function useHash(): SectionKey {
 }
 
 function ResumeAdviceSection() {
+  const { tr } = useT();
   const [advice, setAdvice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,11 +166,11 @@ function ResumeAdviceSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile: activeProfile }),
       });
-      if (!res.ok) throw new Error("Failed to get advice");
+      if (!res.ok) throw new Error(tr("Failed to get advice"));
       const data = await res.json();
       setAdvice(data.advice || data.text || "No advice returned.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : tr("Unknown error"));
     } finally {
       setLoading(false);
     }
@@ -182,15 +185,13 @@ function ResumeAdviceSection() {
               <Sparkles className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-lg font-bold">Want a second opinion?</h2>
-              <p className="text-sm text-muted-foreground">
-                Kaizo reads your whole profile and tells you what could be stronger.
-              </p>
+              <h2 className="text-lg font-bold">{tr("Want a second opinion?")}</h2>
+              <p className="text-sm text-muted-foreground">{tr("Kaizo reads your whole profile and tells you what could be stronger.")}</p>
             </div>
           </div>
           <Button onClick={handleRequestAdvice} disabled={loading} className="gap-2">
             {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {loading ? "Reading your profile…" : "Get advice"}
+            {loading ? tr("Reading your profile…") : tr("Get advice")}
           </Button>
         </div>
 
@@ -202,9 +203,7 @@ function ResumeAdviceSection() {
           </div>
         )}
         {error && (
-          <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            We couldn&apos;t get advice right now ({error}). Please try again in a moment.
-          </p>
+          <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{tr("We couldn't get advice right now (")}{error}{tr("). Please try again in a moment.")}</p>
         )}
         {advice && !loading && (
           <AdviceView text={advice} />
@@ -215,14 +214,16 @@ function ResumeAdviceSection() {
 }
 
 export default function ProfilePage() {
-  const { hasUnsavedChanges, saveChanges, activeProfile, parseFile, updateSkillLevels, updateLanguages } = useProfile();
+  const { tr } = useT();
+  const { hasUnsavedChanges, saveChanges, activeProfile, parseFile, applyProfileData, updateSkillLevels, updateSkillGroups, updateLanguages } = useProfile();
   const dialog = useDialog();
+  const offerTranslation = useTranslationOffer();
   const [isReParsing, setIsReParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
   const activeTab = useHash();
-  const progress = getProfileProgress(activeProfile);
+  const progress = getProfileProgress(activeProfile, tr);
   const doneMap: Record<string, boolean> = Object.fromEntries(progress.sections.map((s) => [s.key, s.done]));
   doneMap.internships = (activeProfile.internships?.length ?? 0) > 0;
   doneMap.projects = (activeProfile.projects?.length ?? 0) > 0;
@@ -234,9 +235,9 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       await saveChanges();
-      toast.success("Profile saved. Your next resume will use these details.");
+      toast.success(tr("Profile saved. Your next resume will use these details."));
     } catch {
-      toast.error("We couldn't save your changes. Check your connection and try again.");
+      toast.error(tr("We couldn't save your changes. Check your connection and try again."));
     } finally {
       setSaving(false);
     }
@@ -261,20 +262,22 @@ export default function ProfilePage() {
       const files: { id: string; filename: string; createdAt: string }[] = res.ok ? await res.json() : [];
       const latest = [...files].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0];
       if (!latest) {
-        toast.info("You haven't uploaded anything yet. Import a resume from the Dashboard first.");
+        toast.info(tr("You haven't uploaded anything yet. Import a resume from the Dashboard first."));
         return;
       }
       const ok = await dialog.confirm({
-        title: `Re-read “${latest.filename}”?`,
+        title: tr("Re-read “{filename}”?", { filename: latest.filename }),
         description:
-          "We'll read your most recent upload again and replace the details in this profile with what we find. Anything you edited by hand will be overwritten.",
-        confirmText: "Re-read it",
+          tr("We'll read your most recent upload again and replace the details in this profile with what we find. Anything you edited by hand will be overwritten."),
+        confirmText: tr("Re-read it"),
         tone: "danger",
       });
       if (!ok) return;
-      await parseFile(latest.id);
+      const parsed = await parseFile(latest.id);
+      const translated = await offerTranslation(parsed);
+      if (translated) await applyProfileData(translated);
     } catch (err) {
-      toast.error(`We couldn't re-read your file: ${(err as Error).message}`);
+      toast.error(tr("We couldn't re-read your file: {message}", { message: (err as Error).message }));
     } finally {
       setIsReParsing(false);
     }
@@ -286,70 +289,65 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-[1600px] pb-24">
-      <PageHeader
-        title="Your profile"
-        subtitle="Tell us about yourself once and we will use it for every resume you make. Pick a section on the left."
-        actions={
-          // how complete the profile is: a plain figure with a thin line, no box around it
-          <div className="min-w-[15rem] text-right">
-            <p className="flex items-baseline justify-end gap-2 leading-none">
-              <span className="text-5xl font-black tabular-nums tracking-tight">{progress.percent}</span>
-              <span className="text-xl font-bold text-muted-foreground">%</span>
-              <span className="ml-1 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{progress.percent === 100 ? "complete" : "done"}</span>
-            </p>
-            <div className="mt-3 flex gap-1" aria-hidden>
-              {progress.sections.map((sec) => (
-                <span key={sec.key} title={sec.label} className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${sec.done ? "bg-blue-600" : "bg-border"}`} />
-              ))}
-            </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {progress.next ? <>Next: {progress.next.hint.toLowerCase()}</> : "Everything a resume needs is here."}
-            </p>
-            <button
-              type="button"
-              onClick={handleReParse}
-              disabled={isReParsing}
-              title="Reads the newest file you uploaded again and refreshes this profile with it (it replaces what you edited by hand)"
-              className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-60"
-            >
-              <RefreshCw className={`h-3 w-3 ${isReParsing ? "animate-spin" : ""}`} />
-              {isReParsing ? "Reading your upload…" : "Refresh from my latest upload"}
-            </button>
-          </div>
-        }
-      />
-
       <div className="grid gap-6 lg:grid-cols-1">
 
         {/* Active section */}
         <div className="w-full min-w-0">
           <Card className="rounded-2xl shadow-sm">
             <CardContent className="p-6 sm:p-8">
-              {/* header and content change together as one piece: one short fade, no empty gap in between */}
-              <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
-              <div className="mb-7 flex items-center gap-4">
-                <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${meta.tile}`}>
-                  <ActiveIcon className="h-7 w-7" />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="text-2xl font-extrabold leading-tight">{meta.title ?? meta.label}</h2>
-                  <p className="text-sm text-muted-foreground">{meta.blurb}</p>
+              {/* the progress of the whole profile stays still while the sections change: only the section's own title and content animate */}
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+                <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }} className="flex min-w-0 items-center gap-4">
+                  <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${meta.tile}`}>
+                    <ActiveIcon className="h-6 w-6" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="text-2xl font-extrabold leading-tight">{tr(meta.title ?? meta.label)}</h2>
+                    <p className="text-sm text-muted-foreground">{tr(meta.blurb)}</p>
+                  </div>
+                </motion.div>
+                <div className="w-full min-w-[13rem] sm:w-auto sm:text-right">
+                  <p className="flex items-baseline gap-1.5 leading-none sm:justify-end">
+                    <span className="text-3xl font-black tabular-nums tracking-tight">{progress.percent}</span>
+                    <span className="text-base font-bold text-muted-foreground">%</span>
+                    <span className="ml-1 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{progress.percent === 100 ? tr("complete") : tr("done")}</span>
+                  </p>
+                  <div className="mt-2 flex gap-1" aria-hidden>
+                    {progress.sections.map((sec) => (
+                      <span key={sec.key} title={sec.label} className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${sec.done ? "bg-blue-600" : "bg-border"}`} />
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {progress.next ? <>{tr("Next:")}{" "}{progress.next.hint.toLowerCase()}</> : tr("Everything a resume needs is here.")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleReParse}
+                    disabled={isReParsing}
+                    title={tr("Reads the newest file you uploaded again and refreshes this profile with it (it replaces what you edited by hand)")}
+                    className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-60"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isReParsing ? "animate-spin" : ""}`} />
+                    {isReParsing ? tr("Reading your upload…") : tr("Refresh from my latest upload")}
+                  </button>
                 </div>
               </div>
 
+              <motion.div key={`${activeTab}-body`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
                 {activeTab === "contact" && <ContactInfoSection />}
                   {activeTab === "objective" && <CareerObjectiveSection />}
                   {activeTab === "skills" && (
                     <>
                       <SkillsSection />
                       <SkillLevelPicker skills={activeProfile.skills ?? []} levels={activeProfile.skillLevels ?? {}} onChange={updateSkillLevels} />
+                      <SkillGroupsEditor skills={activeProfile.skills ?? []} groups={activeProfile.skillGroups} onChange={updateSkillGroups} />
                     </>
                   )}
                   {activeTab === "jobs" && <JobHistorySection />}
                   {activeTab === "education" && <EducationSection />}
                   {activeTab === "projects" && <ExtrasEditor only={["projects"]} />}
                   {activeTab === "internships" && <ExtrasEditor only={["internships"]} />}
-                  {activeTab === "links" && <ExtrasEditor only={["links", "certifications"]} />}
+                  {activeTab === "links" && <ExtrasEditor only={["links", "certifications", "interests"]} />}
                   {activeTab === "languages" && <ExtrasEditor only={["languages"]} languages={activeProfile.languages ?? []} onLanguagesChange={updateLanguages} />}
               </motion.div>
             </CardContent>
@@ -369,10 +367,10 @@ export default function ProfilePage() {
             exit={{ y: 80, opacity: 0 }}
             className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-center justify-between gap-4 rounded-lg border border-amber-300 bg-card p-3 pl-4 shadow-2xl sm:bottom-6"
           >
-            <p className="text-sm font-medium">You have changes that aren&apos;t saved yet.</p>
+            <p className="text-sm font-medium">{tr("You have changes that aren't saved yet.")}</p>
             <Button onClick={handleSave} disabled={saving} className="gap-2">
               {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving…" : "Save changes"}
+              {saving ? tr("Saving…") : tr("Save changes")}
             </Button>
           </motion.div>
         )}

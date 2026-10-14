@@ -3,8 +3,11 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Check } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { loadTemplates } from "@/lib/templatePreload";
+import { useT } from "@/i18n/provider";
+import { usePopularTemplates } from "@/lib/usePopularTemplates";
+import { PopularRibbon } from "@/components/popularRibbon";
 
 interface Template {
   id: string;
@@ -20,6 +23,8 @@ interface TemplateSelectorProps {
 }
 
 export default function TemplateSelector({ onTemplateSelect, showcase = false }: TemplateSelectorProps) {
+  const isPopular = usePopularTemplates(); // the three looks with the most resumes
+  const { tr } = useT();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
@@ -52,66 +57,69 @@ export default function TemplateSelector({ onTemplateSelect, showcase = false }:
     onTemplateSelect(templateId);
   };
 
-  const short = (name: string) => name.replace(" (Default)", "");
+  const short = (name: string) => tr(name.replace(" (Default)", ""));
 
   if (showcase) {
-    const selIndex = Math.max(0, templates.findIndex((t) => t.id === selectedTemplate));
     // The sheets are fully loaded before this renders (see lib/templatePreload), so they just animate in: no placeholder
-    if (templates.length === 0) return <div className="min-h-[24rem]" aria-busy />;
+    if (templates.length === 0) {
+      return (
+        <div className="grid grid-cols-2 items-start gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 lg:gap-x-5" aria-busy aria-label={tr("Resume template")}>
+          {Array.from({ length: 10 }, (_, i) => (
+            <div key={i} className="flex flex-col items-center">
+              <div className="shimmer aspect-[600/840] w-full rounded-lg bg-muted" />
+              <div className="shimmer mt-3 h-3 w-16 rounded bg-muted" />
+            </div>
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="relative">
-        <div className="grid grid-cols-3 items-start gap-5 sm:gap-10" role="radiogroup" aria-label="Resume template">
+        <div className="grid grid-cols-2 items-start gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-5 lg:gap-x-5" role="radiogroup" aria-label={tr("Resume template")}>
           {templates.map((template, i) => {
             const active = selectedTemplate === template.id;
-            // the chosen sheet sits straight and a little larger; the others fan out like papers on a desk
-            const tilt = active ? 0 : (i - selIndex) * 1.6;
             return (
               <motion.div
                 key={template.id}
                 className="flex flex-col items-center"
-                initial={{ opacity: 0, y: 28 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.05 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.45, delay: 0.03 + Math.min(i, 9) * 0.04, ease: [0.22, 1, 0.36, 1] }}
               >
                 <button
                   type="button"
                   role="radio"
                   aria-checked={active}
                   onClick={() => handleSelect(template.id)}
-                  style={{ transform: `rotate(${tilt}deg) scale(${active ? 1.04 : 0.97})`, maxWidth: "min(27rem, calc((100dvh - 20rem) * 0.714))" }}
-                  className={`relative w-full origin-bottom overflow-hidden bg-white p-1.5 transition-all duration-500 ease-out ${
+                  className={`group relative w-full overflow-hidden rounded-lg bg-white p-1 transition-all duration-300 ease-out ${
                     active
-                      ? "z-10 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.45)] outline outline-2 outline-offset-4 outline-blue-600"
-                      : "shadow-[0_10px_24px_-10px_rgba(0,0,0,0.4)] hover:-translate-y-1"
+                      ? "-translate-y-1 shadow-[0_18px_36px_-14px_rgba(37,99,235,0.55)] ring-2 ring-blue-600 ring-offset-2 ring-offset-background"
+                      : "shadow-[0_6px_16px_-8px_rgba(0,0,0,0.45)] ring-1 ring-black/10 hover:-translate-y-1 hover:shadow-[0_14px_28px_-12px_rgba(0,0,0,0.5)]"
                   }`}
                 >
+                  {isPopular(template.id) && <PopularRibbon />}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={template.imageUrl} alt={`${short(template.name)} preview`} width={600} height={840} decoding="sync" className="h-auto w-full" />
-                  <AnimatePresence>
-                    {active && (
-                      <motion.span
-                        key={template.id}
-                        initial={{ y: "100%", opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: "100%", opacity: 0 }}
-                        transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                        className="absolute inset-x-1.5 bottom-1.5 block bg-neutral-900/90 px-4 py-3 text-center text-xs font-medium leading-snug text-white backdrop-blur-sm"
-                      >
-                        {template.description}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
+                  <img src={template.imageUrl} alt={tr("{v0} preview", { v0: short(template.name) })} width={600} height={840} decoding="sync" className="h-auto w-full rounded-[3px]" />
+                  {active && (
+                    <motion.span
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 24 }}
+                      className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow"
+                    >
+                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                    </motion.span>
+                  )}
                 </button>
                 <button
                   type="button"
                   tabIndex={-1}
                   onClick={() => handleSelect(template.id)}
-                  className={`mt-5 border-b-2 pb-0.5 text-sm font-semibold tracking-wide transition-colors ${
-                    active ? "border-blue-600 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
+                  className={`mt-3 text-sm font-semibold tracking-wide transition-colors ${active ? "text-blue-600" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {short(template.name)}
                 </button>
+                <p className={`mt-0.5 hidden max-w-[14rem] text-center text-[11px] leading-snug text-muted-foreground transition-opacity duration-300 sm:block ${active ? "opacity-100" : "opacity-70"}`}>{tr(template.description)}</p>
               </motion.div>
             );
           })}
@@ -121,7 +129,7 @@ export default function TemplateSelector({ onTemplateSelect, showcase = false }:
   }
 
   return (
-    <div className="grid grid-cols-3 gap-3 sm:gap-4" role="radiogroup" aria-label="Resume template">
+    <div className="grid grid-cols-3 gap-3 sm:gap-4" role="radiogroup" aria-label={tr("Resume template")}>
       {templates.map((template) => {
         const active = selectedTemplate === template.id;
         return (
@@ -137,6 +145,7 @@ export default function TemplateSelector({ onTemplateSelect, showcase = false }:
                 : "border-border hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
             }`}
           >
+            {isPopular(template.id) && <PopularRibbon />}
             {active && (
               <span className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow">
                 <Check className="h-4 w-4" strokeWidth={3} />
@@ -145,7 +154,7 @@ export default function TemplateSelector({ onTemplateSelect, showcase = false }:
             <div className="bg-muted p-2">
               <Image
                 src={template.imageUrl}
-                alt={`${template.name} preview`}
+                alt={tr("{name} preview", { name: short(template.name) })}
                 width={250}
                 height={350}
                 className="h-auto w-full rounded-sm shadow-sm"
@@ -153,7 +162,7 @@ export default function TemplateSelector({ onTemplateSelect, showcase = false }:
             </div>
             <div className="p-2.5">
               <p className="text-sm font-bold leading-tight">{short(template.name)}</p>
-              <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">{template.description}</p>
+              <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">{tr(template.description)}</p>
             </div>
           </button>
         );

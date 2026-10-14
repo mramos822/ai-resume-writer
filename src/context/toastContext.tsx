@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
+import { useT } from "@/i18n/provider";
 
 type ToastType = "success" | "error" | "info";
 interface Toast {
@@ -52,6 +53,7 @@ const STYLES: Record<ToastType, { icon: React.ElementType; title: string; accent
 };
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { tr, trd } = useT();
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const dismiss = useCallback((id: number) => {
@@ -98,13 +100,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                       <Icon className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold leading-tight">{s.title}</p>
-                      <p className="mt-0.5 text-sm text-muted-foreground break-words">{message}</p>
+                      <p className="text-sm font-semibold leading-tight">{tr(s.title)}</p>
+                      <p className="mt-0.5 text-sm text-muted-foreground break-words">{trd(message)}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => dismiss(id)}
-                    aria-label="Dismiss"
+                    aria-label={tr("Dismiss")}
                     className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
                     <X className="h-4 w-4" />

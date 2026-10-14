@@ -1,3 +1,4 @@
+import { detectSelfEmployed } from "@/lib/selfEmployed";
 import { randomUUID } from "crypto";
 import type { EducationEntry, JobEntry, ProfileData, ProjectEntry } from "@/context/profileContext";
 
@@ -83,7 +84,8 @@ export function readLinkedIn(files: Record<string, string>): Partial<ProfileData
     if (!title && !company) return null;
     const { description, bullets } = bulletsOf(r["Description"]);
     const end = toMonth(r["Finished On"]);
-    return { id: `job-${randomUUID()}`, company: company.slice(0, 120), title: title.slice(0, 120), location: (r["Location"] || "").slice(0, 100), description, startDate: toMonth(r["Started On"]), endDate: end, current: !r["Finished On"], accomplishments: bullets };
+    const job: JobEntry = { id: `job-${randomUUID()}`, company: company.slice(0, 120), title: title.slice(0, 120), location: (r["Location"] || "").slice(0, 100), description, startDate: toMonth(r["Started On"]), endDate: end, current: !r["Finished On"], accomplishments: bullets };
+    return detectSelfEmployed(job) ? { ...job, selfEmployed: true } : job;
   };
   const jobs = get(files, "Positions.csv").map(toJob).filter((j): j is JobEntry => !!j);
   if (jobs.length) out.jobHistory = jobs;

@@ -3,9 +3,10 @@
 
 // The dashboard: say what you want to do today (make a resume, look for a job, bring in an old resume), see how far you
 // are, and work from there. Resumes come first; the job search is an option.
+import { asTemplateId } from "@/lib/templates";
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Briefcase, Check, ChevronDown, Download, FileText, Linkedin, Pen, Pencil, Plus, Send, Sparkles, Trash2, UploadCloud, User, Wand2 } from "lucide-react";
 import { useAuth } from "@/context/authContext";
@@ -14,9 +15,11 @@ import { useDialog } from "@/context/dialogContext";
 import { useProfile } from "@/context/profileContext";
 import { authFetch } from "@/lib/authFetch";
 import { getProfileProgress } from "@/lib/profileProgress";
+import type { Tr } from "@/i18n/translate";
 import { aboveLevel } from "@/lib/jobLevel";
-import { ago, fitOf } from "@/lib/jobFit";
-import { seniorityOf } from "@/lib/reviewRubric";
+import { ago, skillsForFit } from "@/lib/jobFit";
+import { jobScore, profileBasics } from "@/lib/jobScore";
+import { yearsFor } from "@/lib/experienceLevel";
 import { previewFromProfile } from "@/lib/previewData";
 import type { JobListing } from "@/lib/jobSearch";
 import CompanyLogo from "@/components/companyLogo";
@@ -30,6 +33,7 @@ import UploadedItems from "@/components/uploadedItems";
 import ResumePreviewModal from "@/components/resumePreviewModal";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/provider";
 
 interface ResumeRow {
   id: string;
@@ -56,9 +60,9 @@ const slide = {
   exit: (d: number) => ({ opacity: 0, x: d * -36 }),
 };
 
-function greeting() {
+function greeting(tr: Tr) {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 19 ? "Good afternoon" : "Good evening";
+  return h < 12 ? tr("Good morning") : h < 19 ? tr("Good afternoon") : tr("Good evening");
 }
 
 /** Kaizo's own picture: a sheet being scanned, with a check. (The same sheet as the loading screen.) */
@@ -99,6 +103,7 @@ function Illustration() {
 }
 
 export default function HomePage() {
+  const { tr, locale: uiLocale } = useT();
   const { user, loading } = useAuth();
   const router = useRouter();
   const toast = useToast();
@@ -122,7 +127,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!activeProfileId) return;
     authFetch(`/api/resumes?profileId=${activeProfileId}`).then((r) => (r.ok ? r.json() : [])).then(setResumes).catch(() => setResumes([]));
-    authFetch("/api/applications").then((r) => (r.ok ? r.json() : [])).then(setApps).catch(() => setApps([]));
+    authFetch(`/api/applications?profileId=${activeProfileId}`).then((r) => (r.ok ? r.json() : [])).then(setApps).catch(() => setApps([]));
     authFetch("/api/saved-jobs").then((r) => (r.ok ? r.json() : [])).then(setSaved).catch(() => setSaved([]));
   }, [activeProfileId]);
 
@@ -130,8 +135,8 @@ export default function HomePage() {
   const role = profile.jobTitle?.trim() || "";
   const place = [profile.contactInfo?.city, profile.contactInfo?.state].filter(Boolean).join(", ");
   const country = profile.contactInfo?.countryCode || "US";
-  const years = useMemo(() => seniorityOf(profile).years, [profile]);
-  const skills = useMemo(() => profile.skills ?? [], [profile.skills]);
+  const years = useMemo(() => yearsFor(profile), [profile]);
+  const skills = useMemo(() => skillsForFit(profile), [profile]);
   useEffect(() => {
     if (!role) {
       setPicks([]);
@@ -145,7 +150,7 @@ export default function HomePage() {
         setPicks(
           (d.jobs ?? [])
             .filter((j) => !aboveLevel(j, years))
-            .map((job) => ({ job, pct: fitOf(job, skills, role).pct }))
+            .map((job) => ({ job, pct: jobScore(profile, job, [], "classic", [], profileBasics(profile)).score }))
             .sort((a, b) => b.pct - a.pct)
             .slice(0, 6)
         );
@@ -156,7 +161,7 @@ export default function HomePage() {
     };
   }, [role, place, country, years, skills]);
 
-  const previewData = useMemo(() => previewFromProfile(profile), [profile]);
+  const previewData = useMemo(() => previewFromProfile(profile, uiLocale === "es" ? "es" : "en"), [profile, uiLocale]);
 
   if (loading || profiles.length === 0) {
     return (
@@ -170,7 +175,7 @@ export default function HomePage() {
     );
   }
 
-  const progress = getProfileProgress(profile);
+  const progress = getProfileProgress(profile, tr);
   const firstName = (user?.displayName || user?.email?.split("@")[0] || "").split(/[\s._-]/)[0];
   const activeName = profiles.find((p) => p.id === activeProfileId)?.name ?? profile.name;
   const empty = progress.doneCount === 0;
@@ -178,41 +183,41 @@ export default function HomePage() {
 
   const onCreate = async () => {
     await createProfile();
-    toast.success("New profile created. Switch between profiles from this menu.");
+    toast.success(tr("New profile created. Switch between profiles from this menu."));
   };
   const onRename = async () => {
-    const newName = await dialog.prompt({ title: "Rename profile", description: "Pick a name that helps you tell your profiles apart, like “Marketing jobs”.", label: "Profile name", defaultValue: activeName, confirmText: "Save name" });
+    const newName = await dialog.prompt({ title: tr("Rename profile"), description: tr("Pick a name that helps you tell your profiles apart, like “Marketing jobs”."), label: tr("Profile name"), defaultValue: activeName, confirmText: tr("Save name") });
     if (!newName || newName === activeName) return;
     try {
       await renameProfile(newName);
-      toast.success(`Profile renamed to “${newName}”.`);
+      toast.success(tr("Profile renamed to “{newName}”.", { newName }));
     } catch (err) {
       toast.error((err as Error).message);
     }
   };
   const onDelete = async () => {
     if (profiles.length <= 1) {
-      toast.info("You need at least one profile, so this one can't be deleted.");
+      toast.info(tr("You need at least one profile, so this one can't be deleted."));
       return;
     }
-    const ok = await dialog.confirm({ title: `Delete “${activeName}”?`, description: "Everything in this profile will be removed for good. Your other profiles are not affected.", confirmText: "Delete profile", tone: "danger" });
+    const ok = await dialog.confirm({ title: tr("Delete “{activeName}”?", { activeName }), description: tr("Everything in this profile will be removed for good. Your other profiles are not affected."), confirmText: tr("Delete profile"), tone: "danger" });
     if (!ok) return;
     await deleteProfile(activeProfileId);
-    toast.success("Profile deleted.");
+    toast.success(tr("Profile deleted."));
   };
 
   // the message of the big panel and its next step
   const nResumes = resumes?.length ?? 0;
   // null while the resumes load, so the panel does not show one message and then swap it for another
   const panel: { tone: string; title: string; text: string; cta: string; href: string; goal?: Goal } | null = empty
-    ? { tone: "from-amber-100 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/20", title: "Let's start your profile", text: "Bring in an old resume or fill it in yourself. Everything you add goes into every resume you make.", cta: "Import a resume", href: "", goal: "import" }
+    ? { tone: "from-amber-100 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/20", title: tr("Let's start your profile"), text: tr("Bring in an old resume or fill it in yourself. Everything you add goes into every resume you make."), cta: tr("Import a resume"), href: "", goal: "import" }
     : progress.next
-    ? { tone: "from-sky-100 to-indigo-50 dark:from-sky-950/40 dark:to-indigo-950/20", title: `${progress.percent}% of your profile is done`, text: `${progress.next.hint}. It makes every resume better.`, cta: `Add ${progress.next.label.toLowerCase()}`, href: `/home/profile#${progress.next.key}` }
+    ? { tone: "from-sky-100 to-indigo-50 dark:from-sky-950/40 dark:to-indigo-950/20", title: tr("{percent}% of your profile is done", { percent: progress.percent }), text: tr("{hint}. It makes every resume better.", { hint: progress.next.hint }), cta: tr("Add {label}", { label: progress.next.label.toLowerCase() }), href: `/home/profile#${progress.next.key}` }
     : resumes === null
     ? null
     : nResumes === 0
-    ? { tone: "from-emerald-100 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/20", title: "Profile complete!", text: "Nice work. Pick a look and your first resume is ready in a minute.", cta: "Make my first resume", href: "/home/resumes/new" }
-    : { tone: "from-emerald-100 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/20", title: "Resume ready!", text: "Your profile is complete. Try a new look, or tailor a resume to a job you like.", cta: "Make another resume", href: "/home/resumes/new" };
+    ? { tone: "from-emerald-100 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/20", title: tr("Profile complete!"), text: tr("Nice work. Pick a look and your first resume is ready in a minute."), cta: tr("Make my first resume"), href: "/home/resumes/new" }
+    : { tone: "from-emerald-100 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/20", title: tr("Resume ready!"), text: tr("Your profile is complete. Try a new look, or tailor a resume to a job you like."), cta: tr("Make another resume"), href: "/home/resumes/new" };
 
   const progressRows = [
     { icon: User, label: "Profile", value: `${progress.percent}%`, pct: progress.percent, href: "/home/profile" },
@@ -235,7 +240,7 @@ export default function HomePage() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>Your profiles</DropdownMenuLabel>
+              <DropdownMenuLabel>{tr("Your profiles")}</DropdownMenuLabel>
               {profiles.map((p) => (
                 <DropdownMenuItem key={p.id} onClick={() => setActiveProfileId(p.id)} className="justify-between">
                   <span className="truncate">{p.name}</span>
@@ -244,27 +249,24 @@ export default function HomePage() {
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onCreate} className="gap-2">
-                <Plus className="h-4 w-4" /> New profile
-              </DropdownMenuItem>
+                <Plus className="h-4 w-4" />{" "}{tr("New profile")}</DropdownMenuItem>
               <DropdownMenuItem onClick={onRename} className="gap-2">
-                <Pencil className="h-4 w-4" /> Rename this profile
-              </DropdownMenuItem>
+                <Pencil className="h-4 w-4" />{" "}{tr("Rename this profile")}</DropdownMenuItem>
               <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-600 focus:text-red-600">
-                <Trash2 className="h-4 w-4" /> Delete this profile
-              </DropdownMenuItem>
+                <Trash2 className="h-4 w-4" />{" "}{tr("Delete this profile")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
         <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-          {greeting()},{" "}
+          {greeting(tr)},{" "}
           <span className="relative inline-block">
-            {firstName || "there"}
+            {firstName || tr("there")}
             <svg viewBox="0 0 300 14" preserveAspectRatio="none" className="absolute -bottom-1.5 left-0 h-2.5 w-full text-amber-400" aria-hidden>
               <path d="M2 9 C 60 2, 120 13, 180 6 S 270 4, 298 8" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />
             </svg>
           </span>
         </h1>
-        <p className="mt-3 text-lg text-muted-foreground">What do you want to do today?</p>
+        <p className="mt-3 text-lg text-muted-foreground">{tr("What do you want to do today?")}</p>
 
         {/* the goal: three paths, the first one is the main one */}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-y-2">
@@ -283,7 +285,7 @@ export default function HomePage() {
                 {/* one highlight that slides from button to button */}
                 {goal === g.id && <motion.span layoutId="goal-pill" className="absolute inset-0 -z-0 rounded-full border border-blue-500 bg-blue-600/10 shadow-sm" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
                 <span className="relative z-10 inline-flex items-center gap-2">
-                  <g.icon className="h-4 w-4" /> {g.label}
+                  <g.icon className="h-4 w-4" /> {tr(g.label)}
                 </span>
               </button>
               {i < GOALS.length - 1 && <span className="mx-2 hidden h-px w-7 border-t-2 border-dashed border-border sm:block" aria-hidden />}
@@ -295,7 +297,7 @@ export default function HomePage() {
       {/* ---------- progress and what comes next ---------- */}
       <div className="mt-9 grid items-stretch gap-5 md:grid-cols-[21rem_1fr]">
         <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="rounded-2xl border bg-card p-5 shadow-sm">
-          <p className="mb-3 text-center text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Your progress</p>
+          <p className="mb-3 text-center text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{tr("Your progress")}</p>
           <ul>
             {progressRows.map((r) => (
               <li key={r.label}>
@@ -305,7 +307,7 @@ export default function HomePage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between">
-                      <span className="text-[15px] font-medium">{r.label}</span>
+                      <span className="text-[15px] font-medium">{tr(r.label)}</span>
                       <span className="text-sm font-bold tabular-nums">{r.value}</span>
                     </span>
                     <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
@@ -323,8 +325,8 @@ export default function HomePage() {
         ) : (
         <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`relative flex items-center overflow-hidden rounded-3xl bg-gradient-to-br p-8 ${panel.tone}`}>
           <div className="relative z-10 max-w-sm">
-            <h2 className="text-2xl font-extrabold leading-tight">{panel.title}</h2>
-            <p className="mt-2 leading-relaxed text-foreground/70">{panel.text}</p>
+            <h2 className="text-2xl font-extrabold leading-tight">{tr(panel.title)}</h2>
+            <p className="mt-2 leading-relaxed text-foreground/70">{tr(panel.text)}</p>
             {panel.href ? (
               <Button asChild className="mt-6 h-12 w-full justify-between gap-6 rounded-xl bg-background px-5 text-base font-semibold text-foreground shadow-md hover:bg-background/90 sm:w-auto">
                 <Link href={panel.href}>
@@ -350,11 +352,10 @@ export default function HomePage() {
           {goal === "resumes" && (
             <motion.section key="resumes" custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
               <div className="mb-6 flex items-center justify-between gap-3">
-                <h2 className="text-2xl font-extrabold">Your resumes</h2>
+                <h2 className="text-2xl font-extrabold">{tr("Your resumes")}</h2>
                 <Button asChild className="h-10 gap-1.5 rounded-lg px-5 font-bold">
                   <Link href="/home/resumes/new">
-                    <Plus className="h-4 w-4" /> Create new
-                  </Link>
+                    <Plus className="h-4 w-4" />{" "}{tr("Create new")}</Link>
                 </Button>
               </div>
               <div className="grid gap-x-10 gap-y-10 md:grid-cols-2">
@@ -362,32 +363,29 @@ export default function HomePage() {
                   <div className="shimmer h-64 rounded-xl bg-muted" />
                 ) : (
                   recent.map((r) => {
-                    const tpl = r.metadata?.template === "modern" || r.metadata?.template === "creative" ? r.metadata.template : "classic";
+                    const tpl = asTemplateId(r.metadata?.template);
                     return (
                       <article key={r.id} className="flex gap-6">
-                        <button onClick={() => setPreviewId(r.id)} className="w-[10.5rem] shrink-0 self-start overflow-hidden rounded-md shadow-md ring-1 ring-black/10 transition-transform duration-300 hover:-translate-y-1 hover:shadow-xl" aria-label="Open this resume">
+                        <button onClick={() => setPreviewId(r.id)} className="w-[10.5rem] shrink-0 self-start overflow-hidden rounded-md shadow-md ring-1 ring-black/10 transition-transform duration-300 hover:-translate-y-1 hover:shadow-xl" aria-label={tr("Open this resume")}>
                           <LivePreview d={previewData} template={tpl} active={null} inline bare />
                         </button>
                         <div className="min-w-0 flex-1">
                           <h3 className="truncate text-xl font-bold">{r.filename.replace(/\.pdf$/i, "").replace(/_/g, " ")}</h3>
                           <p className="mt-1 text-sm capitalize text-muted-foreground">
-                            {tpl} look · updated {ago(r.uploadDate || r.metadata?.createdAt).toLowerCase()}
+                            {tpl}{" "}{tr("look · updated")}{" "}{ago(r.uploadDate || r.metadata?.createdAt, tr).toLowerCase()}
                           </p>
                           <ul className="mt-5 space-y-2.5 text-[15px] font-medium">
                             <li>
                               <button onClick={() => setPreviewId(r.id)} className="inline-flex items-center gap-2.5 hover:text-blue-500">
-                                <Download className="h-4 w-4 text-blue-500" /> Download
-                              </button>
+                                <Download className="h-4 w-4 text-blue-500" />{" "}{tr("Download")}</button>
                             </li>
                             <li>
                               <Link href="/home/job-ads" className="inline-flex items-center gap-2.5 hover:text-blue-500">
-                                <Wand2 className="h-4 w-4 text-blue-500" /> Tailor to a job
-                              </Link>
+                                <Wand2 className="h-4 w-4 text-blue-500" />{" "}{tr("Tailor to a job")}</Link>
                             </li>
                             <li>
                               <Link href="/home/profile" className="inline-flex items-center gap-2.5 hover:text-blue-500">
-                                <Pencil className="h-4 w-4 text-blue-500" /> Edit my details
-                              </Link>
+                                <Pencil className="h-4 w-4 text-blue-500" />{" "}{tr("Edit my details")}</Link>
                             </li>
                           </ul>
                         </div>
@@ -405,8 +403,8 @@ export default function HomePage() {
                       </span>
                     </span>
                     <span className="min-w-0 flex-1 pt-1">
-                      <span className="block text-xl font-bold text-muted-foreground transition-colors group-hover:text-foreground">New resume</span>
-                      <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">Make another one from your profile in a new look, or tailor it for a different job.</span>
+                      <span className="block text-xl font-bold text-muted-foreground transition-colors group-hover:text-foreground">{tr("New resume")}</span>
+                      <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">{tr("Make another one from your profile in a new look, or tailor it for a different job.")}</span>
                     </span>
                   </Link>
                 )}
@@ -417,12 +415,9 @@ export default function HomePage() {
           {goal === "jobs" && (
             <motion.section key="jobs" custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
               <div className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
-                <h2 className="text-2xl font-extrabold">Your job matches</h2>
-                <p className="text-sm text-muted-foreground">
-                  Not right? Update your{" "}
-                  <Link href="/home/profile#objective" className="font-semibold text-blue-500 hover:underline">
-                    profile
-                  </Link>
+                <h2 className="text-2xl font-extrabold">{tr("Your job matches")}</h2>
+                <p className="text-sm text-muted-foreground">{tr("Not right? Update your")}{" "}
+                  <Link href="/home/profile#objective" className="font-semibold text-blue-500 hover:underline">{tr("profile")}</Link>
                 </p>
               </div>
               {picks === null ? (
@@ -433,26 +428,25 @@ export default function HomePage() {
                 </div>
               ) : picks.length === 0 ? (
                 <p className="rounded-xl border border-dashed px-5 py-10 text-center text-muted-foreground">
-                  {role ? "No openings matched your role right now. The full search has more." : "Set the job you are after in your profile and the openings that fit you appear here."}{" "}
+                  {role ? tr("No openings matched your role right now. The full search has more.") : tr("Set the job you are after in your profile and the openings that fit you appear here.")}{" "}
                   <Link href={role ? "/home/job-ads" : "/home/profile#objective"} className="font-semibold text-blue-500 hover:underline">
-                    {role ? "Open job search" : "Set my target job"}
+                    {role ? tr("Open job search") : tr("Set my target job")}
                   </Link>
                 </p>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
-                  {picks.map(({ job, pct }) => (
+                  {picks.filter(({ job }) => { const st = (apps ?? []).find((a) => a.job.key === job.key)?.status; return !st || st === "prepared"; }).map(({ job, pct }) => ( // jobs already applied to are not suggested
                     <button key={job.key} type="button" onClick={() => setDetailJob(job)} className="group flex gap-4 rounded-xl border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md">
                       <CompanyLogo company={job.company} logo={job.logo} size={52} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-lg font-bold group-hover:text-blue-500">{job.title}</span>
+                        <span className="block truncate text-lg font-bold group-hover:text-blue-500">{tr(job.title)}</span>
                         <span className="block truncate text-foreground/80">
-                          {job.company} · {job.remote ? "Remote" : job.location || "—"}
+                          {job.company} · {job.remote ? tr("Remote") : job.location || "—"}
                         </span>
                         <span className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
-                          {job.postedAt && <span>Posted {ago(job.postedAt).toLowerCase()}</span>}
+                          {job.postedAt && <span>{tr("Posted")}{" "}{ago(job.postedAt, tr).toLowerCase()}</span>}
                           <span className={`inline-flex items-center gap-1 font-bold ${pct >= 70 ? "text-green-500" : "text-amber-500"}`}>
-                            <Sparkles className="h-3.5 w-3.5" /> {pct}% fit
-                          </span>
+                            <Sparkles className="h-3.5 w-3.5" /> {pct}{tr("% fit")}</span>
                         </span>
                       </span>
                     </button>
@@ -461,8 +455,7 @@ export default function HomePage() {
               )}
               <div className="mt-6 text-center">
                 <Button asChild variant="outline" className="rounded-full px-6 font-semibold">
-                  <Link href="/home/job-ads">
-                    Open the full job search <ArrowRight className="ml-2 h-4 w-4" />
+                  <Link href="/home/job-ads">{tr("Open the full job search")}{" "}<ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
               </div>
@@ -471,8 +464,8 @@ export default function HomePage() {
 
           {goal === "import" && (
             <motion.section key="import" id="import" custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="mx-auto max-w-3xl">
-              <h2 className="text-2xl font-extrabold">Tell Kaizo about you</h2>
-              <p className="mb-5 mt-1 text-muted-foreground">Bring in an old resume, or just write about yourself. Either way your profile fills itself.</p>
+              <h2 className="text-2xl font-extrabold">{tr("Tell Kaizo about you")}</h2>
+              <p className="mb-5 mt-1 text-muted-foreground">{tr("Bring in an old resume, or just write about yourself. Either way your profile fills itself.")}</p>
               <div role="tablist" className="mb-6 inline-flex rounded-full border bg-card p-1 shadow-sm">
                 {[
                   { id: "upload" as const, label: "Upload a file", icon: UploadCloud },
@@ -486,14 +479,14 @@ export default function HomePage() {
                     onClick={() => setWay(t.id)}
                     className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition-all ${way === t.id ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground hover:text-foreground"}`}
                   >
-                    <t.icon className="h-4 w-4" /> {t.label}
+                    <t.icon className="h-4 w-4" /> {tr(t.label)}
                   </button>
                 ))}
               </div>
               {way === "upload" ? (
                 <>
                   <FileUpload />
-                  <h3 className="mb-3 mt-10 text-lg font-extrabold">Files you imported</h3>
+                  <h3 className="mb-3 mt-10 text-lg font-extrabold">{tr("Files you imported")}</h3>
                   <UploadedItems />
                 </>
               ) : way === "linkedin" ? (
@@ -523,7 +516,7 @@ export default function HomePage() {
         template={(() => {
           try {
             const t = localStorage.getItem("kaizo_template");
-            return t === "modern" || t === "creative" ? t : "classic";
+            return asTemplateId(t);
           } catch {
             return "classic";
           }

@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "@/styles/globals.css";
 import Providers from "@/app/providers";
+import { getLocale } from "@/i18n/server";
+import { makeT } from "@/i18n/translate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,33 +15,37 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const description = "Build a resume that passes applicant tracking systems, tailor it to each job and download it as PDF or DOCX. Free to start.";
-
-export const metadata: Metadata = {
-  title: { default: "Kaizo Resume Builder", template: "%s | Kaizo" },
-  description,
-  applicationName: "Kaizo",
-  keywords: ["resume builder", "ATS resume", "cover letter", "job search", "CV"],
-  manifest: "/manifest.json",
-  icons: { icon: "/logo.png", apple: "/logo.png" },
-  openGraph: { title: "Kaizo Resume Builder", description, images: ["/logo.png"], type: "website", siteName: "Kaizo" },
-  twitter: { card: "summary", title: "Kaizo Resume Builder", description, images: ["/logo.png"] },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { tr } = makeT(await getLocale());
+  const description = tr("Build a resume that passes applicant tracking systems, tailor it to each job and download it as PDF or DOCX. Free to start.");
+  return {
+    title: { default: tr("Kaizo Resume Builder"), template: "%s | Kaizo" },
+    description,
+    applicationName: "Kaizo",
+    keywords: ["resume builder", "ATS resume", "cover letter", "job search", "CV", "curriculum", "currículum"],
+    manifest: "/manifest.json",
+    icons: { icon: "/logo-v2.png", apple: "/logo-v2.png" },
+    openGraph: { title: tr("Kaizo Resume Builder"), description, images: ["/logo-v2.png"], type: "website", siteName: "Kaizo" },
+    twitter: { card: "summary", title: tr("Kaizo Resume Builder"), description, images: ["/logo-v2.png"] },
+  };
+}
 
 export const viewport: Viewport = { themeColor: "#ffffff" };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const { tr } = makeT(locale);
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-md focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">
-          Skip to content
+          {tr("Skip to content")}
         </a>
-        <Providers>{children}</Providers>
+        <Providers locale={locale}>{children}</Providers>
       </body>
     </html>
   );
