@@ -208,9 +208,9 @@ export default function HomePage() {
   const empty = progress.doneCount === 0;
   const recent = (resumes ?? []).slice().sort((a, b) => +new Date(b.uploadDate || b.metadata?.createdAt) - +new Date(a.uploadDate || a.metadata?.createdAt)).slice(0, 6);
 
-  const onCreate = async () => {
-    await createProfile();
-    toast.success(tr("New profile created. Switch between profiles from this menu."));
+  const onCreate = async (name: string) => {
+    await createProfile(name);
+    toast.success(tr("Profile “{name}” created.", { name }));
   };
   const onRename = async () => {
     const newName = await dialog.prompt({ title: tr("Rename profile"), description: tr("Pick a name that helps you tell your profiles apart, like “Marketing jobs”."), label: tr("Profile name"), defaultValue: activeName, confirmText: tr("Save name") });

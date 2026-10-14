@@ -34,7 +34,7 @@ export default function ProfileSelector() {
         ))}
       </select>
 
-      <Button onClick={createProfile} size="sm">{tr("+ New")}</Button>
+      <Button onClick={() => createProfile()} size="sm">{tr("+ New")}</Button>
 
       <input
         type="text"

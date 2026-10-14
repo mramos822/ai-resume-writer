@@ -112,7 +112,8 @@ export interface ProfileContextType {
   activeProfileId: string;
   activeProfile: ProfileData & { name: string };
   setActiveProfileId: (id: string) => void;
-  createProfile: () => Promise<void>;
+  /** makes a profile with the given name; fails with code "name-taken" (and the existing profile's id) if that name is already used */
+  createProfile: (name?: string) => Promise<void>;
   deleteProfile: (id: string) => Promise<void>;
   renameProfile: (newName: string) => Promise<void>;
   parseFile: (fileId: string) => Promise<Partial<ProfileData>>;
@@ -277,14 +278,19 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     markUnsaved();
   };
 
-  const createProfile = useCallback(async () => {
+  const createProfile = useCallback(async (name?: string) => {
     if (!user) return;
     const token = await user.getIdToken();
     const res = await fetch("/api/profiles", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...(name !== undefined ? { "Content-Type": "application/json" } : {}) },
+      ...(name !== undefined ? { body: JSON.stringify({ name }) } : {}),
     });
-    if (!res.ok) throw new Error(tr("Create failed"));
+    if (!res.ok) {
+      const info = (await res.json().catch(() => ({}))) as { error?: string; id?: string; name?: string };
+      if (info.error === "name-taken" || info.error === "name-empty") throw Object.assign(new Error(info.error), { code: info.error, id: info.id, name: info.name });
+      throw new Error(tr("Create failed"));
+    }
     const doc = (await res.json()) as { id: string; name: string };
     setActiveProfileId(doc.id);
     await loadProfiles();
