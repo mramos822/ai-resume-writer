@@ -470,8 +470,8 @@ export default function HomePage() {
                           <span className="min-w-0 flex-1">
                             <span className="flex items-start justify-between gap-2">
                               <span className="line-clamp-2 text-base font-bold leading-snug group-hover:text-blue-500 sm:text-lg">{tr(job.title)}</span>
-                              <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 70 ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"}`}>
-                                <Sparkles className="h-3 w-3" /> {pct}{tr("% fit")}</span>
+                              <span className={`inline-flex shrink-0 items-center gap-1 text-sm font-bold ${pct >= 70 ? "text-green-500" : "text-amber-500"}`} title={`${pct}${tr("% fit")}`}>
+                                <Sparkles className="h-3.5 w-3.5" />{pct}%</span>
                             </span>
                             <span className="mt-0.5 block truncate pr-10 text-sm text-foreground/80 sm:text-base">{job.company}</span>
                             <span className="block truncate pr-10 text-sm text-muted-foreground">{job.remote ? tr("Remote") : job.location || "—"}</span>
