@@ -353,7 +353,7 @@ export default function JobSearchPage() {
       </form>
 
       {/* tabs */}
-      <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div role="tablist" className="inline-flex rounded-full border bg-card p-1 shadow-sm">
           {[
             { id: "results" as const, label: "Results", n: jobs.length },

@@ -230,7 +230,7 @@ export default function HomePage() {
     <div className="mx-auto max-w-[1180px] pb-10 pt-4 sm:pt-10">
       {/* ---------- hello and the goal of the day ---------- */}
       <motion.header initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative text-center">
-        <div className="absolute right-0 top-0">
+        <div className="mb-4 flex justify-center sm:absolute sm:right-0 sm:top-0 sm:mb-0 sm:block">
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <button className="inline-flex items-center gap-2 rounded-full border bg-card px-3.5 py-1.5 text-sm font-medium transition-colors hover:border-blue-500/50">
@@ -358,7 +358,7 @@ export default function HomePage() {
                     <Plus className="h-4 w-4" />{" "}{tr("Create new")}</Link>
                 </Button>
               </div>
-              <div className="grid gap-x-10 gap-y-10 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-x-10 gap-y-10 md:grid-cols-2">
                 {resumes === null ? (
                   <div className="shimmer h-64 rounded-xl bg-muted" />
                 ) : (

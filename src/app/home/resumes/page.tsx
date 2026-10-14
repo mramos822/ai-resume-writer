@@ -215,7 +215,7 @@ export default function ResumesPage() {
       </div>
 
       {tab === "resumes" && (
-        <div className="mt-4 grid items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_19rem]">
+        <div className="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_19rem]">
           {/* the rail: every version */}
           <aside className="space-y-2 lg:sticky lg:top-24">
             <p className="px-1 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("Versions")}</p>

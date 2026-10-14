@@ -1613,7 +1613,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   const topToolbar =
     embedded && topSlot
       ? createPortal(
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-2 sm:flex-wrap sm:gap-3">
             <div className="inline-flex h-9 items-center rounded-full bg-muted p-0.5 text-sm font-semibold" role="tablist">
               {[
                 { id: false, label: "Edit", icon: PenLine },

@@ -60,7 +60,7 @@ export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
 
     return (
         <header className="sticky top-0 z-20 shrink-0 border-b bg-background/80 px-3 backdrop-blur-xl sm:px-6">
-          <div className="flex h-16 items-center gap-3">
+          <div className="flex min-h-16 items-center gap-1.5 max-sm:flex-wrap sm:h-16 sm:gap-3">
             <button
                 onClick={toggleSidePanel}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -70,14 +70,14 @@ export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
             </button>
 
             {/* where you are: a blue mark and the page */}
-            <div className="flex min-w-0 items-baseline gap-2">
+            <div className="flex min-w-0 items-baseline gap-2 max-sm:flex-1">
                 <span aria-hidden className="hidden text-sm font-semibold text-muted-foreground sm:inline">Kaizo</span>
                 <span aria-hidden className="hidden text-muted-foreground/50 sm:inline">/</span>
                 <span className="truncate text-lg font-extrabold tracking-tight">{pageTitle}</span>
             </div>
 
             {/* a spot in the middle that a page can fill (the resume builder puts its buttons here) */}
-            <div id="topbar-center" className="flex min-w-0 flex-1 items-center justify-center px-2" />
+            <div id="topbar-center" className="flex min-w-0 items-center justify-center px-2 empty:hidden max-sm:order-last max-sm:basis-full max-sm:pb-2 sm:flex-1" />
 
             <div className="ml-auto flex items-center gap-1">
                 <Link
@@ -86,8 +86,8 @@ export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
                 >
                     <Plus className="h-4 w-4" />{" "}{tr("New resume")}</Link>
 
-                <LanguageSwitch tone="app" className="hidden md:inline-flex" />
-                <LanguageSwitch tone="app" compact className="md:hidden" />
+                <span className="hidden md:block"><LanguageSwitch tone="app" /></span>
+                <span className="md:hidden"><LanguageSwitch tone="app" compact /></span>
                 <ThemeToggle compact />
 
                 {/* Help menu */}
