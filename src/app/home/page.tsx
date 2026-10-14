@@ -48,7 +48,7 @@ type Goal = "resumes" | "jobs" | "import";
 const GOALS: { id: Goal; label: string; icon: typeof FileText }[] = [
   { id: "resumes", label: "Make a resume", icon: FileText },
   { id: "jobs", label: "Find a job", icon: Briefcase },
-  { id: "import", label: "Import or write about you", icon: UploadCloud },
+  { id: "import", label: "About you", icon: UploadCloud },
 ];
 
 /** The content of a goal comes in from the side of the button chosen and the old one leaves the other way. */
@@ -299,7 +299,7 @@ export default function HomePage() {
         <p className="mt-2 text-base text-muted-foreground sm:mt-3 sm:text-lg">{tr("What do you want to do today?")}</p>
 
         {/* the goal: three paths, the first one is the main one */}
-        <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-y-2">
+        <div className="mt-5 grid grid-cols-3 gap-2.5 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-y-2">
           {GOALS.map((g, i) => (
             <React.Fragment key={g.id}>
               <button
@@ -308,15 +308,16 @@ export default function HomePage() {
                   setGoal(g.id);
                 }}
                 aria-pressed={goal === g.id}
-                className={`relative inline-flex items-center justify-center gap-2 rounded-2xl border px-2 py-3 text-center text-xs font-semibold leading-tight transition-colors duration-300 sm:rounded-full sm:px-5 sm:py-2.5 sm:text-[15px] ${
-                  goal === g.id ? "border-transparent text-blue-500" : "bg-card text-muted-foreground hover:border-blue-500/40 hover:text-foreground"
+                className={`relative inline-flex flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-[13px] font-semibold leading-tight transition-colors duration-300 sm:flex-row sm:gap-2 sm:rounded-full sm:px-5 sm:py-2.5 sm:text-[15px] ${
+                  goal === g.id ? "border-transparent text-white" : "bg-card text-muted-foreground hover:border-blue-500/40 hover:text-foreground"
                 }`}
               >
                 {/* one highlight that slides from button to button */}
-                {goal === g.id && <motion.span layoutId="goal-pill" className="absolute inset-0 -z-0 rounded-2xl border sm:rounded-full border border-blue-500 bg-blue-600/10 shadow-sm" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
-                <span className="relative z-10 inline-flex flex-col items-center gap-1.5 sm:flex-row sm:gap-2">
-                  <g.icon className="h-4 w-4" /> {tr(g.label)}
+                {goal === g.id && <motion.span layoutId="goal-pill" className="absolute inset-0 -z-0 rounded-2xl bg-blue-600 shadow-lg shadow-blue-600/30 sm:rounded-full" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+                <span className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-300 sm:h-auto sm:w-auto sm:bg-transparent ${goal === g.id ? "bg-white/20" : "bg-blue-600/10 text-blue-500"}`}>
+                  <g.icon className="h-[18px] w-[18px] sm:h-4 sm:w-4" />
                 </span>
+                <span className="relative z-10">{tr(g.label)}</span>
               </button>
               {i < GOALS.length - 1 && <span className="mx-2 hidden h-px w-7 border-t-2 border-dashed border-border sm:block" aria-hidden />}
             </React.Fragment>
