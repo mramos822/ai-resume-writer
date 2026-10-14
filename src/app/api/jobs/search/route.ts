@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const now = Date.now();
     const h = hits.get(uid);
     if (!h || now - h.since > 60_000) hits.set(uid, { count: 1, since: now });
-    else if (++h.count > 20) throw new HttpError(429, "Too many searches. Wait a moment and try again.");
+    else if (++h.count > 60) throw new HttpError(429, "Too many searches. Wait a moment and try again.");
 
     const sp = new URL(req.url).searchParams;
     const country = (sp.get("country") ?? "US").slice(0, 2);
