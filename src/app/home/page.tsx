@@ -260,7 +260,8 @@ export default function HomePage() {
     <div className="mx-auto max-w-[1180px] pb-10 pt-4 sm:pt-10">
       {/* ---------- hello and the goal of the day ---------- */}
       <motion.header initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative text-center">
-        <div className="mb-4 flex justify-center sm:absolute sm:right-0 sm:top-0 sm:mb-0 sm:block">
+        <div className="mb-4 flex items-center justify-between gap-2 sm:absolute sm:right-0 sm:top-0 sm:mb-0 sm:block">
+          <div className="min-w-0 shrink">
           <ProfileSwitcher
             profiles={profiles}
             activeId={activeProfileId}
@@ -270,6 +271,18 @@ export default function HomePage() {
             onRename={onRename}
             onDelete={onDelete}
           />
+          </div>
+          {/* on a phone the numbers of "your progress" live here, next to the profile button, and the big card is not drawn */}
+          <ul className="flex shrink-0 items-center gap-1 sm:hidden">
+            {progressRows.map((r) => (
+              <li key={r.label}>
+                <Link href={r.href} aria-label={`${tr(r.label)}: ${r.value}`} title={tr(r.label)} className="inline-flex h-8 items-center gap-1 rounded-full bg-muted/60 px-2 text-xs font-bold tabular-nums transition-colors hover:bg-muted">
+                  <r.icon className="h-3.5 w-3.5 text-blue-500" />
+                  {r.value}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
         <h1 className="text-3xl font-black tracking-tight sm:text-5xl">
           {greeting(tr)},{" "}
@@ -310,8 +323,8 @@ export default function HomePage() {
       </motion.header>
 
       {/* ---------- progress and what comes next ---------- */}
-      <div className="mt-6 grid items-stretch gap-4 sm:mt-9 sm:gap-5 md:grid-cols-[21rem_1fr]">
-        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="rounded-2xl border bg-card p-3 shadow-sm sm:p-5 max-md:order-last">
+      <div className={`mt-6 grid items-stretch gap-4 sm:mt-9 sm:gap-5 md:grid-cols-[21rem_1fr] ${allDone ? "max-sm:hidden" : ""}`}>
+        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="rounded-2xl border bg-card p-3 shadow-sm sm:p-5 max-sm:hidden">
           <p className="mb-2 hidden text-center text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground md:block">{tr("Your progress")}</p>
           <ul className="grid grid-cols-4 gap-1 md:block">
             {progressRows.map((r) => (
