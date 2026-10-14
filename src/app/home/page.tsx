@@ -257,7 +257,7 @@ export default function HomePage() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+        <h1 className="text-3xl font-black tracking-tight sm:text-5xl">
           {greeting(tr)},{" "}
           <span className="relative inline-block">
             {firstName || tr("there")}
@@ -266,10 +266,10 @@ export default function HomePage() {
             </svg>
           </span>
         </h1>
-        <p className="mt-3 text-lg text-muted-foreground">{tr("What do you want to do today?")}</p>
+        <p className="mt-2 text-base text-muted-foreground sm:mt-3 sm:text-lg">{tr("What do you want to do today?")}</p>
 
         {/* the goal: three paths, the first one is the main one */}
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-y-2">
+        <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-y-2">
           {GOALS.map((g, i) => (
             <React.Fragment key={g.id}>
               <button
@@ -278,13 +278,13 @@ export default function HomePage() {
                   setGoal(g.id);
                 }}
                 aria-pressed={goal === g.id}
-                className={`relative inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-[15px] font-semibold transition-colors duration-300 ${
+                className={`relative inline-flex items-center justify-center gap-2 rounded-2xl border px-2 py-3 text-center text-xs font-semibold leading-tight transition-colors duration-300 sm:rounded-full sm:px-5 sm:py-2.5 sm:text-[15px] ${
                   goal === g.id ? "border-transparent text-blue-500" : "bg-card text-muted-foreground hover:border-blue-500/40 hover:text-foreground"
                 }`}
               >
                 {/* one highlight that slides from button to button */}
-                {goal === g.id && <motion.span layoutId="goal-pill" className="absolute inset-0 -z-0 rounded-full border border-blue-500 bg-blue-600/10 shadow-sm" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
-                <span className="relative z-10 inline-flex items-center gap-2">
+                {goal === g.id && <motion.span layoutId="goal-pill" className="absolute inset-0 -z-0 rounded-2xl border sm:rounded-full border border-blue-500 bg-blue-600/10 shadow-sm" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+                <span className="relative z-10 inline-flex flex-col items-center gap-1.5 sm:flex-row sm:gap-2">
                   <g.icon className="h-4 w-4" /> {tr(g.label)}
                 </span>
               </button>
@@ -295,14 +295,14 @@ export default function HomePage() {
       </motion.header>
 
       {/* ---------- progress and what comes next ---------- */}
-      <div className="mt-9 grid items-stretch gap-5 md:grid-cols-[21rem_1fr]">
-        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="rounded-2xl border bg-card p-5 shadow-sm">
-          <p className="mb-3 text-center text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{tr("Your progress")}</p>
-          <ul>
+      <div className="mt-6 grid items-stretch gap-4 sm:mt-9 sm:gap-5 md:grid-cols-[21rem_1fr]">
+        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="rounded-2xl border bg-card p-3 shadow-sm sm:p-5 max-md:order-last">
+          <p className="mb-2 text-center text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{tr("Your progress")}</p>
+          <ul className="grid grid-cols-2 gap-1 md:block">
             {progressRows.map((r) => (
               <li key={r.label}>
-                <Link href={r.href} className="group flex items-center gap-3.5 rounded-xl px-2 py-2.5 transition-colors hover:bg-accent/50">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600">
+                <Link href={r.href} className="group flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors hover:bg-accent/50 sm:gap-3.5 sm:py-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600 sm:h-10 sm:w-10">
                     <r.icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -323,18 +323,18 @@ export default function HomePage() {
         {!panel ? (
           <div className="shimmer rounded-3xl bg-muted" aria-hidden />
         ) : (
-        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`relative flex items-center overflow-hidden rounded-3xl bg-gradient-to-br p-8 ${panel.tone}`}>
+        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`relative flex items-center overflow-hidden rounded-3xl bg-gradient-to-br p-5 sm:p-8 ${panel.tone}`}>
           <div className="relative z-10 max-w-sm">
-            <h2 className="text-2xl font-extrabold leading-tight">{tr(panel.title)}</h2>
+            <h2 className="text-xl font-extrabold leading-tight sm:text-2xl">{tr(panel.title)}</h2>
             <p className="mt-2 leading-relaxed text-foreground/70">{tr(panel.text)}</p>
             {panel.href ? (
-              <Button asChild className="mt-6 h-12 w-full justify-between gap-6 rounded-xl bg-background px-5 text-base font-semibold text-foreground shadow-md hover:bg-background/90 sm:w-auto">
+              <Button asChild className="mt-4 h-12 w-full justify-between gap-6 rounded-xl bg-background px-5 text-base font-semibold text-foreground shadow-md hover:bg-background/90 sm:w-auto">
                 <Link href={panel.href}>
                   {panel.cta} <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
             ) : (
-              <Button onClick={() => setGoal(panel.goal ?? "resumes")} className="mt-6 h-12 w-full justify-between gap-6 rounded-xl bg-background px-5 text-base font-semibold text-foreground shadow-md hover:bg-background/90 sm:w-auto">
+              <Button onClick={() => setGoal(panel.goal ?? "resumes")} className="mt-4 h-12 w-full justify-between gap-6 rounded-xl bg-background px-5 text-base font-semibold text-foreground shadow-md hover:bg-background/90 sm:w-auto">
                 {panel.cta} <ArrowRight className="h-4 w-4" />
               </Button>
             )}
@@ -347,34 +347,34 @@ export default function HomePage() {
       </div>
 
       {/* ---------- what you chose ---------- */}
-      <div className="mt-12">
+      <div className="mt-8 sm:mt-12">
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           {goal === "resumes" && (
             <motion.section key="resumes" custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
               <div className="mb-6 flex items-center justify-between gap-3">
-                <h2 className="text-2xl font-extrabold">{tr("Your resumes")}</h2>
+                <h2 className="text-xl font-extrabold sm:text-2xl">{tr("Your resumes")}</h2>
                 <Button asChild className="h-10 gap-1.5 rounded-lg px-5 font-bold">
                   <Link href="/home/resumes/new">
                     <Plus className="h-4 w-4" />{" "}{tr("Create new")}</Link>
                 </Button>
               </div>
-              <div className="grid grid-cols-1 gap-x-10 gap-y-10 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-x-10 gap-y-6 sm:gap-y-10 md:grid-cols-2">
                 {resumes === null ? (
                   <div className="shimmer h-64 rounded-xl bg-muted" />
                 ) : (
                   recent.map((r) => {
                     const tpl = asTemplateId(r.metadata?.template);
                     return (
-                      <article key={r.id} className="flex gap-6">
-                        <button onClick={() => setPreviewId(r.id)} className="w-[10.5rem] shrink-0 self-start overflow-hidden rounded-md shadow-md ring-1 ring-black/10 transition-transform duration-300 hover:-translate-y-1 hover:shadow-xl" aria-label={tr("Open this resume")}>
+                      <article key={r.id} className="flex gap-4 sm:gap-6">
+                        <button onClick={() => setPreviewId(r.id)} className="w-28 shrink-0 self-start overflow-hidden rounded-md shadow-md sm:w-[10.5rem] ring-1 ring-black/10 transition-transform duration-300 hover:-translate-y-1 hover:shadow-xl" aria-label={tr("Open this resume")}>
                           <LivePreview d={previewData} template={tpl} active={null} inline bare />
                         </button>
                         <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-xl font-bold">{r.filename.replace(/\.pdf$/i, "").replace(/_/g, " ")}</h3>
+                          <h3 className="truncate text-base font-bold sm:text-xl">{r.filename.replace(/\.pdf$/i, "").replace(/_/g, " ")}</h3>
                           <p className="mt-1 text-sm capitalize text-muted-foreground">
                             {tpl}{" "}{tr("look · updated")}{" "}{ago(r.uploadDate || r.metadata?.createdAt, tr).toLowerCase()}
                           </p>
-                          <ul className="mt-5 space-y-2.5 text-[15px] font-medium">
+                          <ul className="mt-3 flex flex-col gap-2.5 text-sm font-medium sm:mt-5 sm:text-[15px]">
                             <li>
                               <button onClick={() => setPreviewId(r.id)} className="inline-flex items-center gap-2.5 hover:text-blue-500">
                                 <Download className="h-4 w-4 text-blue-500" />{" "}{tr("Download")}</button>
@@ -396,8 +396,8 @@ export default function HomePage() {
 
                 {/* the empty slot: a new resume */}
                 {resumes !== null && (
-                  <Link href="/home/resumes/new" className="group flex gap-6">
-                    <span className="flex aspect-[8.5/11] w-[10.5rem] shrink-0 items-center justify-center self-start rounded-md border border-dashed bg-card/40 transition-colors group-hover:border-blue-500 group-hover:bg-blue-600/5">
+                  <Link href="/home/resumes/new" className="group flex gap-4 sm:gap-6">
+                    <span className="flex aspect-[8.5/11] w-28 shrink-0 sm:w-[10.5rem] items-center justify-center self-start rounded-md border border-dashed bg-card/40 transition-colors group-hover:border-blue-500 group-hover:bg-blue-600/5">
                       <span className="flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground transition-all duration-300 group-hover:rotate-90 group-hover:bg-blue-600 group-hover:text-white">
                         <Plus className="h-7 w-7" />
                       </span>
@@ -436,7 +436,7 @@ export default function HomePage() {
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
                   {picks.filter(({ job }) => { const st = (apps ?? []).find((a) => a.job.key === job.key)?.status; return !st || st === "prepared"; }).map(({ job, pct }) => ( // jobs already applied to are not suggested
-                    <button key={job.key} type="button" onClick={() => setDetailJob(job)} className="group flex gap-4 rounded-xl border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md">
+                    <button key={job.key} type="button" onClick={() => setDetailJob(job)} className="group flex gap-3 rounded-xl border bg-card p-4 text-left sm:gap-4 sm:p-5 transition-all hover:-translate-y-0.5 hover:shadow-md">
                       <CompanyLogo company={job.company} logo={job.logo} size={52} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-lg font-bold group-hover:text-blue-500">{tr(job.title)}</span>
