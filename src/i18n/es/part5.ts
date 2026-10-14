@@ -403,4 +403,7 @@ export const PART5: Record<string, string> = {
   "Remove from favorites": "Quitar de favoritos",
   "Write": "Escribir",
   "Tap to choose a file. PDF, DOCX, TXT or MD (max 10 MB).": "Toca para elegir un archivo. PDF, DOCX, TXT o MD (máx. 10 MB).",
+  "Each profile is a different version of you, for example for another kind of job.": "Cada perfil es una versión distinta de ti, por ejemplo para otro tipo de empleo.",
+  "No target job yet": "Aún sin empleo objetivo",
+  "In use": "En uso",
 };

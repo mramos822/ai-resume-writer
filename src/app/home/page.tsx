@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Briefcase, Check, ChevronDown, Download, FileText, Heart, Linkedin, Pen, Pencil, Plus, Send, Trash2, UploadCloud, User, Wand2 } from "lucide-react";
+import { ArrowRight, Briefcase, Download, FileText, Heart, Linkedin, Pen, Pencil, Plus, Send, UploadCloud, User, Wand2 } from "lucide-react";
 import { useAuth } from "@/context/authContext";
 import { useToast } from "@/context/toastContext";
 import { useDialog } from "@/context/dialogContext";
@@ -30,7 +30,7 @@ import BiographyForm from "@/components/biographyForm";
 import UploadedItems from "@/components/uploadedItems";
 import ResumePreviewModal from "@/components/resumePreviewModal";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import ProfileSwitcher from "@/components/profileSwitcher";
 import { useT } from "@/i18n/provider";
 
 interface ResumeRow {
@@ -261,31 +261,15 @@ export default function HomePage() {
       {/* ---------- hello and the goal of the day ---------- */}
       <motion.header initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative text-center">
         <div className="mb-4 flex justify-center sm:absolute sm:right-0 sm:top-0 sm:mb-0 sm:block">
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <button className="inline-flex items-center gap-2 rounded-full border bg-card px-3.5 py-1.5 text-sm font-medium transition-colors hover:border-blue-500/50">
-                <User className="h-4 w-4 text-blue-600" />
-                <span className="max-w-[9rem] truncate">{activeName}</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>{tr("Your profiles")}</DropdownMenuLabel>
-              {profiles.map((p) => (
-                <DropdownMenuItem key={p.id} onClick={() => setActiveProfileId(p.id)} className="justify-between">
-                  <span className="truncate">{p.name}</span>
-                  {p.id === activeProfileId && <Check className="h-4 w-4 text-blue-600" />}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onCreate} className="gap-2">
-                <Plus className="h-4 w-4" />{" "}{tr("New profile")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={onRename} className="gap-2">
-                <Pencil className="h-4 w-4" />{" "}{tr("Rename this profile")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-600 focus:text-red-600">
-                <Trash2 className="h-4 w-4" />{" "}{tr("Delete this profile")}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ProfileSwitcher
+            profiles={profiles}
+            activeId={activeProfileId}
+            activeName={activeName}
+            onSelect={setActiveProfileId}
+            onCreate={onCreate}
+            onRename={onRename}
+            onDelete={onDelete}
+          />
         </div>
         <h1 className="text-3xl font-black tracking-tight sm:text-5xl">
           {greeting(tr)},{" "}
