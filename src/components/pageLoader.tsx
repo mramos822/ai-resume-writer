@@ -52,8 +52,10 @@ export default function PageLoader({ label }: { label?: string }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1, transition: { duration: 0.35, delay: 0.12, ease: "easeOut" } }}
       exit={{ opacity: 0, transition: { duration: 0.4, ease: "easeInOut" } }}
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-8 bg-background text-foreground"
+      className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background text-foreground sm:gap-8"
     >
+      {/* the sheet is drawn at its full size and scaled down on a phone (the margins give back the room the scale frees) */}
+      <div className="max-sm:-my-10 max-sm:scale-[0.68]">
       <motion.div
         className="relative h-72 w-56"
         initial={{ opacity: 0, y: 14, scale: 0.94 }}
@@ -62,7 +64,7 @@ export default function PageLoader({ label }: { label?: string }) {
       >
         {/* the sheet fades out towards the bottom */}
         <div
-          className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-2xl shadow-blue-900/15 ring-1 ring-black/10"
+          className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-2xl shadow-slate-900/25 ring-1 ring-slate-900/15"
           style={{ WebkitMaskImage: "linear-gradient(to bottom, #000 45%, transparent 100%)", maskImage: "linear-gradient(to bottom, #000 45%, transparent 100%)" }}
         >
           <Sheet />
@@ -78,6 +80,7 @@ export default function PageLoader({ label }: { label?: string }) {
           <div className="absolute inset-x-0 -top-[2px] h-1 rounded-full bg-blue-500 shadow-[0_0_18px_5px_rgba(59,130,246,0.7)]" />
         </div>
       </motion.div>
+      </div>
       <motion.p
         className="text-sm font-medium tracking-wide text-muted-foreground"
         initial={{ opacity: 0, y: 8 }}

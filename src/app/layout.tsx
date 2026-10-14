@@ -32,6 +32,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const viewport: Viewport = { themeColor: "#ffffff" };
 
+// Runs before the first paint: puts the saved theme on the page so the loading screen and the first frame are never in the wrong mode.
+const THEME_BOOT = `(function(){try{var t=localStorage.getItem("theme");var d=t==="dark"||((t===null||t==="system")&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -41,6 +44,9 @@ export default async function RootLayout({
   const { tr } = makeT(locale);
   return (
     <html lang={locale} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-md focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">
           {tr("Skip to content")}

@@ -101,8 +101,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
         };
 
-        applyTheme(theme);
-        localStorage.setItem("theme", theme);
+        // until the account's theme is known, the one saved in this browser is used (the loading screen must not flash the wrong mode);
+        // nothing is written to localStorage here: setTheme and the account load do that, so a first "system" never overwrites the choice
+        const saved = localStorage.getItem("theme") as ThemeType | null;
+        applyTheme(!authChecked && saved ? saved : theme);
 
         // Add a listener for system theme changes if "system" is selected
         let mediaQuery: MediaQueryList | null = null;
@@ -123,7 +125,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 mediaQuery.removeEventListener("change", handleSystemThemeChange);
             }
         };
-    }, [theme]);
+    }, [theme, authChecked]);
 
     // Images stay where they are: no dragging them out (Firefox ignores the CSS rule) and no right-click menu on them
     // ("Save image as", "Copy image"). The rest of the page keeps its normal right-click menu.
