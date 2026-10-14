@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Briefcase, Check, ChevronDown, Download, FileText, Heart, Linkedin, Pen, Pencil, Plus, Send, Sparkles, Trash2, UploadCloud, User, Wand2 } from "lucide-react";
+import { ArrowRight, Briefcase, Check, ChevronDown, Download, FileText, Heart, Linkedin, Pen, Pencil, Plus, Send, Trash2, UploadCloud, User, Wand2 } from "lucide-react";
 import { useAuth } from "@/context/authContext";
 import { useToast } from "@/context/toastContext";
 import { useDialog } from "@/context/dialogContext";
@@ -458,7 +458,7 @@ export default function HomePage() {
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
                   <AnimatePresence initial={false}>
-                    {matches.map(({ job, pct }) => (
+                    {matches.map(({ job }) => (
                       <motion.div
                         key={job.key}
                         layout
@@ -468,11 +468,7 @@ export default function HomePage() {
                         <button type="button" onClick={() => setDetailJob(job)} className="group flex w-full items-start gap-3 rounded-2xl border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md sm:gap-4 sm:p-5">
                           <CompanyLogo company={job.company} logo={job.logo} size={46} />
                           <span className="min-w-0 flex-1">
-                            <span className="flex items-start justify-between gap-2">
-                              <span className="line-clamp-2 text-base font-bold leading-snug group-hover:text-blue-500 sm:text-lg">{tr(job.title)}</span>
-                              <span className={`inline-flex shrink-0 items-center gap-1 text-sm font-bold ${pct >= 70 ? "text-green-500" : "text-amber-500"}`} title={`${pct}${tr("% fit")}`}>
-                                <Sparkles className="h-3.5 w-3.5" />{pct}%</span>
-                            </span>
+                            <span className="line-clamp-2 pr-10 text-base font-bold leading-snug group-hover:text-blue-500 sm:text-lg">{tr(job.title)}</span>
                             <span className="mt-0.5 block truncate pr-10 text-sm text-foreground/80 sm:text-base">{job.company}</span>
                             <span className="block truncate pr-10 text-sm text-muted-foreground">{job.remote ? tr("Remote") : job.location || "—"}</span>
                             {job.postedAt && <span className="mt-0.5 block pr-10 text-xs text-muted-foreground/80">{tr("Posted")}{" "}{ago(job.postedAt, tr).toLowerCase()}</span>}
