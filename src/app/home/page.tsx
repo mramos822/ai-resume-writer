@@ -473,9 +473,9 @@ export default function HomePage() {
                               <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 70 ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"}`}>
                                 <Sparkles className="h-3 w-3" /> {pct}{tr("% fit")}</span>
                             </span>
-                            <span className="mt-0.5 block truncate text-sm text-foreground/80 sm:text-base">{job.company}</span>
-                            <span className="block truncate pr-9 text-sm text-muted-foreground">{job.remote ? tr("Remote") : job.location || "—"}</span>
-                            {job.postedAt && <span className="mt-0.5 block pr-9 text-xs text-muted-foreground/80">{tr("Posted")}{" "}{ago(job.postedAt, tr).toLowerCase()}</span>}
+                            <span className="mt-0.5 block truncate pr-10 text-sm text-foreground/80 sm:text-base">{job.company}</span>
+                            <span className="block truncate pr-10 text-sm text-muted-foreground">{job.remote ? tr("Remote") : job.location || "—"}</span>
+                            {job.postedAt && <span className="mt-0.5 block pr-10 text-xs text-muted-foreground/80">{tr("Posted")}{" "}{ago(job.postedAt, tr).toLowerCase()}</span>}
                           </span>
                         </button>
                         <button
@@ -483,9 +483,9 @@ export default function HomePage() {
                           onClick={() => favorite(job)}
                           aria-label={tr("Save to favorites")}
                           title={tr("Save to favorites")}
-                          className="absolute bottom-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background text-muted-foreground transition-all hover:scale-110 hover:border-rose-500/50 hover:text-rose-500 active:scale-95"
+                          className="absolute right-2 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-all hover:scale-110 hover:text-rose-500 active:scale-95"
                         >
-                          <Heart className="h-3.5 w-3.5" />
+                          <Heart className="h-6 w-6" />
                         </button>
                       </motion.div>
                     ))}
