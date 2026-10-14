@@ -469,8 +469,9 @@ export default function HomePage() {
                           <CompanyLogo company={job.company} logo={job.logo} size={46} />
                           <span className="min-w-0 flex-1">
                             <span className="line-clamp-2 pr-10 text-base font-bold leading-snug group-hover:text-blue-500 sm:text-lg">{tr(job.title)}</span>
-                            <span className="mt-0.5 block truncate pr-10 text-sm text-foreground/80 sm:text-base">{job.company}</span>
-                            <span className="block truncate pr-10 text-sm text-muted-foreground">{job.remote ? tr("Remote") : job.location || "—"}</span>
+                            <span className="mt-0.5 block truncate pr-10 text-sm text-foreground/80 sm:text-base">
+                              {job.company} <span className="text-muted-foreground">· {job.remote ? tr("Remote") : job.location || "—"}</span>
+                            </span>
                             {job.postedAt && <span className="mt-0.5 block pr-10 text-xs text-muted-foreground/80">{tr("Posted")}{" "}{ago(job.postedAt, tr).toLowerCase()}</span>}
                           </span>
                         </button>
