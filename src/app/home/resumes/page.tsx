@@ -108,6 +108,8 @@ export default function ResumesPage() {
   const sel = sorted.find((r) => r.id === selId) ?? sorted[0] ?? null;
   const selIndex = sel ? sorted.findIndex((r) => r.id === sel.id) : -1;
   const swipeFrom = useRef<number | null>(null);
+  // on a phone the ATS panel is one closed row (the score) that opens with a tap; from 640 px up it is always open
+  const [atsOpen, setAtsOpen] = useState(false);
   const goTo = (i: number) => {
     if (i >= 0 && i < sorted.length) setSelId(sorted[i].id);
   };
@@ -198,9 +200,9 @@ export default function ResumesPage() {
     <div className="mx-auto max-w-[1400px]">
       {/* title, the two shelves and the main button */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <h1 className="text-3xl font-black tracking-tight">{tr("Studio")}</h1>
-          <div role="tablist" className="inline-flex rounded-full border bg-card p-1 shadow-sm">
+        <div className="flex w-full flex-wrap items-center gap-x-6 gap-y-2 sm:w-auto">
+          <h1 className="text-3xl font-black tracking-tight max-sm:sr-only">{tr("Studio")}</h1>
+          <div role="tablist" className="flex w-full rounded-full border bg-card p-1 shadow-sm sm:inline-flex sm:w-auto">
             {[
               { id: "resumes" as const, label: "Resumes", n: resumes.length },
               { id: "letters" as const, label: "Cover letters", n: letters.length },
@@ -210,7 +212,7 @@ export default function ResumesPage() {
                 role="tab"
                 aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
-                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-all ${tab === t.id ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground hover:text-foreground"}`}
+                className={`flex-1 rounded-full px-4 py-1.5 text-sm font-semibold transition-all sm:flex-none ${tab === t.id ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {tr(t.label)} {t.n > 0 && <span className="opacity-70">{t.n}</span>}
               </button>
@@ -292,7 +294,7 @@ export default function ResumesPage() {
             {sel ? (
               <>
                 {/* the sheet is sized by the height of the screen, so the sheet and the dock are always seen together */}
-                <div className="rounded-2xl bg-muted/40 px-4 pb-9 pt-5">
+                <div className="rounded-2xl bg-muted/40 px-2.5 pb-9 pt-3 sm:px-4 sm:pt-5">
                   <motion.div
                     key={sel.id}
                     initial={{ opacity: 0, y: 14, scale: 0.98 }}
@@ -305,17 +307,17 @@ export default function ResumesPage() {
                   </motion.div>
                 </div>
                 {/* the dock */}
-                <div className="mx-auto -mt-6 flex w-fit max-w-full flex-wrap items-center justify-center gap-1 rounded-full border bg-card p-1.5 shadow-xl">
+                <div className="mx-auto -mt-6 flex w-fit max-w-full items-center justify-center gap-0.5 rounded-full border bg-card p-1.5 shadow-xl sm:flex-wrap sm:gap-1">
                   <Button onClick={() => download(sel, "pdf")} className="gap-2 rounded-full font-bold">
                     <Download className="h-4 w-4" />{" "}{tr("PDF")}</Button>
-                  <Button onClick={() => download(sel, "docx")} variant="ghost" className="gap-2 rounded-full">
-                    <FileDown className="h-4 w-4" />{" "}{tr("DOCX")}</Button>
-                  <Button onClick={() => setPreviewFileId(sel.id)} variant="ghost" className="gap-2 rounded-full">
-                    <FileText className="h-4 w-4" />{" "}{tr("Open")}</Button>
-                  <Button onClick={() => rename(sel)} variant="ghost" className="gap-2 rounded-full">
-                    <Pencil className="h-4 w-4" />{" "}{tr("Rename")}</Button>
-                  <Button onClick={() => handleDelete(sel.id)} variant="ghost" className="gap-2 rounded-full text-red-500 hover:text-red-500">
-                    <Trash2 className="h-4 w-4" />{" "}{tr("Delete")}</Button>
+                  <Button onClick={() => download(sel, "docx")} variant="ghost" aria-label={tr("DOCX")} className="gap-2 rounded-full max-sm:px-3">
+                    <FileDown className="h-4 w-4" /><span className="max-sm:sr-only">{tr("DOCX")}</span></Button>
+                  <Button onClick={() => setPreviewFileId(sel.id)} variant="ghost" aria-label={tr("Open")} className="gap-2 rounded-full max-sm:px-3">
+                    <FileText className="h-4 w-4" /><span className="max-sm:sr-only">{tr("Open")}</span></Button>
+                  <Button onClick={() => rename(sel)} variant="ghost" aria-label={tr("Rename")} className="gap-2 rounded-full max-sm:px-3">
+                    <Pencil className="h-4 w-4" /><span className="max-sm:sr-only">{tr("Rename")}</span></Button>
+                  <Button onClick={() => handleDelete(sel.id)} variant="ghost" aria-label={tr("Delete")} className="gap-2 rounded-full text-red-500 hover:text-red-500 max-sm:px-3">
+                    <Trash2 className="h-4 w-4" /><span className="max-sm:sr-only">{tr("Delete")}</span></Button>
                 </div>
                 <p className="mt-3 hidden text-center text-sm text-muted-foreground 2xl:block">
                   <span className="font-semibold text-foreground">{prettyName(sel.filename)}</span>{" "}{tr("· made")}{" "}{format(new Date(sel.metadata?.createdAt || sel.uploadDate), "d MMMM, HH:mm")} · <span className="capitalize">{lookOf(sel)}</span>{" "}{tr("look")}</p>
@@ -339,7 +341,19 @@ export default function ResumesPage() {
           {/* what applicant tracking systems see */}
           {sel && (
             <aside aria-label={tr("What ATS software sees")} className="min-w-0 xl:sticky xl:top-24">
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("What ATS software sees")}</p>
+              <button
+                type="button"
+                aria-expanded={atsOpen}
+                onClick={() => setAtsOpen((v) => !v)}
+                className="mb-3 flex w-full items-center justify-between text-left max-sm:mb-0 max-sm:rounded-xl max-sm:border max-sm:bg-card max-sm:px-4 max-sm:py-3 sm:pointer-events-none"
+              >
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("What ATS software sees")}</span>
+                <span className="flex items-center gap-2 sm:hidden">
+                  <span className="text-lg font-extrabold tabular-nums">{score}</span>
+                  <Plus className={`h-4 w-4 text-blue-600 transition-transform duration-300 ${atsOpen ? "rotate-45" : ""}`} />
+                </span>
+              </button>
+              <div className={atsOpen ? "max-sm:pt-4" : "max-sm:hidden"}>
               <div className="flex items-center gap-4">
                 <Ring value={score} />
                 <div>
@@ -368,6 +382,7 @@ export default function ResumesPage() {
                 <Link href="/home/profile">
                   <Pencil className="h-4 w-4" />{" "}{tr("Fix it in my profile")}</Link>
               </Button>
+              </div>
             </aside>
           )}
         </div>
