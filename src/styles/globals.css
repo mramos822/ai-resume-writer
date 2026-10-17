@@ -79,6 +79,8 @@
 }
 
 .dark {
+  /* native scrollbars, and form controls, are drawn dark too: no white scrollbar on a dark page */
+  color-scheme: dark;
   --background: #0b1220;
   --foreground: #f1f5f9;
   --card: #111a2e;
@@ -227,6 +229,11 @@ nav a:not(.inline-flex) {
   --color-moss: #2f6f4f;
   --shadow-hard: 4px 4px 0 0 #1c1b19;
   --shadow-hard-lg: 8px 8px 0 0 #1c1b19;
+}
+
+/* the public pages are always light, even when the app theme is dark */
+.dark .public-site {
+  color-scheme: light;
 }
 
 /* Light, on-brand look for auth forms (login popover + sign-in pages) */
