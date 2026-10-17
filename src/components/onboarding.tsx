@@ -31,6 +31,7 @@ import {
   Palette,
   PenLine,
   Sparkles,
+  Pencil,
   Trash2,
   X,
 } from "lucide-react";
@@ -459,6 +460,16 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     setTopSlot(document.getElementById("topbar-center"));
   }, [embedded, open]);
   const [showPreview, setShowPreview] = useState(false); // the right side shows the big live preview instead of the AI review
+  // the resume being edited (the page was opened with ?edit=<file>&look=<look> from the Studio): "Save changes" replaces it instead of adding another
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // On a phone the final screen does not have two columns: one thing at a time (the details to edit, the AI review, or the resume as it looks),
+  // chosen from a strip at the top. Before, the review and the preview were under ALL the sections, thousands of pixels down.
+  const [mobilePane, setMobilePane] = useState<"edit" | "review" | "preview">("edit");
+  const choosePane = (p: "edit" | "review" | "preview") => {
+    setMobilePane(p);
+    if (p !== "edit") setShowPreview(p === "preview");
+    window.scrollTo({ top: 0 });
+  };
   // The entrance (after opening or reloading the page): the wizard fades in, the form's pieces rise one after another and
   // the live preview slides in from the side. It only plays once; moving between steps keeps the quick pop.
   const [intro, setIntro] = useState(true);
@@ -576,6 +587,11 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       } catch {
         /* ignore */
       }
+      const q = new URLSearchParams(window.location.search);
+      const look = q.get("look");
+      if (isTemplateId(look)) setTemplate(look);
+      const edit = q.get("edit");
+      if (edit && /^[a-f0-9]{24}$/i.test(edit)) setEditingId(edit);
       setOpen(true);
     } else if (buildOpened.current) {
       buildOpened.current = false;
@@ -999,13 +1015,13 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       const res = await authFetch("/api/generate-resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileId: activeProfileId, template: template || "classic", format: "pdf", builder: !buildMode && !loggedInHere, create: buildMode || loggedInHere, lang: locale }),
+        body: JSON.stringify({ profileId: activeProfileId, template: template || "classic", format: "pdf", builder: !buildMode && !loggedInHere, create: buildMode || loggedInHere, lang: locale, ...(editingId ? { replaceFileId: editingId } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.fileId) throw new Error(trd(data.error) || tr("We couldn't make your resume yet."));
       if (buildMode || loggedInHere) {
         // "Create resume" (or a download after logging in here): it is added to the list of resumes, and that is where the person lands
-        toast.success(data.reused ? tr("You already have this exact resume in your list.") : tr("Your resume was created."));
+        toast.success(editingId ? (data.reused ? tr("Nothing changed in this resume.") : tr("Your resume was updated.")) : data.reused ? tr("You already have this exact resume in your list.") : tr("Your resume was created."));
         if (loggedInHere) try { sessionStorage.removeItem("kaizo_claiming"); } catch { /* storage unavailable */ }
         router.push("/home/resumes");
         return;
@@ -1664,8 +1680,8 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
               ))}
             </div>
             <Button onClick={generate} disabled={working} className="h-9 gap-2 rounded-full px-5 font-bold">
-              {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {working ? tr("Making your resume…") : tr("Create resume")}
+              {working ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {working ? tr("Making your resume…") : editingId ? tr("Save changes") : tr("Create resume")}
             </Button>
           </div>,
           topSlot
@@ -1730,7 +1746,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                 )}
                 <Button size="sm" onClick={generate} disabled={working} className="gap-1.5">
                   {working ? <Loader2 className="h-4 w-4 animate-spin" /> : buildMode ? <Plus className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-                  {working ? tr("Making your resume…") : buildMode ? tr("Create resume") : tr("Download")}
+                  {working ? tr("Making your resume…") : buildMode ? (editingId ? tr("Save changes") : tr("Create resume")) : tr("Download")}
                 </Button>
               </>
             )}
@@ -1749,6 +1765,43 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         }`}
       >
         <div className={`${intro && step !== "template" ? "enter-stagger " : ""}${reviewing ? "grid min-w-0 items-start gap-4 lg:h-full lg:grid-cols-[minmax(0,760px)_minmax(0,1fr)] lg:gap-x-10" : "min-w-0"}`}>
+        {reviewing && (
+          <div className="sticky top-[3.75rem] z-20 -mx-5 border-b bg-background/90 px-3 py-2 backdrop-blur lg:hidden">
+            <div className="flex items-center gap-2">
+              <div role="tablist" aria-label={tr("What to show")} className="flex min-w-0 flex-1 rounded-full border bg-card p-1 shadow-sm">
+                {([
+                  { id: "edit", label: "Edit", icon: Pencil },
+                  { id: "review", label: "AI review", icon: Sparkles },
+                  { id: "preview", label: "Preview", icon: Eye },
+                ] as const).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={mobilePane === t.id}
+                    onClick={() => choosePane(t.id)}
+                    className={`inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-2 text-sm font-semibold transition-colors ${
+                      mobilePane === t.id ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground"
+                    }`}
+                  >
+                    <t.icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{tr(t.label)}</span>
+                  </button>
+                ))}
+              </div>
+              {mobilePane === "edit" && (
+                <button
+                  type="button"
+                  onClick={() => setClosedBlocks(closedBlocks.length === 0 ? BLOCK_TITLES : [])}
+                  aria-label={closedBlocks.length === 0 ? tr("Collapse all sections") : tr("Expand all sections")}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-card shadow-sm"
+                >
+                  {closedBlocks.length === 0 ? <ChevronsDownUp className="h-4 w-4 text-blue-600" /> : <ChevronsUpDown className="h-4 w-4 text-blue-600" />}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {customizing ? (
           <>
             <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("Choose another look")}</h1>
@@ -1903,7 +1956,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
 
         <DndContext accessibility={dndAccessibility(tr)} sensors={sectionSensors} collisionDetection={closestCenter} onDragEnd={onSectionDrag}>
         <BlocksContext.Provider value={{ closed: closedBlocks, toggle: (t) => setClosedBlocks((c) => (c.includes(t) ? c.filter((x) => x !== t) : [...c, t])) }}>
-        <div className={reviewing ? "min-w-0 space-y-4 lg:col-start-1 lg:h-full no-scrollbar lg:overflow-y-auto lg:overscroll-contain" : "contents"}>
+        <div className={reviewing ? `min-w-0 space-y-4 lg:col-start-1 lg:h-full no-scrollbar lg:overflow-y-auto lg:overscroll-contain ${mobilePane !== "edit" ? "max-lg:hidden" : ""}` : "contents"}>
         {reviewing && (
           <div className="lg:col-start-1">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1916,7 +1969,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         )}
         {reviewing && (
           // what the right-hand side shows, and fold / unfold everything: it stays at the top while the sections scroll under it
-          <div className="sticky top-[3.75rem] z-20 -mx-2 border-b bg-background/90 px-2 pb-3 pt-3 backdrop-blur lg:top-0 lg:col-start-1">
+          <div className="sticky top-[3.75rem] z-20 -mx-2 border-b bg-background/90 px-2 pb-3 pt-3 backdrop-blur max-lg:hidden lg:top-0 lg:col-start-1">
             <div className="flex flex-wrap items-center justify-center gap-3">
               <div role="tablist" aria-label={tr("Right-hand side")} className="inline-flex rounded-full border bg-card p-1 shadow-sm">
                 {[
@@ -1958,7 +2011,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         </DndContext>
 
         {step === "finish" && (
-          <div className="min-w-0 lg:col-start-2 lg:row-start-1 lg:h-full no-scrollbar lg:overflow-y-auto lg:overscroll-contain">
+          <div className={`min-w-0 lg:col-start-2 lg:row-start-1 lg:h-full no-scrollbar lg:overflow-y-auto lg:overscroll-contain ${mobilePane === "edit" ? "max-lg:hidden" : ""}`}>
             {/* the review stays mounted (just hidden) so it keeps everything it has; the preview takes its place, big */}
             <div className={showPreview ? "hidden" : ""}>
               <ResumeReview ready={reviewReady} template={template} onTemplateChange={onTemplate} onProfileChanged={() => { rehydrate.current = true; }} />

@@ -39,7 +39,7 @@ interface ResumeRow {
   id: string;
   filename: string;
   uploadDate: string;
-  metadata: { template: string; createdAt: string };
+  metadata: { template: string; createdAt: string; origin?: string };
 }
 interface AppRow {
   job: JobListing;
@@ -417,8 +417,13 @@ export default function HomePage() {
                                 <Wand2 className="h-4 w-4 text-blue-500" />{" "}{tr("Tailor to a job")}</Link>
                             </li>
                             <li>
-                              <Link href="/home/profile" className="inline-flex min-h-6 items-center gap-2.5 hover:text-blue-500">
-                                <Pencil className="h-4 w-4 text-blue-500" />{" "}{tr("Edit my details")}</Link>
+                              {r.metadata?.origin === "created" || r.metadata?.origin === "builder" ? (
+                                <Link href={`/home/resumes/new?edit=${encodeURIComponent(r.id)}&look=${encodeURIComponent(tpl)}`} className="inline-flex min-h-6 items-center gap-2.5 hover:text-blue-500">
+                                  <Pencil className="h-4 w-4 text-blue-500" />{" "}{tr("Edit this resume")}</Link>
+                              ) : (
+                                <Link href="/home/profile" className="inline-flex min-h-6 items-center gap-2.5 hover:text-blue-500">
+                                  <Pencil className="h-4 w-4 text-blue-500" />{" "}{tr("Edit my details")}</Link>
+                              )}
                             </li>
                           </ul>
                         </div>
