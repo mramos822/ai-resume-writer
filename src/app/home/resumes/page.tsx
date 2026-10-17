@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { format } from "date-fns";
-import { AlertTriangle, Check, ClipboardCopy, Download, ExternalLink, FileDown, FileText, Pencil, Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, Check, ClipboardCopy, Download, ExternalLink, FileDown, FileText, Pencil, Plus, Trash2, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/authContext";
 import { useProfile } from "@/context/profileContext";
@@ -20,6 +20,7 @@ import PdfPage, { forgetPdfPage } from "@/components/pdfPage";
 import ResumePreviewModal from "@/components/resumePreviewModal";
 import CompanyLogo from "@/components/companyLogo";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { JobListing } from "@/lib/jobSearch";
 import { useT } from "@/i18n/provider";
 
@@ -108,7 +109,7 @@ export default function ResumesPage() {
   const sel = sorted.find((r) => r.id === selId) ?? sorted[0] ?? null;
   const selIndex = sel ? sorted.findIndex((r) => r.id === sel.id) : -1;
   const swipeFrom = useRef<number | null>(null);
-  // on a phone the ATS panel is one closed row (the score) that opens with a tap; from 640 px up it is always open
+  // on a phone the ATS panel is one row (the score) that raises a sheet from the bottom when tapped; from 640 px up it is always there
   const [atsOpen, setAtsOpen] = useState(false);
   const goTo = (i: number) => {
     if (i >= 0 && i < sorted.length) setSelId(sorted[i].id);
@@ -195,6 +196,40 @@ export default function ResumesPage() {
       </div>
     );
   }
+
+  // what the ATS panel says: inline from 640 px up, and in a sheet from the bottom on phones
+  const atsBody = sel ? (
+    <>
+              <div className="flex items-center gap-4">
+                <Ring value={score} />
+                <div>
+                  <p className="text-lg font-extrabold leading-tight">{score >= 80 ? tr("Easy to read") : score >= 60 ? tr("Mostly fine") : tr("Needs work")}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {passed}{" "}{tr("of")}{" "}{checks.length}{" "}{tr("checks pass")}</p>
+                </div>
+              </div>
+              <ul className="mt-5 space-y-3">
+                {worst.length === 0 ? (
+                  <li className="flex items-start gap-2.5 text-sm">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" strokeWidth={3} />{" "}{tr("Every check passes. Nothing to fix.")}</li>
+                ) : (
+                  worst.slice(0, 5).map((c) => (
+                    <li key={c.id} className="flex items-start gap-2.5 text-sm">
+                      <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${c.verdict === "fail" ? "text-red-500" : "text-amber-500"}`} />
+                      <span>
+                        <span className="block font-semibold">{tr(c.label)}</span>
+                        <span className="block text-xs leading-relaxed text-muted-foreground">{c.reason}</span>
+                      </span>
+                    </li>
+                  ))
+                )}
+              </ul>
+              <Button asChild variant="outline" className="mt-5 w-full gap-2 rounded-full font-semibold">
+                <Link href="/home/profile">
+                  <Pencil className="h-4 w-4" />{" "}{tr("Fix it in my profile")}</Link>
+              </Button>
+    </>
+  ) : null;
 
   return (
     <div className="mx-auto max-w-[1400px]">
@@ -343,46 +378,25 @@ export default function ResumesPage() {
             <aside aria-label={tr("What ATS software sees")} className="min-w-0 xl:sticky xl:top-24">
               <button
                 type="button"
-                aria-expanded={atsOpen}
-                onClick={() => setAtsOpen((v) => !v)}
+                aria-haspopup="dialog"
+                onClick={() => setAtsOpen(true)}
                 className="mb-3 flex w-full items-center justify-between text-left max-sm:mb-0 max-sm:rounded-xl max-sm:border max-sm:bg-card max-sm:px-4 max-sm:py-3 sm:pointer-events-none"
               >
                 <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("What ATS software sees")}</span>
                 <span className="flex items-center gap-2 sm:hidden">
                   <span className="text-lg font-extrabold tabular-nums">{score}</span>
-                  <Plus className={`h-4 w-4 text-blue-600 transition-transform duration-300 ${atsOpen ? "rotate-45" : ""}`} />
+                  <ChevronUp className="h-4 w-4 text-blue-600" />
                 </span>
               </button>
-              <div className={atsOpen ? "max-sm:pt-4" : "max-sm:hidden"}>
-              <div className="flex items-center gap-4">
-                <Ring value={score} />
-                <div>
-                  <p className="text-lg font-extrabold leading-tight">{score >= 80 ? tr("Easy to read") : score >= 60 ? tr("Mostly fine") : tr("Needs work")}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {passed}{" "}{tr("of")}{" "}{checks.length}{" "}{tr("checks pass")}</p>
-                </div>
-              </div>
-              <ul className="mt-5 space-y-3">
-                {worst.length === 0 ? (
-                  <li className="flex items-start gap-2.5 text-sm">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" strokeWidth={3} />{" "}{tr("Every check passes. Nothing to fix.")}</li>
-                ) : (
-                  worst.slice(0, 5).map((c) => (
-                    <li key={c.id} className="flex items-start gap-2.5 text-sm">
-                      <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${c.verdict === "fail" ? "text-red-500" : "text-amber-500"}`} />
-                      <span>
-                        <span className="block font-semibold">{tr(c.label)}</span>
-                        <span className="block text-xs leading-relaxed text-muted-foreground">{c.reason}</span>
-                      </span>
-                    </li>
-                  ))
-                )}
-              </ul>
-              <Button asChild variant="outline" className="mt-5 w-full gap-2 rounded-full font-semibold">
-                <Link href="/home/profile">
-                  <Pencil className="h-4 w-4" />{" "}{tr("Fix it in my profile")}</Link>
-              </Button>
-              </div>
+              <div className="max-sm:hidden">{atsBody}</div>
+              <Dialog open={atsOpen} onOpenChange={setAtsOpen}>
+                <DialogContent className="gap-0 p-5 sm:hidden max-sm:!top-auto max-sm:!bottom-0 max-sm:!left-0 max-sm:max-h-[88dvh] max-sm:max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100 max-sm:duration-300">
+                  <span aria-hidden className="mx-auto mb-3 block h-1 w-10 rounded-full bg-border" />
+                  <DialogTitle className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("What ATS software sees")}</DialogTitle>
+                  <DialogDescription className="sr-only">{tr("What ATS software sees")}</DialogDescription>
+                  <div className="mt-4">{atsBody}</div>
+                </DialogContent>
+              </Dialog>
             </aside>
           )}
         </div>

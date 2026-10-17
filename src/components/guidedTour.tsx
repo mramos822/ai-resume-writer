@@ -123,7 +123,7 @@ export default function GuidedTour() {
     <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : finish())}>
       <DialogContent
         showCloseButton={false}
-        className="max-w-lg gap-0 overflow-hidden p-0 max-sm:!top-auto max-sm:!bottom-0 max-sm:!left-0 max-sm:max-h-[92dvh] max-sm:max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:rounded-t-2xl"
+        className="max-w-lg gap-0 overflow-hidden p-0 max-sm:!top-auto max-sm:!bottom-0 max-sm:!left-0 max-sm:max-h-[92dvh] max-sm:max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100 max-sm:duration-300"
       >
         {/* progress */}
         <div className="h-1.5 w-full bg-muted">
