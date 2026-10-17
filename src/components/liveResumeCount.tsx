@@ -106,7 +106,7 @@ export default function LiveResumeCount({ tone = "light", size = "lg", variant =
 
   return (
     <div aria-live="polite">
-      <p key={pulse} className={`font-extrabold tabular-nums ${size === "lg" ? "text-3xl" : "text-4xl xl:text-5xl"} ${dark ? "text-white" : "text-blue-600"} ${pulse > 0 ? "animate-[pulse_0.7s_ease-out_1]" : ""}`}>
+      <p key={pulse} className={`font-extrabold tabular-nums ${size === "lg" ? "text-2xl sm:text-3xl" : "text-4xl xl:text-5xl"} ${dark ? "text-white" : "text-blue-600"} ${pulse > 0 ? "animate-[pulse_0.7s_ease-out_1]" : ""}`}>
         {total === null ? "…" : shown.toLocaleString("en-US")}
       </p>
       <p className={`mt-1 flex items-center ${dark ? "justify-start" : "justify-center"} gap-1.5 text-sm ${dark ? "text-blue-100" : "text-gray-600"}`}>

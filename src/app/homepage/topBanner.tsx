@@ -70,7 +70,7 @@ export default function TopBanner({ ready = true }: { ready?: boolean }) {
     // A full-width bar with a light blur and a teal-to-indigo hairline underneath (the same gradient as the homepage title); links get an underline when active.
     <header className="public-site fixed left-0 top-0 z-50 w-full">
       <div
-        className={`relative w-full bg-white/90 backdrop-blur-md transition-shadow ${scrolled ? "shadow-lg shadow-slate-900/10" : ""}`}
+        className={`relative w-full backdrop-blur-md transition-shadow ${menuOpen ? "bg-white" : "bg-white/90"} ${scrolled || menuOpen ? "shadow-lg shadow-slate-900/10" : ""}`}
       >
       <div className={`mx-auto h-16 max-w-[1600px] px-4 lg:px-10 flex items-center justify-between lg:grid lg:grid-cols-[1fr_auto_1fr] ${authReady ? "" : "invisible"}`} aria-hidden={!authReady}>
         <Link href="/" className="flex items-center shrink-0">
@@ -181,9 +181,12 @@ export default function TopBanner({ ready = true }: { ready?: boolean }) {
             </Link>
           ))}
           <LanguageSwitch className="my-3 w-fit" />
-          <Link href={signedIn ? "/home" : "/login?view=login"} className="py-3 text-blue-600 font-semibold">
-            {signedIn ? tr("Go to dashboard") : tr("Log in")}
-          </Link>
+          {/* someone who is signed in already has "Go to dashboard" in the bar */}
+          {!signedIn && (
+            <Link href="/login?view=login" className="py-3 text-blue-600 font-semibold">
+              {tr("Log in")}
+            </Link>
+          )}
         </div>
       )}
       </div>

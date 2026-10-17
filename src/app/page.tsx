@@ -325,7 +325,7 @@ export default function MarketingPage() {
                 { v: "PDF + DOCX", l: "ready to send" },
               ].map((s) => (
                 <div key={s.l}>
-                  <p className="text-3xl font-extrabold text-blue-600">{s.v}</p>
+                  <p className="whitespace-nowrap text-2xl font-extrabold text-blue-600 sm:text-3xl">{s.v}</p>
                   <p className="text-sm text-gray-600 mt-1">{tr(s.l)}</p>
                 </div>
               ))}
