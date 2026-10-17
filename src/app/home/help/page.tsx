@@ -29,7 +29,7 @@ const GUIDES = [
     steps: [
       "Go to the Dashboard and find “Import your professional history”.",
       "Drop in an old resume (PDF or Word), or switch to “Write a bio” and type a few paragraphs.",
-      "Under “Your uploads”, press Parse on the file. We read it and fill in your profile.",
+      "Under “Your uploads”, press Fill my profile on the file. We read it and fill in your profile.",
     ],
     href: "/home",
     cta: "Go to Dashboard",
@@ -117,7 +117,7 @@ const FAQS = [
 
 const GLOSSARY = [
   { term: "ATS", def: "Applicant Tracking System. Software employers use to scan and sort resumes." },
-  { term: "Parse", def: "Read a document and pull the useful details (jobs, skills, education) into your profile." },
+  { term: "Fill my profile", def: "Read a document and pull the useful details (jobs, skills, education) into your profile." },
   { term: "Template", def: "The look of your resume. Changing it never changes your words." },
   { term: "Tailoring", def: "Rewording your resume to match the requirements in a specific job ad." },
 ];
@@ -126,6 +126,8 @@ export default function HelpPage() {
   const { tr } = useT();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  // on a phone the guides are closed lists (title and time); the steps open with a tap. From 640 px up they are always shown.
+  const [openGuide, setOpenGuide] = useState<string | null>(null);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -135,19 +137,19 @@ export default function HelpPage() {
   }, [query, tr]);
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-8">
+    <div className="mx-auto max-w-[1400px] space-y-6 sm:space-y-8">
       {/* Hero */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-lg border bg-gradient-to-br from-blue-600 to-indigo-600 p-8 text-white"
+        className="rounded-lg border bg-gradient-to-br from-blue-600 to-indigo-600 p-5 text-white sm:p-8"
       >
-        <span className="mb-3 inline-flex items-center gap-2 rounded-md bg-white/15 px-3 py-1 text-sm font-medium">
+        <span className="mb-2 inline-flex items-center gap-2 rounded-md bg-white/15 px-2.5 py-0.5 text-sm font-medium sm:mb-3 sm:px-3 sm:py-1">
           <LifeBuoy className="h-4 w-4" />{" "}{tr("Help center")}</span>
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{tr("How can we help?")}</h1>
-        <p className="mt-2 max-w-xl text-blue-100">{tr("Short guides, answers to common questions, and a tour if you'd like to see everything at once.")}</p>
+        <h1 className="text-2xl font-extrabold tracking-tight sm:text-4xl">{tr("How can we help?")}</h1>
+        <p className="mt-1.5 max-w-xl text-sm text-blue-100 sm:mt-2 sm:text-base">{tr("Short guides, answers to common questions, and a tour if you'd like to see everything at once.")}</p>
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <div className="mt-4 flex flex-col gap-2.5 sm:mt-6 sm:flex-row sm:gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -168,10 +170,10 @@ export default function HelpPage() {
 
       {/* Guides */}
       <section>
-        <h2 className="mb-1 flex items-center gap-2 text-xl font-bold">
+        <h2 className="mb-1 flex items-center gap-2 text-lg font-bold sm:text-xl">
           <BookOpen className="h-5 w-5 text-blue-600" />{" "}{tr("Quick-start guides")}</h2>
-        <p className="mb-5 text-sm text-muted-foreground">{tr("Follow these in order. The whole thing takes about ten minutes.")}</p>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <p className="mb-3 text-sm text-muted-foreground sm:mb-5">{tr("Follow these in order. The whole thing takes about ten minutes.")}</p>
+        <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-4">
           {GUIDES.map(({ icon: Icon, title, time, steps, href, cta }, i) => (
             <motion.div
               key={title}
@@ -179,17 +181,32 @@ export default function HelpPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 * i }}
             >
-              <Card className="h-full transition-shadow hover:shadow-md">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
+              <Card className="h-full gap-0 py-0 transition-shadow hover:shadow-md sm:gap-6 sm:py-6">
+                <CardHeader className="max-sm:p-0">
+                  <button
+                    type="button"
+                    aria-expanded={openGuide === title}
+                    onClick={() => setOpenGuide(openGuide === title ? null : title)}
+                    className="flex w-full items-center gap-3 text-left max-sm:px-4 max-sm:py-3 sm:pointer-events-none sm:hidden"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent text-blue-600">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold">{tr(title)}</span>
+                      <span className="block text-xs text-muted-foreground">{tr(time)}</span>
+                    </span>
+                    <Plus className={`h-5 w-5 shrink-0 text-blue-600 transition-transform duration-300 ${openGuide === title ? "rotate-45" : ""}`} />
+                  </button>
+                  <div className="flex items-center justify-between max-sm:hidden">
                     <span className="flex h-10 w-10 items-center justify-center rounded-md bg-accent text-blue-600">
                       <Icon className="h-5 w-5" />
                     </span>
                     <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{tr(time)}</span>
                   </div>
-                  <CardTitle className="mt-3">{tr(title)}</CardTitle>
+                  <CardTitle className="mt-3 max-sm:hidden">{tr(title)}</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className={`${openGuide === title ? "" : "max-sm:hidden"} max-sm:px-4 max-sm:pb-4`}>
                   <ol className="space-y-2 text-sm text-muted-foreground">
                     {steps.map((s, n) => (
                       <li key={n} className="flex gap-2">
@@ -200,7 +217,7 @@ export default function HelpPage() {
                       </li>
                     ))}
                   </ol>
-                  <Link href={href} className="mt-4 inline-flex min-h-6 items-center text-sm font-semibold text-blue-600 hover:underline">
+                  <Link href={href} className="mt-3 inline-flex min-h-6 items-center text-sm font-semibold text-blue-600 hover:underline sm:mt-4">
                     {tr(cta)} →
                   </Link>
                 </CardContent>
@@ -212,8 +229,8 @@ export default function HelpPage() {
 
       {/* FAQ */}
       <section>
-        <h2 className="mb-1 text-xl font-bold">{tr("Frequently asked questions")}</h2>
-        <p className="mb-5 text-sm text-muted-foreground">
+        <h2 className="mb-1 text-lg font-bold sm:text-xl">{tr("Frequently asked questions")}</h2>
+        <p className="mb-3 text-sm text-muted-foreground sm:mb-5">
           {query ? tr("{length} result{v1} for “{query}”", { length: results.length, v1: results.length === 1 ? "" : "s", query }) : tr("Tap a question to see the answer.")}
         </p>
 
@@ -233,7 +250,7 @@ export default function HelpPage() {
                   <button
                     onClick={() => setOpen(isOpen ? null : f.q)}
                     aria-expanded={isOpen}
-                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left font-medium hover:bg-accent/50"
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-[15px] font-medium hover:bg-accent/50 sm:gap-4 sm:px-5 sm:py-4 sm:text-base"
                   >
                     {tr(f.q)}
                     <Plus
@@ -242,7 +259,7 @@ export default function HelpPage() {
                   </button>
                   <div className={`grid transition-all duration-300 ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
                     <div className="overflow-hidden">
-                      <p className="px-5 pb-4 text-sm text-muted-foreground">{tr(f.a)}</p>
+                      <p className="px-4 pb-3 text-sm text-muted-foreground sm:px-5 sm:pb-4">{tr(f.a)}</p>
                     </div>
                   </div>
                 </div>
@@ -254,10 +271,10 @@ export default function HelpPage() {
 
       {/* Glossary */}
       <section>
-        <h2 className="mb-4 text-xl font-bold">{tr("Words you'll see")}</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <h2 className="mb-3 text-lg font-bold sm:mb-4 sm:text-xl">{tr("Words you'll see")}</h2>
+        <div className="grid gap-3 max-sm:gap-0 max-sm:divide-y max-sm:overflow-hidden max-sm:rounded-lg max-sm:border max-sm:bg-card sm:grid-cols-2">
           {GLOSSARY.map((g) => (
-            <div key={g.term} className="rounded-lg border bg-card p-4">
+            <div key={g.term} className="rounded-lg border bg-card p-4 max-sm:rounded-none max-sm:border-0 max-sm:px-4 max-sm:py-3">
               <p className="font-semibold text-blue-600">{tr(g.term)}</p>
               <p className="mt-1 text-sm text-muted-foreground">{tr(g.def)}</p>
             </div>
@@ -265,7 +282,7 @@ export default function HelpPage() {
         </div>
       </section>
 
-      <Card className="border-blue-200 bg-accent/50">
+      <Card className="gap-3 border-blue-200 bg-accent/50 py-4 sm:gap-6 sm:py-6">
         <CardHeader>
           <CardTitle>{tr("Still stuck?")}</CardTitle>
           <CardDescription>{tr("Go back to the Dashboard. Its checklist always shows the very next step for you.")}</CardDescription>

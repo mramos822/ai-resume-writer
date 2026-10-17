@@ -4,7 +4,7 @@ export const PART5: Record<string, string> = {
   "Re: your message to Kaizo": "Re: tu mensaje a Kaizo",
   "Go to the Dashboard and find “Import your professional history”.": "Ve al panel y busca «Importa tu historial profesional».",
   "Drop in an old resume (PDF or Word), or switch to “Write a bio” and type a few paragraphs.": "Suelta un currículum anterior (PDF o Word) o cambia a «Escribir una biografía» y redacta unos párrafos.",
-  "Under “Your uploads”, press Parse on the file. We read it and fill in your profile.": "En «Tus archivos», pulsa Analizar en el archivo. Lo leemos y llenamos tu perfil.",
+  "Under “Your uploads”, press Fill my profile on the file. We read it and fill in your profile.": "En «Tus archivos», pulsa Llenar mi perfil en el archivo. Lo leemos y llenamos tu perfil.",
   "Go to Dashboard": "Ir al panel",
   "Open Profile from the menu. Each section (contact, objective, skills, jobs, education) has its own block.": "Abre Perfil desde el menú. Cada sección (contacto, objetivo, habilidades, empleos, educación) tiene su propio bloque.",
   "Check what the import filled in and correct anything that's wrong.": "Revisa lo que llenó la importación y corrige lo que esté mal.",
