@@ -85,6 +85,8 @@ export interface ProfileData {
   accentColor?: string; // id of the color the look wears (see lib/accents)
   /** When true the text grows to fill the page if there is little content; by default it keeps its natural size */
   fillPage?: boolean;
+  /** How long the person wants the resume: "one" page (the default), "two" pages, or "any" (it does not matter). Only some looks can run to two pages. */
+  pageGoal?: "one" | "two" | "any";
   sectionOrder?: string[]; // order of the resume sections chosen by the person (see lib/sectionOrder)
   /** the level the person confirmed: "entry", "junior", "mid" or "senior" (see lib/experienceLevel) */
   experienceLevel?: "entry" | "junior" | "mid" | "senior";
@@ -134,6 +136,7 @@ export interface ProfileContextType {
   updateSkillGroups: (groups: SkillGroups) => void;
   updateAccentColor: (id: string) => void;
   updateFillPage: (on: boolean) => void;
+  updatePageGoal: (goal: "one" | "two" | "any") => void;
   updateSectionOrder: (order: string[]) => void;
   updateLinks: (list: LinkEntry[]) => void;
   updateCertifications: (list: CertificationEntry[]) => void;
@@ -209,7 +212,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       setProfileName(pick.name);
       setProfileData(pick.data);
     }
-  }, [user, activeProfileId]);
+  }, [user, activeProfileId, tr]);
 
   // the profile being worked on is remembered per account, so the dashboard opens on it the next time
   useEffect(() => {
@@ -247,7 +250,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     return () => {
       stale = true;
     };
-  }, [activeProfileId, user]);
+  }, [activeProfileId, user, tr]);
 
   // another person signed in (a new guest, a different account): nothing of the previous one stays selected
   const uid = user?.uid ?? "";
@@ -294,7 +297,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     const doc = (await res.json()) as { id: string; name: string };
     setActiveProfileId(doc.id);
     await loadProfiles();
-  }, [user, loadProfiles]);
+  }, [user, loadProfiles, tr]);
 
   const deleteProfile = useCallback(
     async (id: string) => {
@@ -345,7 +348,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     if (!res.ok) throw new Error(tr("Save failed"));
     setHasUnsavedChanges(false);
     await loadProfiles();
-  }, [user, activeProfileId, profileData, loadProfiles]);
+  }, [user, activeProfileId, profileData, loadProfiles, tr]);
 
   const reloadProfile = useCallback(async () => {
     if (!user || !activeProfileId) return;
@@ -356,7 +359,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setProfileName(doc.name);
     setProfileData(doc.data);
     await loadProfiles();
-  }, [user, activeProfileId, loadProfiles]);
+  }, [user, activeProfileId, loadProfiles, tr]);
 
   const parseFile = useCallback(
     async (fileId: string): Promise<Partial<ProfileData>> => {
@@ -447,6 +450,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         updateSkillGroups: (g) => updateField("skillGroups", g),
         updateAccentColor: (id) => updateField("accentColor", id),
         updateFillPage: (on) => updateField("fillPage", on),
+        updatePageGoal: (goal) => updateField("pageGoal", goal),
         updateSectionOrder: (o) => updateField("sectionOrder", o),
         updateLinks: (list) => updateField("links", list),
         updateCertifications: (list) => updateField("certifications", list),
@@ -578,6 +582,7 @@ export function ProfileDraftProvider({ initial, children }: { initial: ProfileDa
     updateSkillGroups: (g) => set("skillGroups", g),
     updateAccentColor: (id) => set("accentColor", id),
     updateFillPage: (on) => set("fillPage", on),
+    updatePageGoal: (goal) => set("pageGoal", goal),
     updateSectionOrder: (o) => set("sectionOrder", o),
     updateLinks: (l) => set("links", l),
     updateCertifications: (l) => set("certifications", l),

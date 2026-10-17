@@ -13,7 +13,6 @@ import path from "path";
 import { groupSkills } from "@/lib/skillGroups";
 import { accentHex, shade, tint } from "@/lib/accents";
 import { BLOBS, DROPS, pastelPalette, smoothPath } from "@/lib/blobs";
-import { experienceYears, keyFigures } from "@/lib/stats";
 import { placeLine } from "@/lib/place";
 import { orderedSections } from "@/lib/sectionOrder";
 import { formatPeriod, type ResumeLang } from "@/lib/dateFormat";
@@ -31,6 +30,10 @@ export type ResumeTemplate = TemplateId;
 export const RESUME_TEMPLATES = TEMPLATE_IDS;
 export const asTemplate = asTemplateId;
 
+import { maxPagesFor } from "@/lib/pageGoal";
+import { PAGE_COMFORT_SCALE } from "@/lib/pageRules";
+export { maxPagesFor, TWO_PAGE_TEMPLATES } from "@/lib/pageGoal";
+
 const W = 595.28;
 const H = 841.89;
 const BOTTOM = 30; // page break threshold (bottom margin)
@@ -47,13 +50,37 @@ const SCALES = Array.from({ length: 31 }, (_, i) => Math.round((1 - i * 0.02) * 
 /** Characters the built-in PDF fonts can't draw; collected per render so the UI can warn about them. */
 const droppedChars = new Set<string>();
 
-/** Standard PDF fonts only cover Latin-1 + a few punctuation marks; replace anything else. */
+/**
+ * The standard PDF fonts cover Latin-1 and a few punctuation marks. Latin Extended (Polish, Czech, Turkish, Hungarian, Romanian...),
+ * Greek and Cyrillic are drawn with Carlito, which is bundled (see Pen.apply); everything else (Chinese, Japanese, Arabic, emoji) cannot
+ * be drawn and is left out, and the person is told which characters.
+ */
+const UNSUPPORTED = /[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF•…€Ā-ɏͰ-ϿЀ-ӿ]/gu;
+/** Text that the standard fonts cannot draw but Carlito can. */
+const NEEDS_UNICODE = /[^\x00-\xFF•…]/;
+let UNICODE_FONTS = false;
+
+/** Registers Carlito on a document; returns false when the font files are not there (then those characters stay out). */
+function registerUnicodeFonts(doc: Doc): boolean {
+  try {
+    const dir = path.join(process.cwd(), "public", "fonts");
+    const reg = path.join(dir, "Carlito-Regular.ttf");
+    const bold = path.join(dir, "Carlito-Bold.ttf");
+    if (!fs.existsSync(reg) || !fs.existsSync(bold)) return (UNICODE_FONTS = false);
+    doc.registerFont("Carlito", reg);
+    doc.registerFont("Carlito-Bold", bold);
+    return (UNICODE_FONTS = true);
+  } catch {
+    return (UNICODE_FONTS = false);
+  }
+}
+
 function clean(value?: string): string {
   return (value ?? "")
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
     .replace(/[–—]/g, "-")
-    .replace(/[^\x09\x0A\x0D\x20-\x7E -ÿ•…]/gu, (ch) => {
+    .replace(UNSUPPORTED, (ch) => {
       droppedChars.add(ch);
       return "";
     })
@@ -84,6 +111,8 @@ class Pen {
   shape: PhotoShape = "circle";
   /** The cards of a look that puts its sections on cards: the first pass writes them down, the second paints them first. */
   collect?: { y0: number; y1: number }[];
+  /** When set, every block drawn writes its vertical extent here: a two-page render uses it to find where the page may be cut. */
+  spans?: [number, number][];
   cards?: { y0: number; y1: number }[];
 
   constructor(public doc: Doc, public k: number, public floor: number = FONT_FLOOR) {}
@@ -122,13 +151,15 @@ class Pen {
     }
   }
 
-  private apply(s: Style) {
-    this.doc.font(s.font).fontSize(s.size * this.fk).fillColor(s.color ?? INK);
+  private apply(s: Style, text?: string) {
+    // a text with characters the standard fonts lack is drawn with Carlito (bold when the style is bold)
+    const font = text && UNICODE_FONTS && NEEDS_UNICODE.test(text) ? (/bold/i.test(s.font) ? "Carlito-Bold" : "Carlito") : s.font;
+    this.doc.font(font).fontSize(s.size * this.fk).fillColor(s.color ?? INK);
   }
 
   /** Height a piece of text would take at the given width. */
   measure(text: string, width: number, s: Style): number {
-    this.apply(s);
+    this.apply(s, text);
     return this.doc.heightOfString(text, {
       width,
       lineGap: (s.gap ?? 1.5) * this.k,
@@ -144,20 +175,21 @@ class Pen {
   }
 
   widthOf(text: string, s: Style): number {
-    this.apply(s);
+    this.apply(s, text);
     return this.doc.widthOfString(text, { characterSpacing: (s.spacing ?? 0) * this.fk });
   }
 
   /** Draw wrapped text at (x, y) and return the y just below it. */
   text(text: string, x: number, y: number, width: number, s: Style): number {
     if (!text) return y;
-    this.apply(s);
+    this.apply(s, text);
     this.doc.text(text, x, y, {
       width,
       align: s.align ?? "left",
       lineGap: (s.gap ?? 1.5) * this.k,
       characterSpacing: (s.spacing ?? 0) * this.fk,
     });
+    this.spans?.push([y - 0.24 * s.size * this.fk, this.doc.y]); // the letters stand a little above the top of the line
     return this.doc.y;
   }
 
@@ -166,19 +198,22 @@ class Pen {
     const rw = right ? this.widthOf(right, rs) : 0;
     const bottom = this.text(left, x, y, Math.max(20, width - rw - 10), ls);
     if (right) {
-      this.apply(rs);
+      this.apply(rs, right);
       // align the small right-hand text with the first line's baseline
       const dy = (ls.size - rs.size) * this.fk * 0.18;
       this.doc.text(right, x, y + dy, { width, align: "right", lineBreak: false });
     }
+    this.spans?.push([y - 0.24 * ls.size * this.fk, bottom]);
     return bottom;
   }
 
   rule(x1: number, y: number, x2: number, color = HAIR, weight = 0.6) {
+    this.spans?.push([y - weight * this.k, y + weight * this.k]);
     this.doc.save().moveTo(x1, y).lineTo(x2, y).lineWidth(weight * this.k).stroke(color).restore();
   }
 
   rect(x: number, y: number, w: number, h: number, fill: string) {
+    this.spans?.push([y, y + h]);
     this.doc.save().rect(x, y, w, h).fill(fill).restore();
   }
 }
@@ -2262,6 +2297,8 @@ interface Result {
   pages: number;
   scale: number;
   dropped: string[];
+  /** how full the last sheet is (0 to 1), for two sheets */
+  lastFill?: number;
 }
 
 /** What the caller needs to know about how the resume was fitted onto the page. */
@@ -2269,8 +2306,12 @@ export interface ResumeRender {
   buffer: Buffer;
   /** 1 = normal size; lower means the text was shrunk to fit one page. */
   scale: number;
-  /** Number of pages in the PDF (1 unless the content was extremely long). */
+  /** Number of pages in the PDF (1 unless the content was extremely long, or the person accepted two and the look allows it). */
   pages: number;
+  /** How many pages the person accepts for this look (1 or 2): the page rules judge the resume against it. */
+  maxPages: number;
+  /** How full the last page is (0 to 1) when there are two: a second page with a few lines is not worth having. */
+  lastFill?: number;
   /** Characters that can't be drawn with the built-in fonts and were left out. */
   droppedChars: string[];
 }
@@ -2837,6 +2878,20 @@ function drawGallery(pen: Pen, p: ProfileData, v: Gallery) {
   }
 }
 
+/** Draws the whole resume of a look on the pen's document. */
+function paint(pen: Pen, profile: ProfileData, template: ResumeTemplate) {
+  if (template === "modern") drawModern(pen, profile);
+  else if (template === "creative") drawCreative(pen, profile);
+  else if (template === "essential") drawEssential(pen, profile);
+  else if (template === "sidebar") drawSidebar(pen, profile);
+  else if (template === "rirekisho") drawRirekisho(pen, profile);
+  else if (template === "shokumu") drawShokumu(pen, profile);
+  else if (template === "ats") drawAts(pen, profile);
+  else if (isGallery(template)) drawGallery(pen, profile, template);
+  else if (template === "executive" || template === "tech" || template === "minimal" || template === "elegant" || template === "timeline" || template === "legal" || template === "press" || template === "health" || template === "corporate" || template === "warm" || template === "academic" || template === "halftone" || template === "banner") drawSingle(pen, profile, template);
+  else drawClassic(pen, profile);
+}
+
 function render(profile: ProfileData, template: ResumeTemplate, k: number, photo?: Buffer, lang: ResumeLang = "en", floor: number = FONT_FLOOR): Promise<Result> {
   droppedChars.clear();
   LANG = lang;
@@ -2871,26 +2926,121 @@ function render(profile: ProfileData, template: ResumeTemplate, k: number, photo
     doc.on("pageAdded", () => drawGalleryBack(doc, template, baseColor));
   }
 
+  registerUnicodeFonts(doc);
   if (template === "essential") registerEssentialFonts(doc);
   const pen = new Pen(doc, k, floor);
   pen.photo = photo;
   pen.shape = photoShapeOf(template);
-  if (template === "modern") drawModern(pen, profile);
-  else if (template === "creative") drawCreative(pen, profile);
-  else if (template === "essential") drawEssential(pen, profile);
-  else if (template === "sidebar") drawSidebar(pen, profile);
-  else if (template === "rirekisho") drawRirekisho(pen, profile);
-  else if (template === "shokumu") drawShokumu(pen, profile);
-  else if (template === "ats") drawAts(pen, profile);
-  else if (isGallery(template)) drawGallery(pen, profile, template);
-  else if (template === "executive" || template === "tech" || template === "minimal" || template === "elegant" || template === "timeline" || template === "legal" || template === "press" || template === "health" || template === "corporate" || template === "warm" || template === "academic" || template === "halftone" || template === "banner") drawSingle(pen, profile, template);
-  else drawClassic(pen, profile);
+  paint(pen, profile, template);
 
   const pages = doc.bufferedPageRange().count;
   const dropped = Array.from(droppedChars);
   doc.flushPages();
   doc.end();
   return finished.then((buffer) => ({ buffer, pages, scale: pen.fk, dropped }));
+}
+
+const TOP_NEXT = 40; // where the content starts on the second sheet
+
+/**
+ * Up to two sheets. The resume is drawn once on a tall dry-run sheet to learn where every block starts and ends, then the cut goes at the
+ * lowest gap that fits the first sheet (never through a line). Each sheet then draws the whole resume again, clipped and moved up. `pages`
+ * is 3 when not even two sheets are enough at this scale (the caller then shrinks).
+ */
+async function renderPaged(profile: ProfileData, template: ResumeTemplate, k: number, photo?: Buffer, lang: ResumeLang = "en"): Promise<Result> {
+  droppedChars.clear();
+  LANG = lang;
+  const dry = new PDFDocument({ size: [W, H * 4], margins: { top: 0, left: 0, right: 0, bottom: 0 } });
+  dry.on("data", () => {});
+  const dryDone = new Promise<void>((resolve) => dry.on("end", () => resolve()));
+  registerUnicodeFonts(dry);
+  if (template === "essential") registerEssentialFonts(dry);
+  const probe = new Pen(dry, k);
+  probe.photo = photo;
+  probe.shape = photoShapeOf(template);
+  probe.spans = [];
+  // every box a look draws by itself (a table cell, a band) counts too: a cut never goes through one. Page-sized panels do not.
+  const drawRect = dry.rect.bind(dry);
+  dry.rect = ((x: number, y: number, w: number, h: number) => {
+    if (h > 0 && h <= 260) probe.spans?.push([y, y + h]);
+    return drawRect(x, y, w, h);
+  }) as typeof dry.rect;
+  paint(probe, profile, template);
+  dry.end();
+  await dryDone;
+  const raw = [...probe.spans].sort((a, b) => a[0] - b[0]);
+  const end = raw.reduce((m, [, y1]) => Math.max(m, y1), 0);
+  // blocks that touch (the rows of a table, a band and its text) are one block: a cut never goes between them
+  const spans: [number, number][] = [];
+  for (const [y0, y1] of raw) {
+    const last = spans[spans.length - 1];
+    if (last && y0 <= last[1] + 0.6 * k) last[1] = Math.max(last[1], y1); // as close as the borders of a table, at this scale
+    else spans.push([y0, y1]);
+  }
+  if (end <= H - BOTTOM) return render(profile, template, k, photo, lang); // one sheet is enough
+  // the lowest cut that fits the first sheet and goes through no block
+  let cut = H - BOTTOM;
+  for (let again = true; again; ) {
+    again = false;
+    for (const [y0, y1] of spans) {
+      if (y0 < cut && cut < y1) {
+        cut = y0;
+        again = true;
+      }
+    }
+  }
+  // better between two jobs or two sections than between a title and its first line: if there is a clear gap a little above, cut there
+  const sorted = [...spans].sort((a, b) => a[0] - b[0]);
+  // a "clear gap" is clearly wider than the usual space between two lines or two rows of this resume
+  const gaps: number[] = [];
+  let top = sorted[0]?.[1] ?? 0;
+  for (const [y0, y1] of sorted) {
+    if (y0 - top > 0.5) gaps.push(y0 - top);
+    top = Math.max(top, y1);
+  }
+  gaps.sort((a, b) => a - b);
+  const clear = Math.max((gaps[Math.floor(gaps.length / 2)] ?? 0) * 1.6, 2.5);
+  let reach = sorted[0]?.[1] ?? 0;
+  let roomy = 0;
+  for (const [y0, y1] of sorted) {
+    if (y0 - reach >= clear && y0 <= cut && y0 >= cut - 170) roomy = y0;
+    reach = Math.max(reach, y1);
+  }
+  if (roomy) cut = roomy;
+  if (cut < H / 3 || end - cut > H - BOTTOM - TOP_NEXT) return { buffer: Buffer.alloc(0), pages: 3, scale: probe.fk, dropped: Array.from(droppedChars) };
+
+  const doc = new PDFDocument({
+    size: "A4",
+    margins: { top: 0, left: 0, right: 0, bottom: -100000 }, // nothing may start a page by itself: the sheets are made here
+    bufferPages: true,
+    info: { Title: clean(profile.name) || "Resume", Author: clean(profile.name) || "Resume" },
+  });
+  const chunks: Buffer[] = [];
+  doc.on("data", (c: Buffer) => chunks.push(c));
+  const finished = new Promise<Buffer>((resolve, reject) => {
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+  });
+  registerUnicodeFonts(doc);
+  if (template === "essential") registerEssentialFonts(doc);
+  let fk = 1;
+  for (let sheet = 0; sheet < 2; sheet++) {
+    if (sheet > 0) doc.addPage();
+    doc.save();
+    if (sheet === 0) doc.rect(0, 0, W, cut).clip();
+    else doc.rect(0, TOP_NEXT, W, H).clip().translate(0, TOP_NEXT - cut);
+    const pen = new Pen(doc, k);
+    pen.photo = photo;
+    pen.shape = photoShapeOf(template);
+    paint(pen, profile, template);
+    fk = pen.fk;
+    doc.restore();
+  }
+  const dropped = Array.from(droppedChars);
+  doc.flushPages();
+  doc.end();
+  const lastFill = Math.max(0, Math.min(1, (end - cut) / (H - BOTTOM - TOP_NEXT)));
+  return finished.then((buffer) => ({ buffer, pages: 2, scale: fk, dropped, lastFill }));
 }
 
 /** The most the text may grow when there is little to say (the forms already fill the page). */
@@ -2908,13 +3058,20 @@ export async function renderResumeDetailed(
   const t: ResumeTemplate = asTemplate(template);
   const photo = options.withPhoto === false || !supportsPhoto(t) ? undefined : decodePhoto(profile.photo);
   let last: Result | null = null;
+  const maxPages = maxPagesFor(profile, t);
+  // "Let Kaizo decide": one page when everything fits at a comfortable size; two (nothing shrunk) when it would not
+  if (rawProfile.pageGoal === "any" && maxPages > 1) {
+    const one = await renderResumeDetailed({ ...rawProfile, pageGoal: "one" }, template, options);
+    if (one.pages <= 1 && one.scale >= PAGE_COMFORT_SCALE) return { ...one, maxPages };
+  }
+  const draw = (k: number, floor: number = FONT_FLOOR) => (maxPages > 1 ? renderPaged(profile, t, k, photo, options.lang) : render(profile, t, k, photo, options.lang, floor));
   // the forms and the two-column looks stay at their base size when there is little to say (only shrink when there is a lot)
   // (and a short resume keeps its natural size unless the person chose to fill the page)
-  if (profile.fillPage === true && t !== "rirekisho" && t !== "shokumu" && t !== "modern" && t !== "creative" && t !== "sidebar" && (!isGallery(t) || t === "blossom")) {
+  if (maxPages === 1 && profile.fillPage === true && t !== "rirekisho" && t !== "shokumu" && t !== "modern" && t !== "creative" && t !== "sidebar" && (!isGallery(t) || t === "blossom")) {
     // little content: try bigger text first, the biggest that still fits on one page wins
     for (const k of t === "blossom" ? GROW_SCALES_BLOSSOM : GROW_SCALES) {
       const r = await render(profile, t, k, photo, options.lang);
-      if (r.pages <= 1) return { buffer: r.buffer, scale: r.scale, pages: r.pages, droppedChars: r.dropped };
+      if (r.pages <= 1) return { buffer: r.buffer, scale: r.scale, pages: r.pages, maxPages, droppedChars: r.dropped };
     }
   }
   // The text keeps a readable size and the spaces shrink first; if one page is still not enough the floor goes down a step (see FLOORS):
@@ -2923,19 +3080,19 @@ export async function renderResumeDetailed(
   const fitAt = async (floor: number): Promise<Result | null> => {
     // a scale above the floor draws the same as in the step before, so only the ones that can still change something are tried
     const ks = SCALES.filter((k) => floor === FONT_FLOOR || k <= floor);
-    const biggest = await render(profile, t, ks[0], photo, options.lang, floor);
+    const biggest = await draw(ks[0], floor);
     last = biggest;
-    if (biggest.pages <= 1) return biggest;
-    const smallest = await render(profile, t, ks[ks.length - 1], photo, options.lang, floor);
+    if (biggest.pages <= maxPages) return biggest;
+    const smallest = await draw(ks[ks.length - 1], floor);
     last = smallest;
-    if (smallest.pages > 1) return null; // not even the smallest fits at this floor
+    if (smallest.pages > maxPages) return null; // not even the smallest fits at this floor
     let lo = 0; // index that does not fit
     let hi = ks.length - 1; // index that fits
     let best = smallest;
     while (hi - lo > 1) {
       const mid = (lo + hi) >> 1;
-      const r = await render(profile, t, ks[mid], photo, options.lang, floor);
-      if (r.pages <= 1) {
+      const r = await draw(ks[mid], floor);
+      if (r.pages <= maxPages) {
         hi = mid;
         best = r;
       } else lo = mid;
@@ -2944,9 +3101,9 @@ export async function renderResumeDetailed(
   };
   for (const floor of FLOORS) {
     const found = await fitAt(floor);
-    if (found) return { buffer: found.buffer, scale: found.scale, pages: found.pages, droppedChars: found.dropped };
+    if (found) return { buffer: found.buffer, scale: found.scale, pages: found.pages, maxPages, droppedChars: found.dropped, lastFill: found.lastFill };
   }
-  return { buffer: last!.buffer, scale: last!.scale, pages: last!.pages, droppedChars: last!.dropped };
+  return { buffer: last!.buffer, scale: last!.scale, pages: last!.pages, maxPages, droppedChars: last!.dropped, lastFill: last!.lastFill };
 }
 
 export async function renderResumePdf(profile: ProfileData, template: string, lang?: ResumeLang): Promise<Buffer> {

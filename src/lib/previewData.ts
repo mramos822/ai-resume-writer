@@ -49,6 +49,7 @@ export function previewFromProfile(profile: ProfileData, lang: "en" | "es" = "en
     skillGroups: profile.skillGroups || {},
     accent: profile.accentColor,
     fillPage: profile.fillPage,
+    pageGoal: profile.pageGoal,
     jobs: (profile.jobHistory || []).map((j) => ({
       company: companyLabel(j, lang),
       title: j.title || "",

@@ -84,6 +84,8 @@ import SignupGate from "@/components/signupGate";
 import { formatPhoneInput, phoneExample } from "@/lib/phone";
 import LivePreview, { type PreviewData, type PreviewSection } from "@/components/livePreview";
 import { useT, useLocale } from "@/i18n/provider";
+import PageLengthPicker from "@/components/pageLengthPicker";
+import { asPageGoal, type PageGoal } from "@/lib/pageGoal";
 import { countryNamer } from "@/i18n/places";
 
 
@@ -188,11 +190,11 @@ function readDraft(): Draft | null {
   }
 }
 
-type Step = "template" | "path" | "upload" | "found" | "contact" | "about" | "skills" | "job" | "education" | "extras" | "finish";
+type Step = "template" | "length" | "path" | "upload" | "found" | "contact" | "about" | "skills" | "job" | "education" | "extras" | "finish";
 
 // Order of the "from scratch" path, used for the progress bar
-const SCRATCH: Step[] = ["template", "path", "contact", "about", "skills", "job", "education", "extras", "finish"];
-const UPLOAD: Step[] = ["template", "path", "upload", "found", "contact", "about", "skills", "job", "education", "extras", "finish"];
+const SCRATCH: Step[] = ["template", "length", "path", "contact", "about", "skills", "job", "education", "extras", "finish"];
+const UPLOAD: Step[] = ["template", "length", "path", "upload", "found", "contact", "about", "skills", "job", "education", "extras", "finish"];
 
 function remember(key: string, value = "1") {
   try {
@@ -414,6 +416,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     updateSkillGroups,
     updateAccentColor,
     updateFillPage,
+    updatePageGoal,
     updateSectionOrder,
     setJobHistory,
     deleteJobEntry,
@@ -457,6 +460,9 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   const [template, setTemplate] = useState("");
   const [accent, setAccent] = useState(""); // id of the color of the look ("" = the look's own)
   const [fillPage, setFillPage] = useState(false); // grow the text to fill the page when there is little content
+  const [pageGoal, setPageGoal] = useState<PageGoal>("one"); // how long the person wants the resume
+  const pageGoalRef = useRef<PageGoal>("one"); // read inside async code (the upload), where the state would be stale
+  pageGoalRef.current = pageGoal;
   const [customize, setCustomize] = useState(false);
 
   // form state for the "from scratch" path
@@ -654,6 +660,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     setSkillGroups(src.skillGroups || {});
     if (src.accentColor) setAccent(src.accentColor);
     setFillPage(Boolean(src.fillPage));
+    setPageGoal(asPageGoal(src.pageGoal));
     setLanguages(src.languages || []);
     const jobDrafts: JobDraft[] = (src.jobHistory || []).map((j) => ({
       id: j.id,
@@ -885,6 +892,11 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     updateAccentColor(id);
   }, [updateAccentColor]);
 
+  const onGoal = useCallback((goal: PageGoal) => {
+    setPageGoal(goal);
+    updatePageGoal(goal);
+  }, [updatePageGoal]);
+
   const onFill = useCallback((on: boolean) => {
     setFillPage(on);
     updateFillPage(on);
@@ -922,8 +934,12 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
         parsed = translated;
         await applyProfileData(translated).catch(() => {});
       }
+      // the length the person chose before uploading is not in the text of a resume: reading the file must not reset it
+      const chosenGoal = asPageGoal((parsed as { pageGoal?: unknown }).pageGoal ?? pageGoalRef.current);
+      parsed = { ...parsed, pageGoal: chosenGoal };
       // load what was read from the resume into the forms, so each section can be checked and corrected
       hydrate(parsed as unknown as typeof profile);
+      updatePageGoal(chosenGoal);
       setStep("found");
     } catch (err) {
       toast.error((err as Error).message || tr("We couldn't read that file."));
@@ -999,7 +1015,11 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
 
   const summary = [
     { label: "Name", value: realName(profile.name) },
+    { label: "Target job", value: profile.jobTitle },
     { label: "Email", value: profile.contactInfo?.email },
+    { label: "Phone", value: profile.contactInfo?.phone },
+    { label: "Location", value: [profile.contactInfo?.city, profile.contactInfo?.state].filter(Boolean).join(", ") },
+    { label: "Summary", value: profile.careerObjective ? `${profile.careerObjective.trim().length} characters` : "" },
     { label: "Skills", value: profile.skills?.length ? `${profile.skills.length} found` : "" },
     { label: "Languages", value: profile.languages?.length ? `${profile.languages.length} found` : "" },
     { label: "Jobs", value: profile.jobHistory?.length ? `${profile.jobHistory.length} found` : "" },
@@ -1007,7 +1027,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     { label: "Projects", value: profile.projects?.length ? `${profile.projects.length} found` : "" },
   ];
 
-  const showTabs = !["template", "path", "upload"].includes(step);
+  const showTabs = !["template", "length", "path", "upload"].includes(step);
   const customizing = customize && showTabs;
   const reviewing = step === "finish" && !customizing;
   const on = (id: Step) => step === id || (reviewing && ["contact", "about", "skills", "job", "education", "extras"].includes(id));
@@ -1039,6 +1059,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
     skillGroups,
     accent,
     fillPage,
+    pageGoal,
     ...extrasPreview,
     sectionOrder: orderTouched ? ["about", ...blockOrder.filter((x) => !FIXED_SECTIONS.includes(x))] : undefined,
     jobs: jobs.map((j) => ({ ...j, description: "", bullets: toBullets(j.description) })),
@@ -1683,7 +1704,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
             </div>
           ) : (
             <p className="inline-flex items-center gap-2 rounded-full border bg-card/70 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground backdrop-blur">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[11px] text-white">
                 {step === "template" ? 1 : 2}
               </span>
               {step === "template" ? tr("Choose a look") : tr("Add your details")}
@@ -1720,6 +1741,11 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
           <>
             <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">{tr("Choose another look")}</h1>
             <p className="mt-2 text-muted-foreground">{tr("Your content stays exactly as it is. Pick one and watch the preview change.")}</p>
+            {/* the length is a choice about the look too, so it is here and not only when the resume is first made */}
+            <h2 className="mt-6 text-base font-bold">{tr("How long should it be?")}</h2>
+            <div className="mt-2">
+              <PageLengthPicker compact value={pageGoal} template={template} onChange={onGoal} />
+            </div>
             <div className="mt-8">
               {/* choosing a look applies it right away; you stay here until you go back to Edit */}
               <TemplateSelector onTemplateSelect={onTemplate} showcase />
@@ -1736,7 +1762,22 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
             </div>
             {/* pinned to the bottom of the screen so it is always in reach, however long the list of looks is */}
             <div className="sticky bottom-0 z-20 -mx-5 mt-6 flex justify-center bg-gradient-to-t from-background via-background/90 to-transparent px-5 pb-4 pt-6 lg:-mx-10">
-              <ContinueButton onClick={() => go("path")} disabled={!template} />
+              <ContinueButton onClick={() => go("length")} disabled={!template} />
+            </div>
+          </div>
+        )}
+
+        {step === "length" && (
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">{tr("How long should your resume be?")}</h1>
+            <p className="mx-auto mt-3 max-w-lg text-muted-foreground">{tr("You decide. Recruiters read one page best, but two pages make sense with a lot of experience. You can change it any time.")}</p>
+            <div className="mt-8 text-left">
+              <PageLengthPicker value={pageGoal} template={template} onChange={onGoal} />
+            </div>
+            <div className="mt-10 flex items-center justify-center gap-3">
+              <Button variant="ghost" onClick={() => go("template")}>
+                <ArrowLeft className="h-4 w-4" />{" "}{tr("Back")}</Button>
+              <ContinueButton onClick={() => go("path")} />
             </div>
           </div>
         )}
@@ -1777,7 +1818,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
               </button>
             </div>
             <div className="mt-10">
-              <Button variant="ghost" onClick={() => go("template")}>
+              <Button variant="ghost" onClick={() => go("length")}>
                 <ArrowLeft className="h-4 w-4" />{" "}{tr("Back")}</Button>
             </div>
           </div>

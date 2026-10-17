@@ -29,7 +29,7 @@ export async function trimToFit(profile: ProfileData, job: JobListing, template:
   const fits = async (p: ProfileData) => {
     try {
       const r = await renderResumeDetailed(p, template, { lang });
-      return passesPage({ pages: r.pages, scale: r.scale });
+      return passesPage({ pages: r.pages, scale: r.scale, maxPages: r.maxPages });
     } catch {
       return true; // if it cannot be measured it is left as it is
     }

@@ -61,8 +61,8 @@ describe.each(["modern", "classic", "creative", "essential", "executive", "tech"
   });
 
   it("reports characters the built-in fonts cannot draw", async () => {
-    const r = await renderResumeDetailed({ ...base, name: "Тейлор Cook" }, template);
-    expect(r.droppedChars).toContain("Т");
+    const r = await renderResumeDetailed({ ...base, name: "李雷 Cook" }, template);
+    expect(r.droppedChars).toContain("李");
   });
 
   it("works with an almost empty profile", async () => {
@@ -109,5 +109,21 @@ describe("every look draws a profile with no jobs and a volunteering and interes
     const r = await renderResumeDetailed(noJobs, template);
     expect(r.buffer.subarray(0, 5).toString()).toBe("%PDF-");
     expect(r.pages).toBe(1);
+  });
+});
+
+describe("characters outside Latin-1", () => {
+  const european = { ...base, name: "Łukasz Żółć-Şahin", jobTitle: "Inżynier oprogramowania", skills: ["Żółć", "Čeština", "Ελληνικά", "Русский", "Türkçe"] };
+  it.each(["classic", "ats", "executive", "modern", "banner"])("draws Polish, Czech, Turkish, Greek and Cyrillic in %s without dropping them", async (look) => {
+    const r = await renderResumeDetailed(european, look);
+    expect(r.droppedChars).toEqual([]);
+    expect(r.buffer.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
+  it("still reports what no bundled font can draw (Chinese, Arabic, emoji)", async () => {
+    const r = await renderResumeDetailed({ ...base, name: "Taylor 李雷 مرحبا 🙂" }, "classic");
+    expect(r.droppedChars.length).toBeGreaterThan(0);
+    expect(r.droppedChars.join("")).toContain("李");
+    expect(r.droppedChars.join("")).not.toContain("T");
   });
 });

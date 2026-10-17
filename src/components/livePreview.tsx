@@ -8,11 +8,13 @@ import { Award, BookUser, Briefcase, Building2, FolderKanban, GraduationCap, Git
 
 import { formatContactPhone } from "@/lib/phone";
 import { orderedSections } from "@/lib/sectionOrder";
-import { levelDots, levelFraction, type LanguageEntry } from "@/lib/languages";
+import { levelFraction, type LanguageEntry } from "@/lib/languages";
 import { skillLevel, type SkillLevels } from "@/lib/skillLevels";
 import { groupSkills, hasSkillGroups, type SkillGroups } from "@/lib/skillGroups";
 import { displayUrl, labeledLink, shortContactLink, type CertificationEntry, type LinkEntry } from "@/lib/links";
 import { useT } from "@/i18n/provider";
+import { canRunTwoPages } from "@/lib/pageGoal";
+import { PAGE_COMFORT_SCALE } from "@/lib/pageRules";
 import { accentHex, accentVars } from "@/lib/accents";
 import { BLOBS, DROPS, pastelPalette, smoothPath } from "@/lib/blobs";
 import { PHOTO_RADIUS, photoShapeOf, type PhotoShape } from "@/lib/templates";
@@ -58,6 +60,7 @@ export type PreviewData = {
   accent?: string;
   /** grow the text to fill the page when there is little content (off = natural size) */
   fillPage?: boolean;
+  pageGoal?: "one" | "two" | "any";
   links?: LinkEntry[];
   certifications?: CertificationEntry[];
   interests?: string[];
@@ -240,6 +243,78 @@ const isBlank = (d: PreviewData) =>
   !(d.edus ?? [d.edu]).some((e) => e.school.trim() || e.degree.trim());
 
 /** Font size (cqw) for a name so it stays on its line: `width` is the room in cqw, `em` the average letter width. */
+/** Where a resume of two sheets is cut, in px from the top of the sheet, as the PDF does it (see renderPaged in pdfResume). */
+interface PageSplit {
+  cut: number;
+  topNext: number;
+  zoom: number;
+}
+
+/**
+ * The cut goes at the lowest gap that fits the first sheet and passes through no line of text, rule or band; a clear gap a little above is
+ * preferred (between two jobs rather than between a title and its first line). Null when the content does not fit two sheets.
+ */
+function splitPoints(c: HTMLElement, paper: DOMRect, zoom: number): PageSplit | null {
+  const unit = paper.width / 595.28; // px per pt of the PDF
+  const bottom = paper.height - 30 * unit; // the PDF breaks 30pt above the bottom edge
+  const topNext = 40 * unit; // and the second sheet starts 40pt from the top
+  const spans: [number, number][] = [];
+  const walker = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!n.nodeValue?.trim()) continue;
+    range.selectNodeContents(n);
+    for (const r of Array.from(range.getClientRects())) if (r.height > 0) spans.push([r.top - paper.top, r.bottom - paper.top]);
+  }
+  // rules and bands: thin lines, and filled strips that carry a heading
+  for (const e of Array.from(c.querySelectorAll<HTMLElement>("*"))) {
+    const r = e.getBoundingClientRect();
+    if (r.height <= 0 || r.width < paper.width * 0.25 || r.height > 260 * unit) continue;
+    const cs = getComputedStyle(e);
+    if (cs.backgroundColor !== "rgba(0, 0, 0, 0)" || parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0) spans.push([r.top - paper.top, r.bottom - paper.top]);
+  }
+  if (spans.length === 0) return null;
+  const end = spans.reduce((m, [, y1]) => Math.max(m, y1), 0);
+  // blocks that touch (the rows of a table, a band and its text) are one block: a cut never goes between them
+  spans.sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const [y0, y1] of spans) {
+    const last = merged[merged.length - 1];
+    if (last && y0 <= last[1] + 0.6 * unit * zoom) last[1] = Math.max(last[1], y1);
+    else merged.push([y0, y1]);
+  }
+  spans.splice(0, spans.length, ...merged);
+  let cut = bottom;
+  for (let again = true; again; ) {
+    again = false;
+    for (const [y0, y1] of spans) {
+      if (y0 < cut && cut < y1) {
+        cut = y0;
+        again = true;
+      }
+    }
+  }
+  const sorted = [...spans].sort((a, b) => a[0] - b[0]);
+  // a "clear gap" is clearly wider than the usual space between two lines of this resume
+  const gaps: number[] = [];
+  let top = sorted[0][1];
+  for (const [y0, y1] of sorted) {
+    if (y0 - top > 0.5) gaps.push(y0 - top);
+    top = Math.max(top, y1);
+  }
+  gaps.sort((a, b) => a - b);
+  const clear = Math.max((gaps[Math.floor(gaps.length / 2)] ?? 0) * 1.6, 2 * unit);
+  let reach = sorted[0][1];
+  let roomy = 0;
+  for (const [y0, y1] of sorted) {
+    if (y0 - reach >= clear && y0 <= cut && y0 >= cut - 170 * unit) roomy = y0;
+    reach = Math.max(reach, y1);
+  }
+  if (roomy) cut = roomy;
+  if (cut < paper.height / 3 || end - cut > bottom - topNext) return null;
+  return { cut, topNext, zoom };
+}
+
 const fitName = (base: number, text: string, width: number, em: number) =>
   Math.max(base * 0.4, Math.min(base, width / (Math.max(1, text.length) * em)));
 
@@ -313,6 +388,8 @@ export default function LivePreview({
   const headRef = useRef<HTMLDivElement>(null); // the header of Modern and Creative, which is zoomed with the columns
   const [divH, setDivH] = useState<string | null>(null); // the height of the vertical line of Modern
   const [scale, setScale] = useState(1);
+  const [split, setSplit] = useState<PageSplit | null>(null); // the resume runs onto a second sheet (the person accepts two and the look can do it)
+  const sheet2 = useRef<HTMLDivElement>(null); // the second sheet: a copy of the content, moved up to where the cut is
   // little content keeps the natural size of the text, unless the person chose to fill the page
   const growTo = !d.fillPage || FORM_TEMPLATES.includes(template) ? 1 : template === "blossom" ? MAX_GROW_BLOSSOM : MAX_GROW;
   const [colScale, setColScale] = useState({ l: 1, r: 1 });
@@ -366,12 +443,35 @@ export default function LivePreview({
       setColScale({ l: common, r: common });
     } else {
       setColScale({ l: 1, r: 1 });
-      const best = pick(c, pageH * 0.98);
+      // two pages accepted: the text keeps its size until it would not fit even two sheets; the sheet shows the first one
+      const twoOk = (d.pageGoal === "two" || d.pageGoal === "any") && canRunTwoPages(template);
+      let best = pick(c, pageH * 0.98);
+      let sheets: PageSplit | null = null;
+      // "Let Kaizo decide" keeps one page while the text stays comfortable (as the PDF does); "two pages" never shrinks it for one
+      if (twoOk && (d.pageGoal === "two" || best < PAGE_COMFORT_SCALE)) {
+        // the text keeps its size until the content would not fit two sheets with their margins and a cut
+        best = pick(c, pageH * 2 - 160 * (pr.width / 595.28));
+        if (c.getBoundingClientRect().height > pageH * 0.98) sheets = splitPoints(c, pr, best);
+      }
       setScale(best);
+      setSplit(sheets);
     }
-  }, [growTo]);
+  }, [growTo, d.pageGoal, template]);
   // re-fit whenever what is shown changes
   const signature = JSON.stringify(d) + template;
+  // the second sheet is a copy of the content moved up to the cut: it is rebuilt after every fit
+  useLayoutEffect(() => {
+    const host = sheet2.current;
+    if (!host) return;
+    host.querySelector("[data-sheet2]")?.remove();
+    const c = content.current;
+    if (!split || !c) return;
+    const copy = c.cloneNode(true) as HTMLElement;
+    copy.setAttribute("data-sheet2", "1");
+    copy.setAttribute("aria-hidden", "true");
+    copy.style.transform = `translateY(${-(split.cut - split.topNext) / split.zoom}px)`; // a zoomed element also zooms its own move
+    host.insertBefore(copy, host.firstChild);
+  }, [split, signature, scale]);
   useLayoutEffect(() => {
     fit();
   }, [signature, fit]);
@@ -2525,7 +2625,7 @@ export default function LivePreview({
       className={`mx-auto w-full ${enter ? "animate-preview-in" : ""}`}
       style={
         box
-          ? { position: "fixed", top: "4.5rem", left: box.left, width: box.width, zIndex: 60 }
+          ? { position: "fixed", top: "4.5rem", left: box.left, width: box.width, zIndex: 60, ...(split ? { maxHeight: "calc(100dvh - 5rem)", overflowY: "auto", paddingBottom: 8 } : {}) }
           : { maxWidth: large ? "60rem" : "max(20rem, calc((100dvh - 8rem) * 0.7071))" }
       }
     >
@@ -2538,6 +2638,13 @@ export default function LivePreview({
         className="relative aspect-[210/297] w-full overflow-hidden rounded-md bg-white text-neutral-900 shadow-2xl ring-1 ring-black/10"
         style={{ containerType: "inline-size", ...(accentVars(template, d.accent) as React.CSSProperties) }}
       >
+        {split && (
+          <>
+            {/* what the PDF clips on the first sheet: nothing under the cut */}
+            <div aria-hidden className="absolute inset-x-0 z-10 bg-white" style={{ top: split.cut, bottom: 0 }} />
+            <span className="absolute bottom-2 right-2 z-20 rounded-full bg-neutral-900/70 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white">{tr("Page {n} of {total}", { n: 1, total: 2 })}</span>
+          </>
+        )}
         {template === "creative" && <div style={{ position: "absolute", inset: "0 auto 0 0", width: "30.92%", background: "#f1f1f1" }} />}
         {template === "sidebar" && <div style={{ position: "absolute", inset: "0 auto 0 0", width: "32%", background: "var(--acc-dark)" }} />}
         {template === "noir" && <div style={{ position: "absolute", inset: "0 auto 0 0", width: "39%", background: "color-mix(in srgb, var(--acc) 14%, white)" }} />}
@@ -2565,6 +2672,19 @@ export default function LivePreview({
       )}
       {overlay && <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">{overlay}</div>}
       </div>
+      {split && (
+        <div
+          ref={sheet2}
+          role="img"
+          aria-label={tr("Page 2 of the preview of your resume")}
+          className="relative mt-4 aspect-[210/297] w-full overflow-hidden rounded-md bg-white text-neutral-900 shadow-2xl ring-1 ring-black/10"
+          style={{ containerType: "inline-size", ...(accentVars(template, d.accent) as React.CSSProperties) }}
+        >
+          {/* nothing above where the content starts, as the PDF clips it */}
+          <div aria-hidden className="absolute inset-x-0 top-0 z-10 bg-white" style={{ height: split.topNext }} />
+          <span className="absolute bottom-2 right-2 z-20 rounded-full bg-neutral-900/70 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white">{tr("Page {n} of {total}", { n: 2, total: 2 })}</span>
+        </div>
+      )}
       {!bare && <p className="mt-2 text-center text-xs text-muted-foreground">{tr("A preview of the")}{" "}{template || tr("classic")}{" "}{tr("look. The final PDF may differ slightly.")}</p>}
     </div>
     )}

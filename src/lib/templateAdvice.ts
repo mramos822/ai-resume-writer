@@ -48,7 +48,7 @@ export async function adviseLooks(profile: ProfileData, job: JobListing, current
   for (const id of ids) {
     try {
       const r = await renderResumeDetailed(profile, id, { lang });
-      out.push({ id, name: (TEMPLATES.find((t) => t.id === id)?.name ?? id).replace(" (Default)", ""), field, safe: SAFE.includes(id), scale: r.scale, pages: r.pages, passes: passesPage({ pages: r.pages, scale: r.scale }), current: id === current });
+      out.push({ id, name: (TEMPLATES.find((t) => t.id === id)?.name ?? id).replace(" (Default)", ""), field, safe: SAFE.includes(id), scale: r.scale, pages: r.pages, passes: passesPage({ pages: r.pages, scale: r.scale, maxPages: r.maxPages }), current: id === current });
     } catch {
       /* a look that cannot be measured is left out */
     }
