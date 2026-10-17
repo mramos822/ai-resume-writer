@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { format } from "date-fns";
-import { AlertTriangle, Check, ClipboardCopy, Download, ExternalLink, FileDown, FileText, Pencil, Plus, Trash2, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
+import { AlertTriangle, Check, ClipboardCopy, Download, ExternalLink, FileDown, FileText, Pencil, Plus, Trash2, ChevronLeft, ChevronRight, ChevronUp, SquarePen } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/authContext";
 import { useProfile } from "@/context/profileContext";
@@ -29,7 +29,7 @@ interface Resume {
   id: string;
   filename: string;
   uploadDate: string;
-  metadata: { profileId: string; template: string; format: string; createdAt: string; jobAdId?: string; isGenerated?: boolean };
+  metadata: { profileId: string; template: string; format: string; createdAt: string; jobAdId?: string; isGenerated?: boolean; origin?: string };
   profileName?: string;
   jobAdTitle?: string;
 }
@@ -40,6 +40,9 @@ interface Letter {
 
 const prettyName = (f: string) => f.replace(/\.pdf$/i, "").replace(/_/g, " ");
 const lookOf = (r: Resume) => asTemplateId(r.metadata?.template);
+/** A resume made with "Create resume" or by the step-by-step builder can be opened in the editor again and changed (one made for a job holds
+ *  text tailored to that job, which the profile alone could not draw: that one is edited in its application). */
+const canEdit = (r: Resume) => r.metadata?.origin === "created" || r.metadata?.origin === "builder";
 
 /** A score as a ring. */
 function Ring({ value, size = 96 }: { value: number; size?: number }) {
@@ -158,6 +161,9 @@ export default function ResumesPage() {
       toast.error(tr("We couldn't rename it. Try again."));
     }
   };
+
+  // the editor opens on this resume's look; "Save changes" there replaces THIS resume (same name) instead of adding another one
+  const editResume = (r: Resume) => router.push(`/home/resumes/new?edit=${encodeURIComponent(r.id)}&look=${encodeURIComponent(lookOf(r))}`);
 
   const download = async (r: Resume, kind: "pdf" | "docx") => {
     try {
@@ -348,14 +354,21 @@ export default function ResumesPage() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                     style={{ width: "min(100%, max(13rem, calc((100dvh - 17.5rem) * 0.7727)))" }}
-                    className="mx-auto overflow-hidden rounded-sm shadow-2xl ring-1 ring-black/10"
+                    className={`mx-auto overflow-hidden rounded-sm shadow-2xl ring-1 ring-black/10 ${canEdit(sel) ? "cursor-pointer transition-shadow hover:ring-blue-500/60" : ""}`}
+                    {...(canEdit(sel)
+                      ? { role: "button", tabIndex: 0, title: tr("Click to edit this resume"), "aria-label": tr("Edit this resume"), onClick: () => editResume(sel), onKeyDown: (e: React.KeyboardEvent) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), editResume(sel)) }
+                      : {})}
                   >
                     <PdfPage fileId={sel.id} width={620} alt={tr("{v0}, first page", { v0: prettyName(sel.filename) })} />
                   </motion.div>
                 </div>
                 {/* the dock */}
                 {/* on a phone every action is an icon WITH its name under it (an icon alone did not say what it does); from 640 px up they are the round buttons */}
-                <div className="mx-auto -mt-6 grid max-w-full grid-cols-5 gap-1 rounded-2xl border bg-card p-1.5 shadow-xl sm:flex sm:w-fit sm:flex-wrap sm:items-center sm:justify-center sm:rounded-full">
+                <div className={`mx-auto -mt-6 grid max-w-full gap-1 rounded-2xl border bg-card p-1.5 shadow-xl sm:flex sm:w-fit sm:flex-wrap sm:items-center sm:justify-center sm:rounded-full ${canEdit(sel) ? "grid-cols-6" : "grid-cols-5"}`}>
+                  {canEdit(sel) && (
+                    <Button onClick={() => editResume(sel)} variant="ghost" className="gap-2 rounded-full max-sm:h-auto max-sm:flex-col max-sm:gap-1 max-sm:rounded-xl max-sm:px-1 max-sm:py-2 max-sm:text-[11px] max-sm:leading-tight">
+                      <SquarePen className="h-4 w-4 max-sm:h-5 max-sm:w-5" />{tr("Edit")}</Button>
+                  )}
                   <Button onClick={() => download(sel, "pdf")} className="gap-2 rounded-full font-bold max-sm:h-auto max-sm:flex-col max-sm:gap-1 max-sm:rounded-xl max-sm:px-1 max-sm:py-2 max-sm:text-[11px] max-sm:leading-tight">
                     <Download className="h-4 w-4 max-sm:h-5 max-sm:w-5" />{tr("PDF")}</Button>
                   <Button onClick={() => download(sel, "docx")} variant="ghost" className="gap-2 rounded-full max-sm:h-auto max-sm:flex-col max-sm:gap-1 max-sm:rounded-xl max-sm:px-1 max-sm:py-2 max-sm:text-[11px] max-sm:leading-tight">

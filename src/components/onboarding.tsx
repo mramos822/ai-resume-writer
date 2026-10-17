@@ -379,7 +379,17 @@ function SectionView({
   );
 }
 
-export default function Onboarding({ embedded = false }: { embedded?: boolean } = {}) {
+/** What the editor was opened with (/home/resumes/new?edit=<file>&look=<look>), checked. It comes as a prop from the page (which reads the address
+ *  of the page being opened), so it is there on the first draw: nothing is shown with another look or with "Create resume" for a moment and then
+ *  changed (it looked as if the page loaded twice). */
+export type OpenedWith = { edit?: string | null; look?: string | null };
+function checkedOpenedWith(o?: OpenedWith): { edit: string | null; look: string | null } {
+  const edit = o?.edit ?? null;
+  const look = o?.look ?? null;
+  return { edit: edit && /^[a-f0-9]{24}$/i.test(edit) ? edit : null, look: isTemplateId(look) ? look : null };
+}
+
+export default function Onboarding({ embedded = false, opened }: { embedded?: boolean; opened?: OpenedWith } = {}) {
   const { tr, trd } = useT();
   const router = useRouter();
   // "Make a resume" (the Resumes section) uses the same builder: every detail on the left, the live preview on the right
@@ -461,7 +471,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   }, [embedded, open]);
   const [showPreview, setShowPreview] = useState(false); // the right side shows the big live preview instead of the AI review
   // the resume being edited (the page was opened with ?edit=<file>&look=<look> from the Studio): "Save changes" replaces it instead of adding another
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId] = useState<string | null>(() => (buildMode ? checkedOpenedWith(opened).edit : null));
   // On a phone the final screen does not have two columns: one thing at a time (the details to edit, the AI review, or the resume as it looks),
   // chosen from a strip at the top. Before, the review and the preview were under ALL the sections, thousands of pixels down.
   const [mobilePane, setMobilePane] = useState<"edit" | "review" | "preview">("edit");
@@ -480,7 +490,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
   }, [open]);
   const [step, setStep] = useState<Step>("template");
   const [flow, setFlow] = useState<"scratch" | "upload">("scratch");
-  const [template, setTemplate] = useState("");
+  const [template, setTemplate] = useState<string>(() => (buildMode ? checkedOpenedWith(opened).look : null) ?? "");
   const [accent, setAccent] = useState(""); // id of the color of the look ("" = the look's own)
   const [fillPage, setFillPage] = useState(false); // grow the text to fill the page when there is little content
   const [pageGoal, setPageGoal] = useState<PageGoal>("one"); // how long the person wants the resume
@@ -582,16 +592,11 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
       setShowPreview(true);
       try {
         const t = localStorage.getItem("kaizo_template");
-        if (isTemplateId(t)) setTemplate(t);
+        if (isTemplateId(t) && !checkedOpenedWith(opened).look) setTemplate(t);
         setAccent(localStorage.getItem(ACCENT_KEY) ?? "");
       } catch {
         /* ignore */
       }
-      const q = new URLSearchParams(window.location.search);
-      const look = q.get("look");
-      if (isTemplateId(look)) setTemplate(look);
-      const edit = q.get("edit");
-      if (edit && /^[a-f0-9]{24}$/i.test(edit)) setEditingId(edit);
       setOpen(true);
     } else if (buildOpened.current) {
       buildOpened.current = false;
