@@ -44,7 +44,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
 
     if (format === 'docx') {
       try {
-        outputBuffer = Buffer.from(await convertPdfToDocx(outputBuffer));
+        // the words of the file name (it starts with the person's name) help to put the spaces back in a letter-spaced name
+        const hints = String(file.filename ?? "").split(/[^\p{L}]+/u).filter((w) => w.length >= 2);
+        outputBuffer = Buffer.from(await convertPdfToDocx(outputBuffer, hints));
         contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
         filename = `resume-${fileId}.docx`;
       } catch (conversionError) {
