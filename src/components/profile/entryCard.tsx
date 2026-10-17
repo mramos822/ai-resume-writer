@@ -56,8 +56,8 @@ export default function EntryCard({
 
       <div className={`overflow-hidden rounded-xl border bg-card transition-shadow duration-300 ${open ? "shadow-md ring-1 ring-blue-500/30" : "hover:shadow-sm"}`}>
         <div className="flex items-center pr-2">
-          <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-w-0 flex-1 items-start justify-between gap-3 px-4 py-3 text-left">
-            <span className="min-w-0">
+          <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-w-0 flex-1 items-start justify-between gap-3 px-4 py-3 text-left max-sm:flex-col max-sm:gap-1.5 max-sm:px-3">
+            <span className="min-w-0 max-sm:w-full">
               <span className="block truncate text-base font-bold leading-snug">{tr(title)}</span>
               {subtitle && <span className="block truncate text-sm text-muted-foreground">{subtitle}</span>}
               {(where || note) && (

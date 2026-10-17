@@ -2,7 +2,7 @@
 "use client";
 
 import SkillGroupsEditor from "@/components/skillGroupsEditor";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Save,
@@ -17,6 +17,7 @@ import {
   Globe,
   Languages,
   Sparkles,
+  Check,
   type LucideIcon,
 } from "lucide-react";
 
@@ -177,8 +178,8 @@ function ResumeAdviceSection() {
   };
 
   return (
-    <Card className="mt-6 overflow-hidden border-blue-200">
-      <CardContent className="p-6">
+    <Card className="mt-4 overflow-hidden border-blue-200 sm:mt-6">
+      <CardContent className="p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
@@ -223,6 +224,18 @@ export default function ProfilePage() {
   const toast = useToast();
 
   const activeTab = useHash();
+  // below 1024 px the side menu is closed, so the sections have their own strip of chips here; choosing one takes you to the top of it
+  const navRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const firstRender = useRef(true);
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ inline: "center", block: "nearest" });
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    if (window.innerWidth < 1024) cardRef.current?.scrollIntoView({ block: "start" });
+  }, [activeTab]);
   const progress = getProfileProgress(activeProfile, tr);
   const doneMap: Record<string, boolean> = Object.fromEntries(progress.sections.map((s) => [s.key, s.done]));
   doneMap.internships = (activeProfile.internships?.length ?? 0) > 0;
@@ -290,20 +303,44 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-[1600px] pb-24">
       <h1 className="sr-only">{tr("Profile")}</h1>
+
+      {/* the sections, always at hand on phones and tablets (from 1024 px the side menu has them) */}
+      <nav aria-label={tr("Profile sections")} className="sticky top-[65px] z-10 -mx-4 mb-3 border-b bg-background/90 backdrop-blur-md sm:-mx-5 sm:top-16 lg:hidden">
+        <div ref={navRef} className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 py-2 sm:px-5">
+          {VALID_SECTIONS.map((k) => {
+            const m = META[k];
+            const I = m.icon;
+            const on = k === activeTab;
+            return (
+              <a
+                key={k}
+                href={`#${k}`}
+                aria-current={on ? "page" : undefined}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition-colors ${on ? "border-blue-600 bg-blue-600 text-white" : "bg-card text-muted-foreground hover:text-foreground"}`}
+              >
+                <I className="h-4 w-4" aria-hidden />
+                {tr(m.label)}
+                {doneMap[k] && !on && <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" strokeWidth={3} aria-label={tr("done")} />}
+              </a>
+            );
+          })}
+        </div>
+      </nav>
+
       <div className="grid gap-6 lg:grid-cols-1">
 
         {/* Active section */}
         <div className="w-full min-w-0">
-          <Card className="rounded-2xl shadow-sm">
-            <CardContent className="p-6 sm:p-8">
+          <Card ref={cardRef} className="scroll-mt-32 rounded-2xl shadow-sm">
+            <CardContent className="p-4 sm:p-8">
               {/* the progress of the whole profile stays still while the sections change: only the section's own title and content animate */}
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-                <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }} className="flex min-w-0 items-center gap-4">
-                  <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${meta.tile}`}>
-                    <ActiveIcon className="h-6 w-6" />
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 sm:mb-6">
+                <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }} className="flex min-w-0 items-center gap-3 sm:gap-4">
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl ${meta.tile}`}>
+                    <ActiveIcon className="h-5 w-5 sm:h-6 sm:w-6" />
                   </span>
                   <div className="min-w-0">
-                    <h2 className="text-2xl font-extrabold leading-tight">{tr(meta.title ?? meta.label)}</h2>
+                    <h2 className="text-xl font-extrabold leading-tight sm:text-2xl">{tr(meta.title ?? meta.label)}</h2>
                     <p className="text-sm text-muted-foreground">{tr(meta.blurb)}</p>
                   </div>
                 </motion.div>

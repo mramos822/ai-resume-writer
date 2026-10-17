@@ -83,7 +83,7 @@ const ContactInfoSection: React.FC = () => {
           <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{tr("About you")}</h3>
           {/* Photo (optional): templates adjust when there is one */}
           <PhotoPicker value={profile.photo || ""} onChange={updatePhoto} />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="first-name">{tr("First name *")}</Label>
               <Input id="first-name" value={first} onChange={(e) => setNameParts(e.target.value, last)} placeholder={tr("Alex")} name="given-name" autoComplete="given-name" />

@@ -9,6 +9,7 @@ export const PART4: Record<string, string> = {
   "What information Kaizo collects, why, who helps us handle it and the control you have over it. No tracking, no ads, no selling your data.": "Qué información recopila Kaizo, por qué, quién nos ayuda a manejarla y el control que tienes sobre ella. Sin rastreo, sin anuncios, sin vender tus datos.",
   "Cookie Policy": "Política de cookies",
   "Accessibility": "Accesibilidad",
+  "Profile sections": "Secciones del perfil",
   "Your uploads": "Tus archivos",
   "Fill my profile": "Llenar mi perfil",
   "Fill my profile from “{filename}”": "Llenar mi perfil con “{filename}”",
