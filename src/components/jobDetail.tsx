@@ -70,7 +70,6 @@ export default function JobDetail({
   const [busy, setBusy] = useState(false);
   // job boards only share the first lines of a posting: we read the whole posting and show it as a summary and its sections
   const [full, setFull] = useState<{ key: string; text: string | null } | null>(null);
-  const [loadingFull, setLoadingFull] = useState(false);
 
   useEffect(() => {
     setFull(null);
@@ -78,12 +77,10 @@ export default function JobDetail({
     const have = job.description || job.snippet || "";
     if (sections(have)) return; // a job that was added already comes as a summary and sections
     let off = false;
-    setLoadingFull(true);
     authFetch("/api/jobs/detail", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job }) })
       .then((r) => (r.ok ? r.json() : { text: null }))
       .then((d) => !off && setFull({ key: job.key, text: typeof d.text === "string" ? d.text : null }))
-      .catch(() => !off && setFull({ key: job.key, text: null }))
-      .finally(() => !off && setLoadingFull(false));
+      .catch(() => !off && setFull({ key: job.key, text: null }));
     return () => {
       off = true;
     };
@@ -129,6 +126,9 @@ export default function JobDetail({
       setBusy(false);
     }
   };
+
+  // true from the very first frame of a job until its full posting has come (or failed): there is nothing to show before that but the loading line
+  const reading = !!job && !sections(job.description || job.snippet || "") && full?.key !== job.key;
 
   const pct = analysis?.fit.pct ?? 0;
   const color = pct >= 70 ? "#22c55e" : pct >= 40 ? "#3b82f6" : "#94a3b8";
@@ -237,8 +237,11 @@ export default function JobDetail({
                 <section>
                   <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}{analysis.blocks && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{tr("Written with AI")}</span>}</h3>
                   {analysis.blocks && <p className="-mt-1.5 mb-3 text-xs text-muted-foreground">{tr("Summary made with AI from the posting. It can leave out details: check the original posting before you apply.")}</p>}
+                  {/* while the full posting is being read, only the loading line shows: the first lines the job board shares would appear and then be replaced */}
                   <div className="space-y-3.5 leading-relaxed">
-                    {analysis.blocks
+                    {reading
+                      ? null
+                      : analysis.blocks
                       ? analysis.blocks.map((b, i) =>
                           b.kind === "h" ? (
                             <h4 key={i} className="pt-2 text-sm font-bold">{tr(b.text)}</h4>
@@ -250,11 +253,11 @@ export default function JobDetail({
                         )
                       : analysis.body.length === 0 ? <p className="text-muted-foreground">{tr("The source did not share more about this job. The original posting has the full text.")}</p> : analysis.body.map((p, i) => <p key={i}>{p}</p>)}
                   </div>
-                  {loadingFull && (
-                    <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+                  {reading && (
+                    <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-blue-500" />{" "}{tr("Loading the full description…")}</p>
                   )}
-                  {analysis.cut && !loadingFull && (
+                  {analysis.cut && !reading && (
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed bg-muted/30 px-4 py-3 text-sm">
                       <p className="text-muted-foreground">{SOURCE[job.source]}{" "}{tr("shares only the first lines of this job. The responsibilities, requirements and benefits are in the full posting.")}</p>
                       <Button asChild size="sm" variant="outline" className="gap-1.5">
