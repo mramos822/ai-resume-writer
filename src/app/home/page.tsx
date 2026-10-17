@@ -409,15 +409,15 @@ export default function HomePage() {
                           </p>
                           <ul className="mt-3 flex flex-col gap-2.5 text-sm font-medium sm:mt-5 sm:text-[15px]">
                             <li>
-                              <button onClick={() => setPreviewId(r.id)} className="inline-flex items-center gap-2.5 hover:text-blue-500">
+                              <button onClick={() => setPreviewId(r.id)} className="inline-flex min-h-6 items-center gap-2.5 hover:text-blue-500">
                                 <Download className="h-4 w-4 text-blue-500" />{" "}{tr("Download")}</button>
                             </li>
                             <li>
-                              <Link href="/home/job-ads" className="inline-flex items-center gap-2.5 hover:text-blue-500">
+                              <Link href="/home/job-ads" className="inline-flex min-h-6 items-center gap-2.5 hover:text-blue-500">
                                 <Wand2 className="h-4 w-4 text-blue-500" />{" "}{tr("Tailor to a job")}</Link>
                             </li>
                             <li>
-                              <Link href="/home/profile" className="inline-flex items-center gap-2.5 hover:text-blue-500">
+                              <Link href="/home/profile" className="inline-flex min-h-6 items-center gap-2.5 hover:text-blue-500">
                                 <Pencil className="h-4 w-4 text-blue-500" />{" "}{tr("Edit my details")}</Link>
                             </li>
                           </ul>

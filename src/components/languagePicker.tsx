@@ -18,7 +18,7 @@ function LevelDots({ value, onChange, label }: { value: string; onChange: (v: st
   return (
     <span className="flex items-center gap-3">
       <span className="hidden w-24 text-right text-xs text-muted-foreground sm:block">{shown ? tr(LEVELS_ASC[shown - 1]) : tr("Not set")}</span>
-      <span className="flex items-center gap-1.5" role="group" aria-label={label} onMouseLeave={() => setHover(0)}>
+      <span className="flex items-center" role="group" aria-label={label} onMouseLeave={() => setHover(0)}>
         {LEVELS_ASC.map((lvl, i) => {
           const n = i + 1;
           return (
@@ -32,10 +32,14 @@ function LevelDots({ value, onChange, label }: { value: string; onChange: (v: st
               onMouseEnter={() => setHover(n)}
               onFocus={() => setHover(n)}
               onBlur={() => setHover(0)}
-              className={`h-4 w-4 rounded-full border-2 transition-all duration-150 ${
-                n <= shown ? (hover ? "scale-110 border-blue-400 bg-blue-400" : "border-blue-600 bg-blue-600") : "border-border bg-transparent"
-              }`}
-            />
+              className="flex h-6 w-6 items-center justify-center"
+            >
+              <span
+                className={`h-4 w-4 rounded-full border-2 transition-all duration-150 ${
+                  n <= shown ? (hover ? "scale-110 border-blue-400 bg-blue-400" : "border-blue-600 bg-blue-600") : "border-border bg-transparent"
+                }`}
+              />
+            </button>
           );
         })}
       </span>

@@ -403,7 +403,7 @@ export default function JobSearchPage() {
           <p className="text-muted-foreground">
             {showSent ? tr("Showing") : tr("Hiding")} <span className="font-semibold text-foreground">{hiddenSent}</span>{" "}{hiddenSent > 1 ? tr("jobs you already applied to.") : tr("job you already applied to.")}
           </p>
-          <button type="button" onClick={() => setShowSent((v) => !v)} className="font-semibold text-blue-500 hover:underline">
+          <button type="button" onClick={() => setShowSent((v) => !v)} className="inline-flex min-h-6 items-center font-semibold text-blue-500 hover:underline">
             {showSent ? tr("Hide them") : tr("Show them anyway")}
           </button>
         </div>
@@ -414,7 +414,7 @@ export default function JobSearchPage() {
           <p className="text-muted-foreground">
             {showAbove ? tr("Showing") : tr("Hiding")} <span className="font-semibold text-foreground">{hiddenAbove}</span>{" "}{tr("job")}{hiddenAbove > 1 ? tr("s") : ""}{" "}{tr("that ask for more experience than your")}{" "}{myYears > 0 ? tr("{myYears} year{v1}", { myYears, v1: myYears === 1 ? "" : "s" }) : tr("profile shows")}.
           </p>
-          <button type="button" onClick={() => setShowAbove((v) => !v)} className="font-semibold text-blue-500 hover:underline">
+          <button type="button" onClick={() => setShowAbove((v) => !v)} className="inline-flex min-h-6 items-center font-semibold text-blue-500 hover:underline">
             {showAbove ? tr("Hide them") : tr("Show them anyway")}
           </button>
         </div>

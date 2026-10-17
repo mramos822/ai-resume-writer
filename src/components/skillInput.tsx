@@ -130,7 +130,7 @@ export default function SkillInput({
             ))}
           </ul>
           {!more && popular.length > 6 && (
-            <button type="button" onClick={() => setMore(true)} className="mt-2.5 text-sm font-semibold text-blue-600 hover:underline sm:hidden">{tr("More ideas")}</button>
+            <button type="button" onClick={() => setMore(true)} className="mt-1.5 inline-flex min-h-6 items-center text-sm font-semibold text-blue-600 hover:underline sm:hidden">{tr("More ideas")}</button>
           )}
         </div>
       )}

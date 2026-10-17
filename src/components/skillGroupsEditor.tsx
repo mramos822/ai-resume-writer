@@ -201,7 +201,7 @@ function GroupCard({
           {skills.map((s) => (
             <li key={s} className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-sm">
               {s}
-              <button type="button" aria-label={tr("Take {s} out of the group", { s })} onClick={() => onUngroup(s)} className="text-muted-foreground hover:text-red-600">
+              <button type="button" aria-label={tr("Take {s} out of the group", { s })} onClick={() => onUngroup(s)} className="-my-1 -mr-1.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-red-600">
                 <X className="h-3 w-3" />
               </button>
             </li>

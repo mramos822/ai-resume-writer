@@ -136,7 +136,7 @@ const EducationEntryForm: React.FC<EducationEntryFormProps> = ({ education, onCl
         </Field>
 
         <div className="sm:col-span-4">
-          <button type="button" aria-expanded={extras} onClick={() => setExtras((v) => !v)} className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:underline">
+          <button type="button" aria-expanded={extras} onClick={() => setExtras((v) => !v)} className="flex min-h-6 items-center gap-2 text-sm font-semibold text-blue-600 hover:underline">
             <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${extras ? "rotate-180" : ""}`} />
             {tr("Additional details")} <span className="font-normal text-muted-foreground">{tr("(optional)")}</span>
           </button>

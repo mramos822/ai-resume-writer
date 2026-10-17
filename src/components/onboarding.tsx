@@ -1250,7 +1250,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                         setSkillLevels((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== s)));
                         setSkillGroups((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== s)));
                       }}
-                      className="text-muted-foreground hover:text-red-600"
+                      className="-my-1 -mr-1.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-red-600"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -1532,7 +1532,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
                                   type="button"
                                   aria-expanded={showExtras}
                                   onClick={() => setExtrasOpen((prev) => ({ ...prev, [e.id]: !showExtras }))}
-                                  className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:underline"
+                                  className="flex min-h-6 items-center gap-2 text-sm font-semibold text-blue-600 hover:underline"
                                 >
                                   <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${showExtras ? "rotate-180" : ""}`} />{tr("Additional details")}{" "}<span className="font-normal text-muted-foreground">{tr("(optional)")}</span>
                                 </button>
