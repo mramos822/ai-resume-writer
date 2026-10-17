@@ -2,13 +2,14 @@
 
 // The place filter of the job search: a country (flag and name) and a box that suggests cities and regions of it as you type.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { MapPin } from "lucide-react";
+import { Globe2, MapPin } from "lucide-react";
 import "flag-icons/css/flag-icons.min.css";
 import { Input } from "@/components/ui/input";
 import PickSelect from "@/components/pickSelect";
 import { authFetch } from "@/lib/authFetch";
 import { ADZUNA_COUNTRIES } from "@/lib/jobCountries";
 import type { Suggestion } from "@/lib/jobPlaces";
+import { REMOTE_PLACE, isRemotePlace } from "@/lib/remotePlace";
 import { useT } from "@/i18n/provider";
 
 export default function JobPlacePicker({
@@ -90,6 +91,11 @@ export default function JobPlacePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeCountry, country, names, locale]);
 
+  // "Remote" is always offered first when the box is empty or what is typed starts like it, so remote work is a place like any other
+  const typedNow = value.trim().toLowerCase();
+  const remoteOffered = !isRemotePlace(value) && (typedNow === "" || "remote".startsWith(typedNow) || "remoto".startsWith(typedNow));
+  const shown: Suggestion[] = remoteOffered ? [{ label: REMOTE_PLACE, kind: "region" }, ...list] : list;
+
   const pick = (p: Suggestion) => {
     picked.current = p.label;
     onChange(p.label);
@@ -98,13 +104,13 @@ export default function JobPlacePicker({
   };
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (!list.length) return;
+    if (!shown.length) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      setActive((i) => (e.key === "ArrowDown" ? (i + 1) % list.length : (i - 1 + list.length) % list.length));
+      setActive((i) => (e.key === "ArrowDown" ? (i + 1) % shown.length : (i - 1 + shown.length) % shown.length));
     } else if (e.key === "Enter" && active >= 0) {
       e.preventDefault(); // choose the suggestion instead of sending the search
-      pick(list[active]);
+      pick(shown[active]);
     }
   };
 
@@ -139,18 +145,19 @@ export default function JobPlacePicker({
           className="h-11 pl-10"
           role="combobox"
           aria-label={tr("Location")}
-          aria-expanded={open && list.length > 0}
+          aria-expanded={open && shown.length > 0}
           aria-autocomplete="list"
           autoComplete="off"
           disabled={disabled}
         />
-        {open && !disabled && list.length > 0 && (
+        {open && !disabled && shown.length > 0 && (
           <ul role="listbox" className="absolute left-0 right-0 top-full z-30 mt-1.5 overflow-hidden rounded-xl border bg-popover p-1.5 shadow-lg">
-            {list.map((p, i) => (
+            {shown.map((p, i) => (
               <li key={p.label} role="option" aria-selected={i === active}>
                 <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(p)} className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted ${i === active ? "bg-muted" : ""}`}>
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{p.label}</span>
+                  {p.label === REMOTE_PLACE ? <Globe2 className="h-3.5 w-3.5 shrink-0 text-blue-600" /> : <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                  <span className="truncate">{p.label === REMOTE_PLACE ? tr("Remote") : p.label}</span>
+                  {p.label === REMOTE_PLACE && <span className="ml-auto text-xs text-muted-foreground">{tr("work from anywhere in {c}", { c: nameOf(country) })}</span>}
                 </button>
               </li>
             ))}

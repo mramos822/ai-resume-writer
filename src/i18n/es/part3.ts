@@ -263,7 +263,7 @@ export const PART3: Record<string, string> = {
   "Tools and technologies": "Herramientas y tecnologías",
   "Traditional and timeless. Ideal for finance, law and corporate.": "Tradicional y atemporal. Ideal para finanzas, derecho y el mundo corporativo.",
   "Trained and onboarded new team members, improving team readiness.": "Capacité e incorporé a nuevos miembros del equipo, mejorando su preparación.",
-  "Try a shorter title, another city, or turn on remote jobs.": "Prueba un puesto más corto, otra ciudad o activa los empleos remotos.",
+  "Try a shorter title, another city, or choose Remote as the place.": "Prueba un puesto más corto, otra ciudad o elige Remoto como lugar.",
   "Try a shorter word, or take the tour to see how everything works.": "Prueba una palabra más corta o haz el recorrido para ver cómo funciona todo.",
   "Try again": "Intentar de nuevo",
   "Two short lines are enough.": "Bastan dos líneas breves.",

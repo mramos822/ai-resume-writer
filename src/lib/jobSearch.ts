@@ -4,6 +4,7 @@
 //  - Adzuna: jobs by city in many countries, when ADZUNA_APP_ID and ADZUNA_APP_KEY are set  https://developer.adzuna.com
 // Every listing keeps its own link, so people apply on the original site.
 import { ADZUNA_COUNTRIES } from "@/lib/jobCountries";
+import { remoteCountryFit } from "@/lib/remotePlace";
 import { kmBetween, type Origin } from "@/lib/jobPlaces";
 import { nearestMajorCity } from "@/lib/jobMajorCities";
 import { REACH_ORDER, type Reach } from "@/lib/jobReach";
@@ -16,6 +17,8 @@ export interface JobListing {
   company: string;
   location: string;
   remote: boolean;
+  /** for a remote job: 0 it names the country of the search, 1 it can be done from anywhere, 2 it is for another country (see remoteCountryFit) */
+  countryFit?: 0 | 1 | 2;
   url: string;
   /** ISO date */
   postedAt: string;
@@ -259,6 +262,17 @@ export async function searchJobs(q: JobQuery): Promise<{ jobs: JobListing[]; sou
     return true;
   });
   out.sort(byReachThenDate);
+  // every remote job says how well it fits the country of the search (the page sorts by it inside the group of remote jobs)
+  const fitOf = (j: JobListing) => remoteCountryFit({ location: j.location, local: j.source === "adzuna" }, q.country);
+  out = out.map((j) => (j.remote ? { ...j, countryFit: fitOf(j) } : j));
+  if (q.remoteOnly) {
+    // a search for remote work: the jobs for the country of the search first, then the ones that can be done from anywhere, then the ones
+    // restricted to another country or region (only when there are few of the others). Adzuna searched by that country already.
+    const ranked = out.map((j, i) => ({ j, f: j.countryFit ?? 1, i }));
+    ranked.sort((a, b) => a.f - b.f || a.i - b.i); // stable: inside a group the order by date stays
+    const fitting = ranked.filter((r) => r.f < 2).length;
+    out = ranked.filter((r) => r.f < 2 || fitting < 10).map((r) => r.j);
+  }
   const result = { jobs: out.slice(0, 80), sources, bigCity: info.city };
   cache.set(cacheKey, { at: Date.now(), ...result });
   return result;

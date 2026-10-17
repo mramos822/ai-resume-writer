@@ -5,6 +5,7 @@
 import { asTemplateId } from "@/lib/templates";
 import AddJobLink from "@/components/addJobLink";
 import JobPlacePicker from "@/components/jobPlacePicker";
+import { isRemotePlace } from "@/lib/remotePlace";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "@/i18n/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -131,7 +132,7 @@ export default function JobSearchPage() {
 
   const [q, setQ] = useState("");
   const [where, setWhere] = useState("");
-  const [remoteOnly, setRemoteOnly] = useState(false);
+  // "Remote" is a place of the search (chosen in the place box), not a separate check box
   const [tab, setTab] = useState<"results" | "saved" | "applications">("results");
   // the heart on the dashboard sends people straight to their favorites (?tab=saved); the first search must not undo that
   const openSaved = useRef(typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "saved");
@@ -155,6 +156,7 @@ export default function JobSearchPage() {
   const [sources, setSources] = useState<string[]>([]);
   const [bigCity, setBigCity] = useState(""); // the nearest big city, when the results also have its jobs
   const [searchedPlace, setSearchedPlace] = useState(""); // the place the results are about, as the search understood it
+  const [searchedRemote, setSearchedRemote] = useState(false); // the search was for remote work
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
@@ -172,13 +174,14 @@ export default function JobSearchPage() {
   }, [defaultRole, defaultPlace]);
 
   const search = useCallback(
-    async (query = q, place = where, remote = remoteOnly) => {
+    async (query = q, place = where) => {
+      const remote = isRemotePlace(place);
       setLoading(true);
       setError("");
       if (openSaved.current) openSaved.current = false;
       else setTab("results");
       try {
-        const params = new URLSearchParams({ q: query.trim(), location: place.trim(), country });
+        const params = new URLSearchParams({ q: query.trim(), location: remote ? "" : place.trim(), country });
         if (remote) params.set("remote", "1");
         // a wider search: similar titles and the main skills of the profile, so there are more jobs that fit
         params.set("wide", "1");
@@ -189,7 +192,8 @@ export default function JobSearchPage() {
         setJobs(data.jobs ?? []);
         setSources(data.sources ?? []);
         setBigCity(typeof data.bigCity === "string" ? data.bigCity : "");
-        setSearchedPlace(typeof data.place === "string" && data.place ? data.place : place.trim());
+        setSearchedRemote(remote);
+        setSearchedPlace(remote ? tr("Remote") : typeof data.place === "string" && data.place ? data.place : place.trim());
         setShown(PAGE);
         setSearched(true);
       } catch (err) {
@@ -198,7 +202,7 @@ export default function JobSearchPage() {
         setLoading(false);
       }
     },
-    [q, where, remoteOnly, country, profile.skills]
+    [q, where, country, profile.skills]
   );
 
   // the first search runs by itself once the profile gave a role to look for
@@ -206,7 +210,7 @@ export default function JobSearchPage() {
   useEffect(() => {
     if (firstRun.current || !filled.current) return;
     firstRun.current = true;
-    search(defaultRole, defaultPlace, false);
+    search(defaultRole, defaultPlace);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultRole, defaultPlace]);
 
@@ -315,13 +319,13 @@ export default function JobSearchPage() {
     // best fit first, newest among equals (the saved tab keeps the order they were saved in)
     // (a search by place keeps its groups: in the place, near it, remote, the rest)
     const group = (j: JobListing) => (j.reach ? REACH_ORDER.indexOf(j.reach) : 0);
-    return tab !== "results" ? withFit : withFit.sort((a, b) => group(a.job) - group(b.job) || b.fit.pct - a.fit.pct || +new Date(b.job.postedAt || 0) - +new Date(a.job.postedAt || 0));
+    return tab !== "results" ? withFit : withFit.sort((a, b) => group(a.job) - group(b.job) || (a.job.countryFit ?? 0) - (b.job.countryFit ?? 0) || b.fit.pct - a.fit.pct || +new Date(b.job.postedAt || 0) - +new Date(a.job.postedAt || 0));
   }, [list, skills, q, defaultRole, tab, myYears, showAbove, showSent, apps, profile, basics, template]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the headings of a search by place
   const reachTitle = (r: NonNullable<JobListing["reach"]>) =>
     r === "here" ? tr("In {place}", { place: searchedPlace }) : r === "near" ? tr("Near {place}", { place: searchedPlace }) : r === "city" ? tr("The nearest big city: {place}", { place: bigCity }) : r === "remote" ? tr("Remote jobs") : tr("More jobs in the country");
-  const noneHere = tab === "results" && !!searchedPlace && jobs.length > 0 && !jobs.some((j) => j.reach === "here");
+  const noneHere = tab === "results" && !searchedRemote && !!searchedPlace && jobs.length > 0 && !jobs.some((j) => j.reach === "here");
 
   const greeting = !searched && !loading && !q.trim() && !where.trim();
   return (
@@ -353,12 +357,10 @@ export default function JobSearchPage() {
             <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Job title or skill, like “data analyst”")} className="h-11 pl-10" aria-label={tr("Job title or skill")} />
           </div>
-          <JobPlacePicker country={country} onCountry={setPickedCountry} homeCountry={homeCountry} value={where} onChange={setWhere} disabled={remoteOnly} />
+          <JobPlacePicker country={country} onCountry={setPickedCountry} homeCountry={homeCountry} value={where} onChange={setWhere} />
           <Button type="submit" disabled={loading} className="h-11 gap-2 px-7 text-base font-bold">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}{tr("Search")}</Button>
         </div>
-        <label className="mt-3 inline-flex cursor-pointer items-center gap-2.5 text-sm font-medium">
-          <input type="checkbox" checked={remoteOnly} onChange={(e) => setRemoteOnly(e.target.checked)} className="h-4 w-4 rounded" />{tr("Remote jobs only")}</label>
       </form>
 
       {/* tabs */}
@@ -453,7 +455,7 @@ export default function JobSearchPage() {
             <>
               <p className="font-semibold">{searched ? tr("No jobs found for that search") : tr("Search to see openings")}</p>
               <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                {searched ? tr("Try a shorter title, another city, or turn on remote jobs.") : tr("Type a role and a place, or fill in your target job in your profile.")}
+                {searched ? tr("Try a shorter title, another city, or choose Remote as the place.") : tr("Type a role and a place, or fill in your target job in your profile.")}
               </p>
               {searched && (
                 <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">{tr("Know the job already?")}{" "}<button type="button" onClick={() => setAdding(true)} className="font-semibold text-blue-500 underline">{tr("Paste its link or text")}</button>{" "}{tr("and add it yourself.")}</p>

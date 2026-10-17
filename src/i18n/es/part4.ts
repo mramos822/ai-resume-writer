@@ -9,6 +9,7 @@ export const PART4: Record<string, string> = {
   "What information Kaizo collects, why, who helps us handle it and the control you have over it. No tracking, no ads, no selling your data.": "Qué información recopila Kaizo, por qué, quién nos ayuda a manejarla y el control que tienes sobre ella. Sin rastreo, sin anuncios, sin vender tus datos.",
   "Cookie Policy": "Política de cookies",
   "Accessibility": "Accesibilidad",
+  "work from anywhere in {c}": "trabaja desde cualquier lugar de {c}",
   "One thing to decide before the fixes": "Algo que decidir antes de los arreglos",
   "Your resume is too long for one page at a readable size. Do you want to cut it to fit one page, or keep everything and use two pages? The other fixes wait for your answer.": "Tu currículum es muy largo para una página con un tamaño legible. ¿Quieres recortarlo para que quepa en una página, o mantener todo y usar dos páginas? Los demás arreglos esperan tu respuesta.",
   "Cut it to one page": "Recortarlo a una página",
