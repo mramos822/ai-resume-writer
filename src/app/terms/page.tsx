@@ -151,6 +151,11 @@ const sections: LegalSection[] = [
     ),
   },
   {
+    id: "general",
+    title: "General",
+    body: <p>If a part of these terms is found to be invalid, the rest stays in force. If we do not enforce a right at some point, we have not given it up. You may not transfer your account or these terms to someone else without our agreement; we may transfer them as part of a reorganization of the service. These terms and the Privacy Policy are the whole agreement between you and Kaizo about the service.</p>,
+  },
+  {
     id: "contact",
     title: "Contact",
     body: <p>Questions about these terms? Write to us through the <Link href="/contact">contact form</Link>.</p>,

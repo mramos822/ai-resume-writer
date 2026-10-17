@@ -144,6 +144,11 @@ export const termsEs: LegalSection[] = [
     ),
   },
   {
+    id: "general",
+    title: "Disposiciones generales",
+    body: <p>Si una parte de estos términos se considera inválida, el resto sigue vigente. Si en algún momento no hacemos valer un derecho, no renunciamos a él. No puedes transferir tu cuenta ni estos términos a otra persona sin nuestro acuerdo; nosotros podemos transferirlos como parte de una reorganización del servicio. Estos términos y la Política de Privacidad son el acuerdo completo entre tú y Kaizo sobre el servicio.</p>,
+  },
+  {
     id: "contact",
     title: "Contacto",
     body: <p>¿Preguntas sobre estos términos? Escríbenos mediante el <Link href="/contact">formulario de contacto</Link>.</p>,

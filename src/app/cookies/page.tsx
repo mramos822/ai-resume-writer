@@ -14,6 +14,8 @@ const stored = [
   { name: "Theme", where: "Local storage", why: "Remembers light or dark mode.", howLong: "Until you clear site data" },
   { name: "Language", where: "Cookie", why: "Remembers the language you chose (it is only saved when you choose it yourself).", howLong: "1 year" },
   { name: "Builder progress", where: "Local storage", why: "Saves your unfinished resume draft and remembers that you finished the first-time setup.", howLong: "Until you finish, start over or clear site data" },
+  { name: "Look you picked", where: "Local storage", why: "Remembers the resume template and accent color you chose.", howLong: "Until you clear site data" },
+  { name: "Steps in progress", where: "Session storage", why: "Carries a choice from one screen to the next (for example the profile to open or a job you are applying to). It disappears when you close the tab.", howLong: "Until you close the tab" },
   { name: "Cookie notice", where: "Local storage", why: "Remembers that you read this notice so we do not show it again.", howLong: "Until you clear site data" },
 ];
 

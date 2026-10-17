@@ -3,6 +3,7 @@ import Link from "@/i18n/navigation";
 import LegalLayout, { type LegalSection } from "@/components/legalLayout";
 import { getT } from "@/i18n/server";
 import { privacyEs } from "@/app/privacy/content.es";
+import { OPERATOR } from "@/lib/legal";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { tr } = await getT();
@@ -15,6 +16,15 @@ const sections: LegalSection[] = [
     title: "Who we are",
     body: (
       <p>Kaizo Resume Builder (&ldquo;Kaizo&rdquo;, &ldquo;we&rdquo;) is the service that decides how and why your personal data is used, as described here. You can reach us through the <Link href="/contact">contact form</Link>.</p>
+    ),
+  },
+  {
+    id: "operator",
+    title: "Who is responsible",
+    body: OPERATOR.name ? (
+      <p>The controller of your data is <strong>{OPERATOR.name}</strong>{OPERATOR.address ? `, ${OPERATOR.address}` : ""}{OPERATOR.email ? <>. Email: <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a></> : ""}.</p>
+    ) : (
+      <p>Kaizo is operated from the State of New Jersey, United States. For any request about your data, use the <Link href="/contact">contact form</Link>{OPERATOR.email ? <> or write to <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a></> : ""}.</p>
     ),
   },
   {
@@ -34,6 +44,7 @@ const sections: LegalSection[] = [
           <li><strong>Settings and progress</strong> such as your light or dark theme and your unfinished builder draft.</li>
           <li><strong>Basic technical data</strong> your browser sends to any website (such as IP address and browser type), which our hosting and security tools process to deliver the site and keep it safe.</li>
         </ul>
+        <p>We do not ask for sensitive information (such as health, religion, ethnicity, political views, a government ID or a social security number), and you do not need any of it for a resume. Please leave it out. The photo is optional.</p>
         <p>We do not use advertising trackers, analytics or session-replay tools, and we do not build advertising profiles.</p>
       </>
     ),
@@ -58,7 +69,8 @@ const sections: LegalSection[] = [
     title: "AI processing",
     body: (
       <>
-        <p>When you use an AI feature, the text needed for that task (for example your resume content and, if you chose one, a job description) is sent to a third-party AI provider, Google&apos;s Gemini API by default, which returns the result to us. We send only what the task needs, and we do not use your content to train our own models.</p>
+        <p>When you use an AI feature, the text needed for that task (for example your resume content and, if you chose one, a job description) is sent to a third-party AI provider, Google&apos;s Gemini API by default, which returns the result to us. We send only what the task needs, and we do not use your content to train our own models. When you upload a resume that is a scanned image or a PDF without selectable text, the file is also sent to that provider so it can be read.</p>
+        <p>AI never makes a decision about you on its own: you read and approve everything before it is used.</p>
         <p>This includes the text of a job posting (from a listing or one you paste or link), the parts of your profile needed to compare it, and what you confirmed or answered for that job, so that the AI can ask questions, check a draft and write the resume and cover letter. When you give us a link to a job, our servers download that public page to read it; the site sees our server&apos;s address, not yours.</p>
         <p>The provider processes that text under its own terms. Please do not put information in your resume that you would not want processed this way.</p>
       </>
@@ -84,6 +96,16 @@ const sections: LegalSection[] = [
     ),
   },
   {
+    id: "processors",
+    title: "Data processing terms with our providers",
+    body: (
+      <>
+        <p>The providers listed above that store or process personal data for us (Google Firebase, MongoDB Atlas, the AI provider and our hosting provider) act as <strong>processors</strong>: they may use the data only to provide their service to us and on our instructions, they must keep it confidential and secure, they may not sell it, and they may use another company to help them only under the same duties. Their data processing terms (such as Google&apos;s Cloud Data Processing Addendum and MongoDB&apos;s Data Processing Agreement) govern this, and they include the standard contractual clauses for transfers outside the EEA and the UK.</p>
+        <p>The job sources (Adzuna, Remotive and Arbeitnow) only receive the search terms described above, never your profile, so they do not process your personal data for us. For AI features we use the provider&apos;s paid interface, under terms in which the content we send is not used to train its models. When you delete your data, we ask our processors to delete it too, as their terms and backups allow.</p>
+      </>
+    ),
+  },
+  {
     id: "legal-basis",
     title: "Why we may use your data",
     body: <p>Where laws such as the GDPR apply, we rely on: <strong>performing our contract</strong> with you (providing the resume builder you asked for), <strong>our legitimate interests</strong> (keeping the service secure and working), <strong>your consent</strong> where we ask for it, and <strong>legal obligations</strong>.</p>,
@@ -93,7 +115,7 @@ const sections: LegalSection[] = [
     title: "How long we keep it",
     body: (
       <>
-        <p>We keep your data while your account exists. When you delete a resume or a profile in the app, it is removed from our database, and when you delete your account everything is removed. A guest session (no account) that has not been used for <strong>30 days</strong> is deleted automatically with everything in it, and starting a new resume as a guest deletes the unfinished one. Contact messages are kept for at most <strong>24 months</strong>. Backups may hold deleted data for a short time before they are overwritten.</p>
+        <p>We keep your data while your account exists. When you delete a resume or a profile in the app, it is removed from our database, and when you delete your account everything is removed. A guest session (no account) that has not been used for <strong>30 days</strong> is deleted automatically with everything in it, and starting a new resume as a guest deletes the unfinished one. Contact messages are kept for at most <strong>24 months</strong>. Answers the AI gives about your content are kept in a temporary store for up to <strong>30 days</strong>, so the same question is not asked twice, then deleted automatically (and at once when you delete your account). Backups may hold deleted data for a short time before they are overwritten.</p>
       </>
     ),
   },

@@ -4,6 +4,7 @@ import "@/styles/globals.css";
 import Providers from "@/app/providers";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/translate";
+import { SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,13 +20,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const { tr } = makeT(await getLocale());
   const description = tr("Build a resume that passes applicant tracking systems, tailor it to each job and download it as PDF or DOCX. Free to start.");
   return {
+    metadataBase: new URL(SITE_URL),
+    alternates: { canonical: "/" },
     title: { default: tr("Kaizo Resume Builder"), template: "%s | Kaizo" },
     description,
     applicationName: "Kaizo",
     keywords: ["resume builder", "ATS resume", "cover letter", "job search", "CV", "curriculum", "currículum"],
     manifest: "/manifest.json",
     icons: { icon: "/logo-v2.png", apple: "/logo-v2.png" },
-    openGraph: { title: tr("Kaizo Resume Builder"), description, images: ["/logo-v2.png"], type: "website", siteName: "Kaizo" },
+    openGraph: { title: tr("Kaizo Resume Builder"), description, images: ["/logo-v2.png"], type: "website", siteName: "Kaizo", url: "/" },
     twitter: { card: "summary", title: tr("Kaizo Resume Builder"), description, images: ["/logo-v2.png"] },
   };
 }

@@ -4,6 +4,7 @@ import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false, // nobody needs to be told which framework this is
   turbopack: { root: path.resolve(__dirname) },
   // pdfkit loads its font metrics from disk, so it must not be bundled
   serverExternalPackages: ["pdfkit", "pdfjs-dist", "@napi-rs/canvas"],
@@ -20,15 +21,19 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+          // no page of Kaizo may be put inside another site, post a form elsewhere, change its own base address or load a plugin
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" },
         ],
       },
+      // the app, the sign-in flow and the API are not for search engines
+      ...["/home/:path*", "/build/:path*", "/start", "/login", "/api/:path*"].map((source) => ({ source, headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] })),
     ];
   },
   async redirects() {
     return [{ source: "/homepage", destination: "/", permanent: true }];
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
 };
 

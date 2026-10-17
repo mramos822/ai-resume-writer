@@ -1,7 +1,7 @@
 "use client";
 
 import LanguageSwitch from "@/components/languageSwitch";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "@/i18n/navigation";
 import { ArrowLeftIcon, CheckCircle2Icon, Loader2Icon, MailIcon, ShieldCheckIcon, LifeBuoyIcon } from "lucide-react";
@@ -17,18 +17,44 @@ const TOPICS = [
   { id: "other", label: "Something else" },
 ];
 
-const field = "mt-1.5 w-full rounded-md border border-gray-300 bg-white px-3.5 py-2.5 text-gray-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20";
+const field = "mt-1.5 w-full rounded-md border border-gray-300 bg-white px-3.5 py-2.5 text-gray-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-500/20";
+const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 
 export default function ContactPage() {
   const { tr, trd } = useT();
   const [form, setForm] = useState({ name: "", email: "", topic: "question", message: "", website: "" });
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState("");
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  // what is wrong with each field, shown under it (the same rules the server applies, so nothing is sent that would be refused)
+  const [problems, setProblems] = useState<{ name?: string; email?: string; message?: string }>({});
+  const nameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const messageRef = useRef<HTMLTextAreaElement>(null);
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+    if (k === "name" || k === "email" || k === "message") setProblems((p) => ({ ...p, [k]: undefined })); // the mistake goes away as it is fixed
+  };
+
+  const check = () => {
+    const found: typeof problems = {};
+    const name = form.name.trim();
+    const message = form.message.trim();
+    if (name.length < 1 || name.length > 100) found.name = tr("Please enter your name.");
+    if (!EMAIL.test(form.email.trim())) found.email = tr("Please enter a valid email so we can answer you.");
+    if (message.length < 10 || message.length > 4000) found.message = tr("Your message should be between 10 and 4000 characters.");
+    return found;
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const found = check();
+    setProblems(found);
+    if (found.name || found.email || found.message) {
+      // to the first field that needs attention, so the person does not have to look for it
+      (found.name ? nameRef : found.email ? emailRef : messageRef).current?.focus();
+      return;
+    }
     setState("sending");
     try {
       const res = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
@@ -96,9 +122,11 @@ export default function ContactPage() {
           ) : (
             <form onSubmit={submit} noValidate>
               <div className="grid gap-5 sm:grid-cols-2">
-                <label className="block text-sm font-medium">{tr("Your name")}<input className={field} value={form.name} onChange={set("name")} autoComplete="name" maxLength={100} required />
+                <label className="block text-sm font-medium">{tr("Your name")}<input ref={nameRef} className={field} value={form.name} onChange={set("name")} autoComplete="name" maxLength={100} required aria-invalid={Boolean(problems.name)} aria-describedby={problems.name ? "contact-name-error" : undefined} />
+                  {problems.name && <span id="contact-name-error" role="alert" className="mt-1 block text-sm font-normal text-red-700">{problems.name}</span>}
                 </label>
-                <label className="block text-sm font-medium">{tr("Your email")}<input className={field} type="email" value={form.email} onChange={set("email")} autoComplete="email" required />
+                <label className="block text-sm font-medium">{tr("Your email")}<input ref={emailRef} className={field} type="email" value={form.email} onChange={set("email")} autoComplete="email" required aria-invalid={Boolean(problems.email)} aria-describedby={problems.email ? "contact-email-error" : undefined} />
+                  {problems.email && <span id="contact-email-error" role="alert" className="mt-1 block text-sm font-normal text-red-700">{problems.email}</span>}
                 </label>
               </div>
               <label className="mt-5 block text-sm font-medium">{tr("What is it about?")}<select className={field} value={form.topic} onChange={set("topic")}>
@@ -107,7 +135,8 @@ export default function ContactPage() {
                   ))}
                 </select>
               </label>
-              <label className="mt-5 block text-sm font-medium">{tr("Your message")}<textarea className={`${field} min-h-40 resize-y`} value={form.message} onChange={set("message")} maxLength={4000} required />
+              <label className="mt-5 block text-sm font-medium">{tr("Your message")}<textarea ref={messageRef} className={`${field} min-h-40 resize-y`} value={form.message} onChange={set("message")} maxLength={4000} required aria-invalid={Boolean(problems.message)} aria-describedby={problems.message ? "contact-message-error" : undefined} />
+                {problems.message && <span id="contact-message-error" role="alert" className="mt-1 block text-sm font-normal text-red-700">{problems.message}</span>}
                 <span className="mt-1 block text-right text-xs text-gray-500">{form.message.length}/4000</span>
               </label>
               {/* a field for bots: people never see it */}

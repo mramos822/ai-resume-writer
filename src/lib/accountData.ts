@@ -55,6 +55,7 @@ export async function deleteAccount(uid: string, email?: string | null) {
     db.collection("resumeReviews").deleteMany({ profileId: { $in: ids } }),
     db.collection("applications").deleteMany({ userId: uid }),
     db.collection("savedJobs").deleteMany({ userId: uid }),
+    db.collection("aiCache").deleteMany({ uid }),
     db.collection("jobAds").deleteMany({ userId: uid }),
     db.collection("profiles").deleteMany({ userId: uid }),
     db.collection<{ _id: string }>("users").deleteOne({ _id: uid }),

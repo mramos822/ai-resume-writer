@@ -7,6 +7,8 @@ const stored = [
   { name: "Tema", where: "Almacenamiento local", why: "Recuerda el modo claro u oscuro.", howLong: "Hasta que borres los datos del sitio" },
   { name: "Idioma", where: "Cookie", why: "Recuerda el idioma que elegiste (solo se guarda cuando lo eliges tú).", howLong: "1 año" },
   { name: "Progreso del creador", where: "Almacenamiento local", why: "Guarda tu borrador de currículum sin terminar y recuerda que terminaste la configuración inicial.", howLong: "Hasta que termines, empieces de nuevo o borres los datos del sitio" },
+  { name: "Diseño elegido", where: "Almacenamiento local", why: "Recuerda la plantilla de currículum y el color de acento que elegiste.", howLong: "Hasta que borres los datos del sitio" },
+  { name: "Pasos en curso", where: "Almacenamiento de sesión", why: "Lleva una elección de una pantalla a la siguiente (por ejemplo el perfil que se abre o un empleo al que postulas). Desaparece al cerrar la pestaña.", howLong: "Hasta que cierres la pestaña" },
   { name: "Aviso de cookies", where: "Almacenamiento local", why: "Recuerda que leíste este aviso para no mostrarlo otra vez.", howLong: "Hasta que borres los datos del sitio" },
 ];
 

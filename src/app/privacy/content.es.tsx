@@ -1,3 +1,4 @@
+import { OPERATOR } from "@/lib/legal";
 import Link from "@/i18n/navigation";
 import type { LegalSection } from "@/components/legalLayout";
 
@@ -8,6 +9,15 @@ export const privacyEs: LegalSection[] = [
     title: "Quiénes somos",
     body: (
       <p>Kaizo Resume Builder (&laquo;Kaizo&raquo;, &laquo;nosotros&raquo;) es el servicio que decide cómo y por qué se usan tus datos personales, como se describe aquí. Puedes comunicarte con nosotros mediante el <Link href="/contact">formulario de contacto</Link>.</p>
+    ),
+  },
+  {
+    id: "operator",
+    title: "Quién es el responsable",
+    body: OPERATOR.name ? (
+      <p>El responsable de tus datos es <strong>{OPERATOR.name}</strong>{OPERATOR.address ? `, ${OPERATOR.address}` : ""}{OPERATOR.email ? <>. Correo: <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a></> : ""}.</p>
+    ) : (
+      <p>Kaizo se opera desde el Estado de Nueva Jersey, Estados Unidos. Para cualquier solicitud sobre tus datos, usa el <Link href="/contact">formulario de contacto</Link>{OPERATOR.email ? <> o escribe a <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a></> : ""}.</p>
     ),
   },
   {
@@ -27,6 +37,7 @@ export const privacyEs: LegalSection[] = [
           <li><strong>Configuración y progreso</strong>, como tu tema claro u oscuro y tu borrador sin terminar del creador.</li>
           <li><strong>Datos técnicos básicos</strong> que tu navegador envía a cualquier sitio web (como la dirección IP y el tipo de navegador), que nuestro alojamiento y nuestras herramientas de seguridad procesan para entregar el sitio y mantenerlo seguro.</li>
         </ul>
+        <p>No pedimos información sensible (como salud, religión, origen étnico, opiniones políticas, un documento de identidad o un número de seguridad social), y no la necesitas para un currículum. Por favor, déjala fuera. La foto es opcional.</p>
         <p>No usamos rastreadores publicitarios, analíticas ni herramientas de grabación de sesiones, y no creamos perfiles publicitarios.</p>
       </>
     ),
@@ -51,7 +62,8 @@ export const privacyEs: LegalSection[] = [
     title: "Procesamiento con IA",
     body: (
       <>
-        <p>Cuando usas una función de IA, el texto necesario para esa tarea (por ejemplo, el contenido de tu currículum y, si elegiste una, la descripción de un empleo) se envía a un proveedor de IA externo, por defecto la API de Gemini de Google, que nos devuelve el resultado. Enviamos solo lo que la tarea necesita y no usamos tu contenido para entrenar nuestros propios modelos.</p>
+        <p>Cuando usas una función de IA, el texto necesario para esa tarea (por ejemplo, el contenido de tu currículum y, si elegiste una, la descripción de un empleo) se envía a un proveedor de IA externo, por defecto la API de Gemini de Google, que nos devuelve el resultado. Enviamos solo lo que la tarea necesita y no usamos tu contenido para entrenar nuestros propios modelos. Cuando subes un currículum que es una imagen escaneada o un PDF sin texto seleccionable, el archivo también se envía a ese proveedor para poder leerlo.</p>
+        <p>La IA nunca toma una decisión sobre ti por sí sola: tú lees y apruebas todo antes de usarlo.</p>
         <p>Esto incluye el texto de una oferta de empleo (de un listado o que pegas o enlazas), las partes de tu perfil necesarias para compararla y lo que confirmaste o respondiste para ese empleo, para que la IA pueda hacerte preguntas, revisar un borrador y escribir el currículum y la carta. Cuando nos das un enlace a un empleo, nuestros servidores descargan esa página pública para leerla; el sitio ve la dirección de nuestro servidor, no la tuya.</p>
         <p>El proveedor procesa ese texto según sus propios términos. Por favor, no pongas en tu currículum información que no quieras que se procese de esta manera.</p>
       </>
@@ -77,6 +89,16 @@ export const privacyEs: LegalSection[] = [
     ),
   },
   {
+    id: "processors",
+    title: "Términos de procesamiento de datos con nuestros proveedores",
+    body: (
+      <>
+        <p>Los proveedores mencionados arriba que almacenan o procesan datos personales por nosotros (Google Firebase, MongoDB Atlas, el proveedor de IA y nuestro proveedor de alojamiento) actúan como <strong>encargados del tratamiento</strong>: solo pueden usar los datos para prestarnos su servicio y siguiendo nuestras instrucciones, deben mantenerlos confidenciales y seguros, no pueden venderlos y solo pueden apoyarse en otra empresa bajo las mismas obligaciones. Esto se rige por sus términos de procesamiento de datos (como el Anexo de Procesamiento de Datos de Google Cloud y el Acuerdo de Procesamiento de Datos de MongoDB), que incluyen las cláusulas contractuales tipo para transferencias fuera del EEE y del Reino Unido.</p>
+        <p>Las fuentes de empleo (Adzuna, Remotive y Arbeitnow) solo reciben los términos de búsqueda descritos arriba, nunca tu perfil, por lo que no procesan tus datos personales por nosotros. Para las funciones de IA usamos la interfaz de pago del proveedor, bajo términos en los que el contenido que enviamos no se usa para entrenar sus modelos. Cuando eliminas tus datos, pedimos a nuestros encargados que los eliminen también, según lo permitan sus términos y copias de seguridad.</p>
+      </>
+    ),
+  },
+  {
     id: "legal-basis",
     title: "Por qué podemos usar tus datos",
     body: <p>Cuando se aplican leyes como el RGPD, nos basamos en: la <strong>ejecución de nuestro contrato</strong> contigo (prestar el creador de currículum que pediste), <strong>nuestros intereses legítimos</strong> (mantener el servicio seguro y funcionando), <strong>tu consentimiento</strong> cuando lo pedimos y las <strong>obligaciones legales</strong>.</p>,
@@ -86,7 +108,7 @@ export const privacyEs: LegalSection[] = [
     title: "Cuánto tiempo lo conservamos",
     body: (
       <>
-        <p>Conservamos tus datos mientras exista tu cuenta. Cuando eliminas un currículum o un perfil en la app, se borra de nuestra base de datos, y cuando eliminas tu cuenta se borra todo. Una sesión de invitado (sin cuenta) que no se haya usado durante <strong>30 días</strong> se elimina automáticamente con todo lo que contiene, y empezar un currículum nuevo como invitado elimina el que quedó sin terminar. Los mensajes de contacto se conservan como máximo <strong>24 meses</strong>. Las copias de seguridad pueden contener datos eliminados durante un breve tiempo antes de sobrescribirse.</p>
+        <p>Conservamos tus datos mientras exista tu cuenta. Cuando eliminas un currículum o un perfil en la app, se borra de nuestra base de datos, y cuando eliminas tu cuenta se borra todo. Una sesión de invitado (sin cuenta) que no se haya usado durante <strong>30 días</strong> se elimina automáticamente con todo lo que contiene, y empezar un currículum nuevo como invitado elimina el que quedó sin terminar. Los mensajes de contacto se conservan como máximo <strong>24 meses</strong>. Las respuestas que da la IA sobre tu contenido se guardan en un almacén temporal hasta <strong>30 días</strong>, para no hacer la misma pregunta dos veces, y luego se eliminan automáticamente (y de inmediato cuando eliminas tu cuenta). Las copias de seguridad pueden contener datos eliminados durante un breve tiempo antes de sobrescribirse.</p>
       </>
     ),
   },

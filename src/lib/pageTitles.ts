@@ -4,6 +4,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/home/profile": "Profile",
   "/home/resumes": "Resumes",
   "/home/job-ads": "Job Search",
+  "/home/apply": "Apply to a job",
   "/home/resumes/new": "New resume",
   "/home/settings": "Settings",
   "/home/help": "Help & tutorials",
