@@ -1,6 +1,7 @@
 "use client";
 
 import { usePopularTemplates } from "@/lib/usePopularTemplates";
+import { loadStats } from "@/lib/siteStats";
 import { PopularRibbon } from "@/components/popularRibbon";
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -210,13 +211,29 @@ function FaqItem({ q, a, more, n }: { q: string; a: string; more?: string; n: nu
 export default function MarketingPage() {
   const isPopular = usePopularTemplates(); // the three looks with the most resumes
   const { tr } = useT();
-  const { user } = useAuth();
-  const signedIn = !!user && !user.uid.startsWith("guest-");
+  const { user, loading: authLoading, signedInHint } = useAuth();
+  // while Firebase is still starting, the last known answer (localStorage) decides the buttons; afterwards the real user does
+  const signedIn = authLoading ? signedInHint === true : !!user && !user.uid.startsWith("guest-");
+  // The top bar and the page stay empty (white frame, no fade, no logo) until the session is known and the page has loaded; then everything shows at once.
+  // The content stays in the HTML for search engines. If something is slow, it shows after 4 s anyway.
+  const [loaded, setLoaded] = useState(false);
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    const done = () => setLoaded(true);
+    if (document.readyState === "complete") done();
+    else window.addEventListener("load", done, { once: true });
+    const t = setTimeout(() => setGaveUp(true), 4000);
+    return () => {
+      window.removeEventListener("load", done);
+      clearTimeout(t);
+    };
+  }, []);
+  const ready = (loaded && (!authLoading || signedInHint !== null)) || gaveUp;
   const [tpl, setTpl] = useState(templates[0].id);
   // how many resumes were made with each look (registered accounts), shown above the look being previewed
   const [lookCounts, setLookCounts] = useState<Record<string, number> | null>(null);
   useEffect(() => {
-    fetch("/api/stats").then((r) => r.json()).then((d) => setLookCounts(d?.templates ?? null)).catch(() => {});
+    loadStats().then((d) => setLookCounts(d.templates ?? null));
   }, []);
 
   const shown = templates;
@@ -241,8 +258,10 @@ export default function MarketingPage() {
   };
 
   return (
-    <>
-      <TopBanner />
+    // The white frame (top bar and page background) is always there, even with a dark app theme; what is inside stays empty until `ready`.
+    <div className="public-site min-h-screen bg-white" aria-busy={!ready}>
+      <TopBanner ready={ready} />
+      <div className={ready ? "" : "invisible"}>
       <main id="main" className="public-site flex flex-col items-center bg-white text-gray-900 font-sans scroll-smooth">
         {/* ============ HERO ============ */}
         <section className="relative w-full pt-32 pb-20 px-4 lg:px-12 overflow-hidden bg-gradient-to-b from-sky-50 via-white to-white">
@@ -692,6 +711,7 @@ export default function MarketingPage() {
         </section>
       </main>
       <SiteFooter />
-    </>
+      </div>
+    </div>
   );
 }

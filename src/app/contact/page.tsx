@@ -1,10 +1,9 @@
 "use client";
 
-import LanguageSwitch from "@/components/languageSwitch";
+import TopBanner from "@/app/homepage/topBanner";
 import React, { useRef, useState } from "react";
-import Image from "next/image";
 import Link from "@/i18n/navigation";
-import { ArrowLeftIcon, CheckCircle2Icon, Loader2Icon, MailIcon, ShieldCheckIcon, LifeBuoyIcon } from "lucide-react";
+import { CheckCircle2Icon, Loader2Icon, MailIcon, ShieldCheckIcon, LifeBuoyIcon } from "lucide-react";
 import SiteFooter from "@/components/siteFooter";
 import { useT } from "@/i18n/provider";
 
@@ -69,20 +68,9 @@ export default function ContactPage() {
 
   return (
     <div className="public-site min-h-screen bg-white font-sans text-gray-900" style={{ colorScheme: "light" }}>
-      <header className="border-b border-gray-200">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <Link href="/" aria-label={tr("Kaizo home")}>
-            <Image src="/kaizologo-v2.png" unoptimized alt={tr("Kaizo Resume Builder")} width={105} height={35} priority />
-          </Link>
-          <div className="flex items-center gap-4">
-            <LanguageSwitch />
-            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600">
-              <ArrowLeftIcon className="h-4 w-4" />{" "}{tr("Back to home")}</Link>
-          </div>
-        </div>
-      </header>
+      <TopBanner />
 
-      <main id="main" tabIndex={-1} className="mx-auto grid max-w-6xl outline-none gap-12 px-4 py-14 lg:grid-cols-[1fr_1.2fr]">
+      <main id="main" tabIndex={-1} className="mx-auto grid max-w-6xl outline-none gap-12 px-4 pb-14 pt-32 lg:grid-cols-[1fr_1.2fr]">
         <div>
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">{tr("Contact us")}</h1>
           <p className="mt-4 max-w-md text-lg leading-relaxed text-gray-600">{tr("Tell us what you need and a person reads it. We answer by email.")}</p>

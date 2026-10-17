@@ -1,11 +1,8 @@
 import React from "react";
-import Image from "next/image";
-import Link from "@/i18n/navigation";
-import { ArrowLeftIcon } from "lucide-react";
 import SiteFooter from "@/components/siteFooter";
 import { LEGAL_UPDATED, LEGAL_UPDATED_ES } from "@/lib/legal";
 import { getT } from "@/i18n/server";
-import LanguageSwitch from "@/components/languageSwitch";
+import TopBanner from "@/app/homepage/topBanner";
 
 export interface LegalSection {
   id: string;
@@ -18,21 +15,9 @@ export default async function LegalLayout({ title, intro, sections, updated = tr
   const { tr, locale } = await getT();
   return (
     <div className="public-site min-h-screen bg-white font-sans text-gray-900" style={{ colorScheme: "light" }}>
-      <header className="border-b border-gray-200">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <Link href="/" aria-label={tr("Kaizo home")}>
-            <Image src="/kaizologo-v2.png" unoptimized alt={tr("Kaizo Resume Builder")} width={105} height={35} priority />
-          </Link>
-          <div className="flex items-center gap-4">
-            <LanguageSwitch />
-            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600">
-              <ArrowLeftIcon className="h-4 w-4" /> {tr("Back to home")}
-            </Link>
-          </div>
-        </div>
-      </header>
+      <TopBanner />
 
-      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-14 outline-none">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 pb-14 pt-32 outline-none">
         <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">{title}</h1>
         {updated && <p className="mt-3 text-sm text-gray-500">{tr("Last updated:")} {locale === "es" ? LEGAL_UPDATED_ES : LEGAL_UPDATED}</p>}
         <div className="mt-6 max-w-3xl text-lg leading-relaxed text-gray-600">{intro}</div>
@@ -53,7 +38,7 @@ export default async function LegalLayout({ title, intro, sections, updated = tr
             </div>
           </nav>
 
-          <article className="max-w-3xl space-y-10">
+          <article className="min-w-0 max-w-3xl space-y-10">
             {sections.map((s, i) => (
               <section key={s.id} id={s.id} className="scroll-mt-8">
                 <h2 className="text-2xl font-bold tracking-tight">

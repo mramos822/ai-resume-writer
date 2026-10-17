@@ -34,6 +34,7 @@ const columns: { title: string; links: { label: string; href: string }[] }[] = [
       { label: "Terms of service", href: "/terms" },
       { label: "Privacy policy", href: "/privacy" },
       { label: "Cookie policy", href: "/cookies" },
+      { label: "Accessibility", href: "/accessibility" },
       { label: "Your privacy choices", href: "/privacy#choices" },
     ],
   },
@@ -41,8 +42,9 @@ const columns: { title: string; links: { label: string; href: string }[] }[] = [
 
 export default function SiteFooter() {
   const { tr } = useT();
-  const { user } = useAuth();
-  const signedIn = !!user && !user.uid.startsWith("guest-");
+  const { user, loading, signedInHint } = useAuth();
+  // while Firebase is still starting, the last known answer decides, so the links do not change after the page is shown
+  const signedIn = loading ? signedInHint === true : !!user && !user.uid.startsWith("guest-");
   // someone who is already in does not need "log in" or "create an account"
   const cols = columns.map((c) => ({
     ...c,

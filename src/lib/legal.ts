@@ -7,6 +7,6 @@ export const BRAND = "Kaizo";
 export const OPERATOR = { name: "The Kaizo Project", address: "", email: "kaizoapp.contact@gmail.com" };
 
 /** Paths where the cookie notice is shown (the public side of the site, not the app). */
-export const PUBLIC_PATHS = ["/", "/login", "/start", "/terms", "/privacy", "/cookies", "/contact"];
+export const PUBLIC_PATHS = ["/", "/login", "/start", "/terms", "/privacy", "/cookies", "/accessibility", "/contact"];
 
 export const COOKIE_NOTICE_KEY = "kaizo_cookie_notice";

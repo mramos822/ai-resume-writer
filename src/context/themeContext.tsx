@@ -18,9 +18,10 @@ const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [theme, setThemeState] = useState<ThemeType>("system");
     const [authChecked, setAuthChecked] = useState(false);
-    // the landing page and the log in screen show themselves right away, with no loading screen in front
+    // the public pages (landing, log in, the legal pages and the contact form) show themselves right away, with no loading screen in front:
+    // anyone must be able to read them without waiting for the account, and so can search engines (the loading screen hides the content from the server HTML)
     const pathname = usePathname();
-    const isPublic = pathname === "/" || pathname === "/login";
+    const isPublic = ["/", "/login", "/privacy", "/terms", "/cookies", "/accessibility", "/contact"].includes(pathname);
 
     // Save theme to Firestore when changed by the user
     const setTheme = async (newTheme: ThemeType) => {

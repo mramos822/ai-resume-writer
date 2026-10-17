@@ -18,12 +18,20 @@ const links = [
   { href: "#faq", label: "FAQ" },
 ];
 
-export default function TopBanner() {
+export default function TopBanner({ ready = true }: { ready?: boolean }) {
   const { tr } = useT();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading, signedInHint: hint } = useAuth();
+  // The banner shows nothing until we know if someone is signed in (never longer than 2.5 s), so the guest buttons never show before "Go to dashboard".
+  // To know sooner than Firebase can tell, the last answer (kept in localStorage, see authContext) is used; Firebase then confirms or corrects it.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setWaited(true), 2500);
+    return () => clearTimeout(t);
+  }, []);
+  const authReady = ready && (!loading || hint !== null || waited);
   // a guest is not logged in: only a real account sees the dashboard shortcut
-  const signedIn = !!user && !user.uid.startsWith("guest-");
+  const signedIn = loading ? hint === true : !!user && !user.uid.startsWith("guest-");
   const [showLogin, setShowLogin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -59,50 +67,54 @@ export default function TopBanner() {
   }, []);
 
   return (
-    <header
-      className={`public-site w-full fixed top-0 left-0 z-50 bg-white transition-shadow ${
-        scrolled ? "shadow-md" : "border-b border-gray-200"
-      }`}
-    >
-      <div className="max-w-[1600px] mx-auto px-4 lg:px-10 h-16 flex items-center justify-between">
+    // A full-width bar with a light blur and a teal-to-indigo hairline underneath (the same gradient as the homepage title); links get an underline when active.
+    <header className="public-site fixed left-0 top-0 z-50 w-full">
+      <div
+        className={`relative w-full bg-white/90 backdrop-blur-md transition-shadow ${scrolled ? "shadow-lg shadow-slate-900/10" : ""}`}
+      >
+      <div className={`mx-auto h-16 max-w-[1600px] px-4 lg:px-10 flex items-center justify-between lg:grid lg:grid-cols-[1fr_auto_1fr] ${authReady ? "" : "invisible"}`} aria-hidden={!authReady}>
         <Link href="/" className="flex items-center shrink-0">
           <Image
             src="/kaizologo-v2.png" unoptimized
             alt={tr("Kaizo Resume Builder logo")}
             width={118}
             height={39}
+            className="h-9 w-auto"
             priority
           />
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
+        {/* From lg up the bar is three columns (logo | links | buttons): the links stay centred and do not move when the buttons or the language change the width. Below lg the links go in the menu. */}
+        <nav className="hidden lg:flex items-center gap-8 whitespace-nowrap text-sm font-medium">
           {links.map((l) => (
-            <a
+            <Link
               key={l.href}
-              href={l.href}
-              className={`relative px-4 py-2 rounded-md transition-colors ${
+              href={`/${l.href}`}
+              className={`relative py-1 transition-colors after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-gradient-to-r after:from-teal-500 after:to-indigo-500 after:transition-opacity ${
                 active === l.href
-                  ? "text-blue-600 bg-blue-50"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  ? "text-gray-900 after:opacity-100"
+                  : "text-gray-500 hover:text-gray-900 after:opacity-0 hover:after:opacity-40"
               }`}
             >
               {tr(l.label)}
-            </a>
+            </Link>
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
-          <LanguageSwitch className="hidden sm:inline-flex" />
+        <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+          {/* the buttons have a fixed minimum width, so English and Spanish take the same room and nothing shifts when the language changes */}
+          <LanguageSwitch className="max-sm:hidden min-w-[7.5rem] justify-center" />
+          <div className="flex items-center gap-2">
           {signedIn ? (
-            <Link href="/home" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-md transition-colors">
+            <Link href="/home" className="inline-flex min-w-[9rem] items-center justify-center text-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow-md shadow-blue-600/25 transition">
               {tr("Go to dashboard")}
             </Link>
           ) : (
             <>
           <Popover open={showLogin} onOpenChange={setShowLogin}>
             <PopoverTrigger asChild>
-              <button className="hidden sm:inline-block text-sm font-semibold text-gray-800 border border-gray-300 hover:border-gray-900 px-4 py-2 rounded-md transition-colors">
+              <button className="hidden sm:inline-flex min-w-[7.5rem] items-center justify-center text-center text-sm font-semibold text-gray-800 border border-gray-300 hover:border-blue-600 hover:text-blue-600 px-4 py-2 rounded-lg transition">
                 {tr("Log in")}
               </button>
             </PopoverTrigger>
@@ -132,16 +144,17 @@ export default function TopBanner() {
 
           <Link
             href="/start"
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-md transition-colors"
+            className="inline-flex min-w-[10rem] items-center justify-center text-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow-md shadow-blue-600/25 transition"
           >
             {tr("Create my resume")}
           </Link>
 
             </>
           )}
+          </div>
 
           <button
-            className="md:hidden p-2 text-gray-700"
+            className="lg:hidden p-2 text-gray-700"
             onClick={() => setMenuOpen((o) => !o)}
             aria-label={tr("Toggle menu")}
           >
@@ -151,20 +164,21 @@ export default function TopBanner() {
       </div>
 
       {/* Scroll progress */}
-      <div className="absolute bottom-0 left-0 h-0.5 bg-blue-600 transition-[width] duration-100" style={{ width: `${progress}%` }} />
+      <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-teal-300/60 via-gray-200 to-indigo-300/60" />
+      <div className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-teal-500 to-indigo-500 transition-[width] duration-100" style={{ width: `${progress}%` }} />
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden border-t border-gray-200 bg-white px-4 py-3 flex flex-col">
+        <div className="lg:hidden border-t border-gray-200 px-4 py-3 flex flex-col">
           {links.map((l) => (
-            <a
+            <Link
               key={l.href}
-              href={l.href}
+              href={`/${l.href}`}
               onClick={() => setMenuOpen(false)}
               className="py-3 text-gray-800 font-medium border-b border-gray-100"
             >
               {tr(l.label)}
-            </a>
+            </Link>
           ))}
           <LanguageSwitch className="my-3 w-fit" />
           <Link href={signedIn ? "/home" : "/login?view=login"} className="py-3 text-blue-600 font-semibold">
@@ -172,6 +186,7 @@ export default function TopBanner() {
           </Link>
         </div>
       )}
+      </div>
     </header>
   );
 }

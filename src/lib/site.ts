@@ -3,4 +3,4 @@
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "");
 
 /** The pages anyone may find: the app itself (/home, /build) and the API are private. */
-export const PUBLIC_PAGES = ["/", "/terms", "/privacy", "/cookies", "/contact", "/es", "/es/terms", "/es/privacy", "/es/cookies", "/es/contact"];
+export const PUBLIC_PAGES = ["/", "/terms", "/privacy", "/cookies", "/accessibility", "/contact", "/es", "/es/terms", "/es/privacy", "/es/cookies", "/es/accessibility", "/es/contact"];

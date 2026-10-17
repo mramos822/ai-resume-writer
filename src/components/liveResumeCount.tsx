@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useT } from "@/i18n/provider";
+import { loadStats } from "@/lib/siteStats";
 
 /** The number of resumes created, kept live: it connects to /api/stats/stream and moves the moment someone creates one. */
 function useLiveResumeCount(): number | null {
@@ -19,10 +20,7 @@ function useLiveResumeCount(): number | null {
       return () => clearInterval(t);
     }
     // the number is asked for at once (the live feed below can take a few seconds to open), and the feed keeps it moving
-    fetch("/api/stats")
-      .then((r) => r.json())
-      .then((d) => typeof d.resumes === "number" && setTotal((cur) => cur ?? d.resumes))
-      .catch(() => {});
+    loadStats().then((d) => typeof d.resumes === "number" && setTotal((cur) => cur ?? d.resumes!));
     const es = new EventSource("/api/stats/stream"); // reconnects by itself if the connection drops
     es.onmessage = (e) => {
       try {

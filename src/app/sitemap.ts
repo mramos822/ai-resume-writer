@@ -6,7 +6,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const legalDate = new Date(LEGAL_UPDATED);
   return PUBLIC_PAGES.map((path) => ({
     url: `${SITE_URL}${path === "/" ? "" : path}`,
-    lastModified: ["/terms", "/privacy", "/cookies"].some((p) => path.endsWith(p)) && !Number.isNaN(+legalDate) ? legalDate : undefined,
+    lastModified: ["/terms", "/privacy", "/cookies", "/accessibility"].some((p) => path.endsWith(p)) && !Number.isNaN(+legalDate) ? legalDate : undefined,
     changeFrequency: path === "/" || path === "/es" ? "weekly" : "yearly",
     priority: path === "/" || path === "/es" ? 1 : 0.5,
   }));
