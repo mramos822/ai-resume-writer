@@ -1896,7 +1896,7 @@ export default function Onboarding({ embedded = false }: { embedded?: boolean } 
           <div className="lg:col-start-1">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-2xl font-extrabold">{tr("Your details")}</h2>
+                <h1 className="text-2xl font-extrabold">{tr("Your details")}</h1>
                 <p className="mt-1 text-sm text-muted-foreground">{tr("Change anything here. It saves by itself, and the review on the right can use it. Drag a section by its handle to reorder it.")}</p>
               </div>
             </div>

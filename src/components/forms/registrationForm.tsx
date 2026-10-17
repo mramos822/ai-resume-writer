@@ -94,7 +94,7 @@ export function RegistrationForm({ onRegister }: { onRegister: () => void }) {
                             <FormLabel>{tr("Email")}</FormLabel>
                             <FormControl>
                                 <Input
-                                    id="email"
+                                    autoComplete="email"
                                     placeholder={tr("Enter your email")}
                                     {...field}
                                 />
@@ -113,15 +113,17 @@ export function RegistrationForm({ onRegister }: { onRegister: () => void }) {
                             <FormControl>
                                 <div className="relative">
                                     <Input
-                                        id="password"
                                         type={showPassword ? "text" : "password"}
+                                        autoComplete="new-password"
                                         placeholder={tr("Enter your password")}
                                         {...field}
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute inset-y-0 right-3 flex items-center text-gray-500 dark:text-gray-400"
+                                        aria-label={showPassword ? tr("Hide password") : tr("Show password")}
+                                        aria-pressed={showPassword}
+                                        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-500 dark:text-gray-400"
                                     >
                                         {showPassword ? (
                                             <EyeSlashIcon className="h-5 w-5" />
@@ -145,7 +147,7 @@ export function RegistrationForm({ onRegister }: { onRegister: () => void }) {
                             <FormControl>
                                 <div className="relative">
                                     <Input
-                                        id="confirmPassword"
+                                        autoComplete="new-password"
                                         type={showConfirmPassword ? "text" : "password"}
                                         placeholder={tr("Confirm your password")}
                                         {...field}
@@ -153,7 +155,9 @@ export function RegistrationForm({ onRegister }: { onRegister: () => void }) {
                                     <button
                                         type="button"
                                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                        className="absolute inset-y-0 right-3 flex items-center text-gray-500 dark:text-gray-400"
+                                        aria-label={showConfirmPassword ? tr("Hide password") : tr("Show password")}
+                                        aria-pressed={showConfirmPassword}
+                                        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-500 dark:text-gray-400"
                                     >
                                         {showConfirmPassword ? (
                                             <EyeSlashIcon className="h-5 w-5" />

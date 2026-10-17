@@ -125,6 +125,7 @@ export default function SidePanel({ isSidePanelOpen, onClose }: SidePanelProps) 
             />
 
             <aside
+                aria-label={tr("Main menu")}
                 className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-y-auto border-r bg-sidebar transition-transform duration-300 lg:sticky lg:left-auto lg:top-0 lg:z-auto lg:h-screen lg:shrink-0 lg:self-start lg:transition-[margin] ${
                     isSidePanelOpen ? "translate-x-0" : "-translate-x-full lg:-ml-64 lg:translate-x-0"
                 }`}

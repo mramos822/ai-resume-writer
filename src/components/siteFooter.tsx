@@ -68,7 +68,7 @@ export default function SiteFooter() {
 
           {cols.map((c) => (
             <nav key={c.title} aria-label={c.title}>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">{tr(c.title)}</h3>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">{tr(c.title)}</h2>
               <ul className="mt-4 space-y-2.5 text-sm">
                 {c.links.map((l) => (
                   <li key={l.label}>

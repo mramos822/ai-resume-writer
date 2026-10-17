@@ -217,7 +217,7 @@ export default function ResumesPage() {
       {tab === "resumes" && (
         <div className="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_19rem]">
           {/* the rail: every version */}
-          <aside className="space-y-2 lg:sticky lg:top-24">
+          <aside aria-label={tr("Versions")} className="space-y-2 lg:sticky lg:top-24">
             <p className="px-1 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("Versions")}</p>
             {isLoadingResumes ? (
               <div className="shimmer h-20 rounded-xl bg-muted" />
@@ -301,7 +301,7 @@ export default function ResumesPage() {
 
           {/* what applicant tracking systems see */}
           {sel && (
-            <aside className="min-w-0 xl:sticky xl:top-24">
+            <aside aria-label={tr("What ATS software sees")} className="min-w-0 xl:sticky xl:top-24">
               <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("What ATS software sees")}</p>
               <div className="flex items-center gap-4">
                 <Ring value={score} />

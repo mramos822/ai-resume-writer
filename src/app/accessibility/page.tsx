@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "@/i18n/navigation";
 import LegalLayout, { type LegalSection } from "@/components/legalLayout";
 import { getT } from "@/i18n/server";
+import { alternatesFor } from "@/lib/seo";
 import { accessibilityEs } from "@/app/accessibility/content.es";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { tr } = await getT();
-  return { title: { absolute: tr("Accessibility | Kaizo") } };
+  const { tr, locale } = await getT();
+  return { title: { absolute: tr("Accessibility | Kaizo") }, alternates: alternatesFor("/accessibility", locale) };
 }
 
 const sections: LegalSection[] = [

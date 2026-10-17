@@ -33,7 +33,7 @@ function Section({ title, hint, children }: { title: string; hint: string; child
   const bare = React.useContext(BareContext);
   return (
     <div className="border-t pt-8 first:border-t-0 first:pt-0">
-      {!bare && <h4 className="text-lg font-bold">{tr(title)}</h4>}
+      {!bare && <h2 className="text-lg font-bold">{tr(title)}</h2>}
       <p className={`mb-5 text-sm text-muted-foreground ${bare ? "" : "mt-0.5"}`}>{tr(hint)}</p>
       {children}
     </div>

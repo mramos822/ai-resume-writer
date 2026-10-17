@@ -148,7 +148,7 @@ export function LoginForm({
                             <FormLabel>{tr("Email")}</FormLabel>
                             <FormControl>
                                 <Input
-                                    id="email"
+                                    autoComplete="email"
                                     placeholder={tr("Enter your email")}
                                     className="bg-white border border-gray-400 text-black placeholder-gray-500"
                                     {...field}
@@ -168,8 +168,8 @@ export function LoginForm({
                             <FormControl>
                                 <div className="relative">
                                     <Input
-                                        id="password"
                                         type={showPassword ? "text" : "password"}
+                                        autoComplete="current-password"
                                         placeholder={tr("Enter your password")}
                                         className="bg-white border border-gray-400 text-black placeholder-gray-500"
                                         {...field}
@@ -177,7 +177,9 @@ export function LoginForm({
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute inset-y-0 right-3 flex items-center text-gray-500 dark:text-gray-400"
+                                        aria-label={showPassword ? tr("Hide password") : tr("Show password")}
+                                        aria-pressed={showPassword}
+                                        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-500 dark:text-gray-400"
                                     >
                                         {showPassword ? (
                                             <EyeSlashIcon className="h-5 w-5" />
@@ -197,7 +199,7 @@ export function LoginForm({
                         <button
                             type="button"
                             onClick={onForgotPassword}
-                            className="text-sm text-blue-500 hover:underline"
+                            className="text-sm text-blue-600 hover:underline dark:text-blue-400"
                         >{tr("Forgot password?")}</button>
                     </div>
                 )}

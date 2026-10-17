@@ -55,7 +55,7 @@ function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, onDelete, statu
       <div className="flex items-start gap-4">
         <CompanyLogo company={job.company} logo={job.logo} />
         <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-bold leading-snug"><button type="button" onClick={onOpen} className="text-left hover:text-blue-500">{tr(job.title)}</button></h3>
+          <h2 className="text-lg font-bold leading-snug"><button type="button" onClick={onOpen} className="text-left hover:text-blue-500">{tr(job.title)}</button></h2>
           <p className="text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">{job.company}</span>
             {job.postedAt && <span> · {ago(job.postedAt, tr)}</span>}
@@ -376,7 +376,7 @@ export default function JobSearchPage() {
               onClick={() => setTab(t.id)}
               className={`rounded-full px-5 py-2 text-sm font-semibold transition-all ${tab === t.id ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground hover:text-foreground"}`}
             >
-              {tr(t.label)} <span className="opacity-70">({t.n})</span>
+              {tr(t.label)} <span className={tab === t.id ? "opacity-90" : ""}>({t.n})</span>
             </button>
           ))}
         </div>
