@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { renderResumeDetailed, RESUME_TEMPLATES } from "@/lib/pdfResume";
+import { renderResumeDetailed, RESUME_TEMPLATES, trackingOf, MAX_TRACKING } from "@/lib/pdfResume";
 import type { ProfileData } from "@/context/profileContext";
 
 const job = (n: number) => ({
@@ -125,5 +125,19 @@ describe("characters outside Latin-1", () => {
     expect(r.droppedChars.length).toBeGreaterThan(0);
     expect(r.droppedChars.join("")).toContain("李");
     expect(r.droppedChars.join("")).not.toContain("T");
+  });
+});
+
+describe("letter-spacing", () => {
+  it("is held to a small part of the font size so readers do not split titles into single letters", () => {
+    expect(MAX_TRACKING).toBeLessThanOrEqual(0.06);
+    expect(trackingOf(1.2, 10)).toBeCloseTo(0.5); // a title that asked for 12% gets 5%
+    expect(trackingOf(6, 38)).toBeCloseTo(1.9); // the big tracked name of a look
+    expect(trackingOf(0.4, 7)).toBeCloseTo(0.35);
+  });
+
+  it("leaves text with no spacing, or little, as it is", () => {
+    expect(trackingOf(undefined, 10)).toBe(0);
+    expect(trackingOf(0.2, 10)).toBe(0.2);
   });
 });

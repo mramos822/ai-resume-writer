@@ -87,6 +87,14 @@ function clean(value?: string): string {
     .trim();
 }
 
+/** Letter-spacing is held to 5% of the font size. Programs that read a resume (applicant tracking systems, PDF readers) take a gap bigger than
+ * about 5-10% of the letter as a space, so a title drawn with more room read back as "P R O F I L E" and the section was not found. */
+export const MAX_TRACKING = 0.05;
+/** The letter-spacing to use for a style: what the look asks for, up to the cap (both in the same units as the style: points at scale 1). */
+export function trackingOf(spacing: number | undefined, size: number): number {
+  return Math.min(spacing ?? 0, MAX_TRACKING * size);
+}
+
 interface Style {
   font: string;
   size: number;
@@ -163,7 +171,7 @@ class Pen {
     return this.doc.heightOfString(text, {
       width,
       lineGap: (s.gap ?? 1.5) * this.k,
-      characterSpacing: (s.spacing ?? 0) * this.fk,
+      characterSpacing: trackingOf(s.spacing, s.size) * this.fk,
     });
   }
 
@@ -176,7 +184,7 @@ class Pen {
 
   widthOf(text: string, s: Style): number {
     this.apply(s, text);
-    return this.doc.widthOfString(text, { characterSpacing: (s.spacing ?? 0) * this.fk });
+    return this.doc.widthOfString(text, { characterSpacing: trackingOf(s.spacing, s.size) * this.fk });
   }
 
   /** Draw wrapped text at (x, y) and return the y just below it. */
@@ -187,7 +195,7 @@ class Pen {
       width,
       align: s.align ?? "left",
       lineGap: (s.gap ?? 1.5) * this.k,
-      characterSpacing: (s.spacing ?? 0) * this.fk,
+      characterSpacing: trackingOf(s.spacing, s.size) * this.fk,
     });
     this.spans?.push([y - 0.24 * s.size * this.fk, this.doc.y]); // the letters stand a little above the top of the line
     return this.doc.y;
