@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { openTour } from "@/components/guidedTour";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useT } from "@/i18n/provider";
 
 const GUIDES = [
@@ -281,18 +281,6 @@ export default function HelpPage() {
           ))}
         </div>
       </section>
-
-      <Card className="gap-3 border-blue-200 bg-accent/50 py-4 sm:gap-6 sm:py-6">
-        <CardHeader>
-          <CardTitle>{tr("Still stuck?")}</CardTitle>
-          <CardDescription>{tr("Go back to the Dashboard. Its checklist always shows the very next step for you.")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild>
-            <Link href="/home">{tr("Back to Dashboard")}</Link>
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }
