@@ -19,7 +19,9 @@ function pdfjs(): Promise<PdfJs> {
   return loader;
 }
 
-// finished drawings, by file and width, so moving between resumes does not draw them again
+// finished drawings, by file and width, so moving between resumes does not draw them again. A drawing is a JPEG of a few hundred KB, so
+// the memory is small, but it is capped anyway: past MAX_DRAWN the oldest one is forgotten (it is drawn again if it is ever needed).
+const MAX_DRAWN = 30;
 const drawn = new Map<string, string>();
 const pending = new Map<string, Promise<string>>();
 
@@ -46,6 +48,7 @@ async function draw(fileId: string, width: number): Promise<string> {
         await page.render({ canvasContext: canvas.getContext("2d")!, viewport }).promise;
         const url = canvas.toDataURL("image/jpeg", 0.92);
         drawn.set(key, url);
+        if (drawn.size > MAX_DRAWN) drawn.delete(drawn.keys().next().value as string);
         return url;
       } finally {
         void doc.destroy();
@@ -54,6 +57,27 @@ async function draw(fileId: string, width: number): Promise<string> {
     pending.set(key, job);
   }
   return job;
+}
+
+/**
+ * Draws files ahead of time, one after the other and while the browser is idle, so that when the person moves to one it is already there.
+ * Errors are ignored (the real view shows them if the file is opened). It stops when `stop()` is called.
+ */
+export function preloadPdfPages(fileIds: string[], width: number): () => void {
+  let off = false;
+  const idle = (cb: () => void) => ("requestIdleCallback" in window ? (window as unknown as { requestIdleCallback: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback(cb, { timeout: 1500 }) : setTimeout(cb, 200));
+  (async () => {
+    for (const id of fileIds) {
+      if (off) return;
+      if (drawn.has(`${id}:${width}`)) continue;
+      await new Promise<void>((resolve) => idle(resolve));
+      if (off) return;
+      await draw(id, width).catch(() => undefined);
+    }
+  })();
+  return () => {
+    off = true;
+  };
 }
 
 /** Forget a file's drawings (after it is renamed or deleted). */

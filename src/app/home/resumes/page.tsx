@@ -16,7 +16,7 @@ import { useDialog } from "@/context/dialogContext";
 import { authFetch } from "@/lib/authFetch";
 import { evaluateAuto, scoreOf } from "@/lib/reviewRubric";
 import { ago } from "@/lib/jobFit";
-import PdfPage, { forgetPdfPage } from "@/components/pdfPage";
+import PdfPage, { forgetPdfPage, preloadPdfPages } from "@/components/pdfPage";
 import ResumePreviewModal from "@/components/resumePreviewModal";
 import CompanyLogo from "@/components/companyLogo";
 import { Button } from "@/components/ui/button";
@@ -111,6 +111,16 @@ export default function ResumesPage() {
   const sel = sorted.find((r) => r.id === selId) ?? sorted[0] ?? null;
   const selIndex = sel ? sorted.findIndex((r) => r.id === sel.id) : -1;
   const swipeFrom = useRef<number | null>(null);
+  // the versions are drawn ahead of time (the neighbours of the one on screen first), so changing between them does not show a loading sheet;
+  // only the 12 newest, one at a time and when the browser is idle
+  const selKey = sel?.id ?? "";
+  useEffect(() => {
+    if (!selKey || sorted.length < 2) return;
+    const i = sorted.findIndex((r) => r.id === selKey);
+    const order = [...sorted.slice(i + 1), ...sorted.slice(0, i).reverse()].slice(0, 12).map((r) => r.id);
+    return preloadPdfPages(order, 620);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selKey, sorted.length]);
   // on a phone the ATS panel is one row (the score) that raises a sheet from the bottom when tapped; from 640 px up it is always there
   const [atsOpen, setAtsOpen] = useState(false);
   const goTo = (i: number) => {
