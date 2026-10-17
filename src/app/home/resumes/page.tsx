@@ -3,11 +3,11 @@
 // Resumes as a studio: your versions on a rail, the selected resume large on a desk with a dock of actions under it,
 // and what applicant tracking systems make of it on the right. A second tab holds the cover letters of your applications.
 import { asTemplateId } from "@/lib/templates";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { format } from "date-fns";
-import { AlertTriangle, Check, ClipboardCopy, Download, ExternalLink, FileDown, FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ClipboardCopy, Download, ExternalLink, FileDown, FileText, Pencil, Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/authContext";
 import { useProfile } from "@/context/profileContext";
@@ -106,6 +106,11 @@ export default function ResumesPage() {
 
   const sorted = useMemo(() => [...resumes].sort((a, b) => +new Date(b.uploadDate) - +new Date(a.uploadDate)), [resumes]);
   const sel = sorted.find((r) => r.id === selId) ?? sorted[0] ?? null;
+  const selIndex = sel ? sorted.findIndex((r) => r.id === sel.id) : -1;
+  const swipeFrom = useRef<number | null>(null);
+  const goTo = (i: number) => {
+    if (i >= 0 && i < sorted.length) setSelId(sorted[i].id);
+  };
 
   // what applicant tracking systems make of the selected resume: measured by code, so it is instant and always the same
   const checks = useMemo(() => (sel ? evaluateAuto(profile, null, lookOf(sel)) : []), [profile, sel]);
@@ -216,8 +221,31 @@ export default function ResumesPage() {
 
       {tab === "resumes" && (
         <div className="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_19rem]">
+          {/* on a phone the versions come one by one, the selected one big at once (swipe the sheet or use the arrows); the rail below is for wide screens */}
+          {sorted.length > 0 && sel && (
+            <div className="lg:hidden">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" aria-label={tr("Previous version")} disabled={selIndex <= 0} onClick={() => goTo(selIndex - 1)}>
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div className="min-w-0 flex-1 text-center" aria-live="polite">
+                  <p className="truncate text-sm font-semibold">{prettyName(sel.filename)}</p>
+                  <p className="text-xs capitalize text-muted-foreground">
+                    {lookOf(sel)} · {ago(sel.uploadDate, tr).toLowerCase()} · {selIndex + 1}/{sorted.length}
+                  </p>
+                </div>
+                <Button variant="outline" size="icon" aria-label={tr("Next version")} disabled={selIndex >= sorted.length - 1} onClick={() => goTo(selIndex + 1)}>
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+                <Button asChild variant="outline" size="icon" aria-label={tr("New resume")}>
+                  <Link href="/home/resumes/new"><Plus className="h-5 w-5" /></Link>
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* the rail: every version */}
-          <aside aria-label={tr("Versions")} className="space-y-2 lg:sticky lg:top-24">
+          <aside aria-label={tr("Versions")} className="space-y-2 max-lg:hidden lg:sticky lg:top-24">
             <p className="px-1 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr("Versions")}</p>
             {isLoadingResumes ? (
               <div className="shimmer h-20 rounded-xl bg-muted" />
@@ -251,7 +279,16 @@ export default function ResumesPage() {
           </aside>
 
           {/* the stage: the selected resume, big, and what you can do with it */}
-          <section className="min-w-0">
+          <section
+            className="min-w-0"
+            onTouchStart={(e) => (swipeFrom.current = e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+              if (swipeFrom.current === null) return;
+              const dx = e.changedTouches[0].clientX - swipeFrom.current;
+              swipeFrom.current = null;
+              if (Math.abs(dx) > 60) goTo(selIndex + (dx < 0 ? 1 : -1));
+            }}
+          >
             {sel ? (
               <>
                 {/* the sheet is sized by the height of the screen, so the sheet and the dock are always seen together */}

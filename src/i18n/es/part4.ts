@@ -9,6 +9,8 @@ export const PART4: Record<string, string> = {
   "What information Kaizo collects, why, who helps us handle it and the control you have over it. No tracking, no ads, no selling your data.": "Qué información recopila Kaizo, por qué, quién nos ayuda a manejarla y el control que tienes sobre ella. Sin rastreo, sin anuncios, sin vender tus datos.",
   "Cookie Policy": "Política de cookies",
   "Accessibility": "Accesibilidad",
+  "Previous version": "Versión anterior",
+  "Next version": "Versión siguiente",
   "Your resume was updated.": "Tu currículum se actualizó.",
   "Nothing changed in this resume.": "No hubo cambios en este currículum.",
   "Click to edit this resume": "Haz clic para editar este currículum",
