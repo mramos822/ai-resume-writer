@@ -226,7 +226,6 @@ export default function ProfilePage() {
   const activeTab = useHash();
   // below 1024 px the side menu is closed, so the sections have their own strip of chips here; choosing one takes you to the top of it
   const navRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
   useEffect(() => {
     navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ inline: "center", block: "nearest" });
@@ -234,7 +233,8 @@ export default function ProfilePage() {
       firstRender.current = false;
       return;
     }
-    if (window.innerWidth < 1024) cardRef.current?.scrollIntoView({ block: "start" });
+    // always back to the top: the strip then sits in the same place for every section, however long or short its content is
+    if (window.innerWidth < 1024) window.scrollTo({ top: 0 });
   }, [activeTab]);
   const progress = getProfileProgress(activeProfile, tr);
   const doneMap: Record<string, boolean> = Object.fromEntries(progress.sections.map((s) => [s.key, s.done]));
@@ -305,7 +305,7 @@ export default function ProfilePage() {
       <h1 className="sr-only">{tr("Profile")}</h1>
 
       {/* the sections, always at hand on phones and tablets (from 1024 px the side menu has them) */}
-      <nav aria-label={tr("Profile sections")} className="sticky top-[65px] z-10 -mx-4 mb-3 border-b bg-background/90 backdrop-blur-md sm:-mx-5 sm:top-16 lg:hidden">
+      <nav aria-label={tr("Profile sections")} className="sticky top-[65px] z-10 -mx-4 -mt-4 mb-3 border-b bg-background/90 backdrop-blur-md sm:-mx-5 sm:-mt-5 sm:top-16 lg:hidden">
         <div ref={navRef} className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 py-2 sm:px-5">
           {VALID_SECTIONS.map((k) => {
             const m = META[k];
@@ -331,7 +331,7 @@ export default function ProfilePage() {
 
         {/* Active section */}
         <div className="w-full min-w-0">
-          <Card ref={cardRef} className="scroll-mt-32 rounded-2xl shadow-sm">
+          <Card className="rounded-2xl shadow-sm max-lg:min-h-[calc(100dvh-10rem)]">
             <CardContent className="p-4 sm:p-8">
               {/* the progress of the whole profile stays still while the sections change: only the section's own title and content animate */}
               <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 sm:mb-6">
