@@ -216,24 +216,24 @@ export default function SettingsPage() {
     ];
 
     return (
-        <div className="mx-auto max-w-5xl pb-28">
+        <div className="mx-auto max-w-5xl pb-24 sm:pb-28">
             {/* who you are */}
-            <header className="relative overflow-hidden rounded-3xl border bg-card p-6 sm:p-8">
+            <header className="relative overflow-hidden rounded-2xl border bg-card p-4 sm:rounded-3xl sm:p-8">
                 <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-blue-600/15 blur-3xl" />
-                <div className="relative flex flex-wrap items-center gap-5">
-                    <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-3xl font-black text-white shadow-lg shadow-blue-600/30">{initials || "?"}</span>
+                <div className="relative flex items-center gap-4 sm:gap-5">
+                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-xl font-black text-white shadow-lg shadow-blue-600/30 sm:h-20 sm:w-20 sm:rounded-2xl sm:text-3xl">{initials || "?"}</span>
                     <div className="min-w-0">
-                        <h1 className="truncate text-3xl font-black tracking-tight">{name || tr("Your settings")}</h1>
-                        <p className="truncate text-muted-foreground">{user?.email}</p>
-                        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold">
-                            <span className="rounded-full bg-muted px-2.5 py-1">{tr("Signed in with")}{" "}{provider}</span>
-                            {since && <span className="rounded-full bg-muted px-2.5 py-1">{tr("Member since")}{" "}{since}</span>}
+                        <h1 className="truncate text-xl font-black tracking-tight sm:text-3xl">{name || tr("Your settings")}</h1>
+                        <p className="truncate text-sm text-muted-foreground sm:text-base">{user?.email}</p>
+                        <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-semibold sm:mt-2 sm:gap-2">
+                            <span className="rounded-full bg-muted px-2 py-0.5 sm:px-2.5 sm:py-1">{tr("Signed in with")}{" "}{provider}</span>
+                            {since && <span className="rounded-full bg-muted px-2 py-0.5 sm:px-2.5 sm:py-1">{tr("Member since")}{" "}{since}</span>}
                         </p>
                     </div>
                 </div>
             </header>
 
-            <div className="mt-8 grid gap-10 lg:grid-cols-[13rem_minmax(0,1fr)]">
+            <div className="mt-5 grid gap-10 sm:mt-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
                 {/* the rail */}
                 <nav aria-label={tr("Settings sections")} className="hidden lg:block">
                     <ul className="sticky top-24 space-y-1">
@@ -247,12 +247,12 @@ export default function SettingsPage() {
                     </ul>
                 </nav>
 
-                <form onSubmit={save} className="min-w-0 space-y-14" noValidate>
+                <form onSubmit={save} className="min-w-0 space-y-8 sm:space-y-14" noValidate>
                     {/* account */}
                     <section id="account" className="scroll-mt-24" aria-labelledby="account-h">
-                        <h2 id="account-h" className="text-xl font-extrabold">{tr("Account")}</h2>
+                        <h2 id="account-h" className="text-lg font-extrabold sm:text-xl">{tr("Account")}</h2>
                         <p className="mt-1 text-sm text-muted-foreground">{tr("This is how Kaizo greets you.")}</p>
-                        <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                        <div className="mt-4 grid gap-4 sm:mt-5 sm:grid-cols-2 sm:gap-5">
                             <div>
                                 <label htmlFor="s-name" className="mb-1.5 block text-sm font-semibold">{tr("Name")}</label>
                                 <input id="s-name" className={field} value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("Your name")} autoComplete="name" maxLength={80} disabled={saving} />
@@ -267,20 +267,20 @@ export default function SettingsPage() {
 
                     {/* appearance */}
                     <section id="appearance" className="scroll-mt-24" aria-labelledby="appearance-h">
-                        <h2 id="appearance-h" className="text-xl font-extrabold">{tr("Appearance")}</h2>
+                        <h2 id="appearance-h" className="text-lg font-extrabold sm:text-xl">{tr("Appearance")}</h2>
                         <p className="mt-1 text-sm text-muted-foreground">{tr("It changes right away, and is saved with the rest.")}</p>
-                        <div role="radiogroup" aria-label={tr("Theme")} className="mt-5 grid gap-4 sm:grid-cols-3">
+                        <div role="radiogroup" aria-label={tr("Theme")} className="mt-4 grid grid-cols-3 gap-2 sm:mt-5 sm:gap-4">
                             {THEMES.map((t) => {
                                 const on = theme === t.id;
                                 return (
-                                    <button key={t.id} type="button" role="radio" aria-checked={on} onClick={() => setTheme(t.id)} className={`group rounded-2xl border-2 p-2 text-left transition-all ${on ? "border-blue-600 bg-blue-600/5" : "border-transparent bg-muted/40 hover:border-border"}`}>
-                                        <span className="block aspect-[16/10] overflow-hidden rounded-xl ring-1 ring-black/10"><ThemeArt mode={t.id} /></span>
-                                        <span className="mt-2.5 flex items-center justify-between px-1.5 pb-1">
+                                    <button key={t.id} type="button" role="radio" aria-checked={on} onClick={() => setTheme(t.id)} className={`group rounded-xl border-2 p-1.5 text-left transition-all sm:rounded-2xl sm:p-2 ${on ? "border-blue-600 bg-blue-600/5" : "border-transparent bg-muted/40 hover:border-border"}`}>
+                                        <span className="block aspect-[16/10] overflow-hidden rounded-lg ring-1 ring-black/10 sm:rounded-xl"><ThemeArt mode={t.id} /></span>
+                                        <span className="mt-1.5 flex items-center justify-between px-0.5 pb-0.5 sm:mt-2.5 sm:px-1.5 sm:pb-1">
                                             <span>
-                                                <span className="flex items-center gap-1.5 text-sm font-bold"><t.icon className="h-4 w-4" /> {tr(t.label)}</span>
-                                                <span className="block text-xs text-muted-foreground">{tr(t.hint)}</span>
+                                                <span className="flex items-center gap-1 text-xs font-bold sm:gap-1.5 sm:text-sm"><t.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> {tr(t.label)}</span>
+                                                <span className="block text-xs text-muted-foreground max-sm:hidden">{tr(t.hint)}</span>
                                             </span>
-                                            <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${on ? "border-blue-600 bg-blue-600 text-white" : "border-border"}`}>{on && <Check className="h-3 w-3" strokeWidth={4} />}</span>
+                                            <span className={`flex h-5 w-5 items-center justify-center rounded-full border max-sm:hidden ${on ? "border-blue-600 bg-blue-600 text-white" : "border-border"}`}>{on && <Check className="h-3 w-3" strokeWidth={4} />}</span>
                                         </span>
                                     </button>
                                 );
@@ -290,13 +290,13 @@ export default function SettingsPage() {
 
                     {/* password */}
                     <section id="security" className="scroll-mt-24" aria-labelledby="security-h">
-                        <h2 id="security-h" className="text-xl font-extrabold">{tr("Password")}</h2>
+                        <h2 id="security-h" className="text-lg font-extrabold sm:text-xl">{tr("Password")}</h2>
                         {isOAuth ? (
                             <p className="mt-3 rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">{tr("You sign in with")}{" "}{provider}{tr(", so there is no Kaizo password to change. Manage it in that account.")}</p>
                         ) : (
                             <>
                                 <p className="mt-1 text-sm text-muted-foreground">{tr("Leave these empty if you do not want to change it.")}</p>
-                                <div className="mt-5 grid max-w-xl gap-5">
+                                <div className="mt-4 grid max-w-xl gap-4 sm:mt-5 sm:gap-5">
                                     <div>
                                         <label htmlFor="s-cur" className="mb-1.5 block text-sm font-semibold">{tr("Current password")}</label>
                                         <div className="relative">
@@ -306,7 +306,7 @@ export default function SettingsPage() {
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="grid gap-5 sm:grid-cols-2">
+                                    <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
                                         <div>
                                             <label htmlFor="s-new" className="mb-1.5 block text-sm font-semibold">{tr("New password")}</label>
                                             <input id="s-new" className={field} type={show ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" aria-describedby="s-strength" disabled={saving} />
@@ -333,11 +333,11 @@ export default function SettingsPage() {
 
                     {/* your data */}
                     <section id="data" className="scroll-mt-24" aria-labelledby="data-h">
-                        <h2 id="data-h" className="text-xl font-extrabold">{tr("Your data")}</h2>
+                        <h2 id="data-h" className="text-lg font-extrabold sm:text-xl">{tr("Your data")}</h2>
                         <p className="mt-1 text-sm text-muted-foreground">{tr("You decide what Kaizo keeps. How it is used is in the")}{" "}<Link href="/privacy" className="font-medium text-blue-600 underline dark:text-blue-400">{tr("Privacy Policy")}</Link>.
                         </p>
-                        <div className="mt-5 divide-y overflow-hidden rounded-2xl border">
-                            <div className="flex flex-wrap items-center justify-between gap-4 p-5">
+                        <div className="mt-4 divide-y overflow-hidden rounded-2xl border sm:mt-5">
+                            <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:gap-4 sm:p-5">
                                 <div>
                                     <p className="font-semibold">{tr("Download a copy of your data")}</p>
                                     <p className="text-sm text-muted-foreground">{tr("Your profiles, applications, saved jobs and the list of your files, in one file.")}</p>
@@ -346,7 +346,7 @@ export default function SettingsPage() {
                                     {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} {exporting ? tr("Preparing…") : tr("Download my data")}
                                 </Button>
                             </div>
-                            <div className="flex flex-wrap items-center justify-between gap-4 bg-red-500/[0.04] p-5">
+                            <div className="flex flex-wrap items-center justify-between gap-3 bg-red-500/[0.04] p-4 sm:gap-4 sm:p-5">
                                 <div>
                                     <p className="font-semibold text-red-600 dark:text-red-400">{tr("Delete my account")}</p>
                                     <p className="text-sm text-muted-foreground">{tr("Removes your account, profiles, resumes, applications and saved jobs for good.")}</p>
