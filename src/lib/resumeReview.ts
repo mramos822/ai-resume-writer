@@ -68,6 +68,15 @@ export function twoPagesAlt(criterionId: string | undefined, p: ProfileData, tem
 }
 
 /** The impact of a guideline depends on how many points it is worth. */
+/** "Fix all": the fix about the length of the resume (it has a second way out: use two pages) is the person's decision, so if there is one among
+ *  the fixes it must be asked about BEFORE anything is applied. Returns that issue, or null when there is nothing to ask. */
+export const lengthQuestion = (picked: ReviewIssue[]): ReviewIssue | null => picked.find((i) => !!i.alt) ?? null;
+
+/** The fixes to carry out once the person has answered: for "two pages" the length issue uses its second way out, the rest are as they were. */
+export function withLengthAnswer(picked: ReviewIssue[], issueId: string, pages: "one" | "two"): ReviewIssue[] {
+  return picked.map((i) => (i.id === issueId && pages === "two" && i.alt ? { ...i, fix: i.alt, fixes: undefined } : i));
+}
+
 export const impactOf = (weight: number): ReviewIssue["impact"] => (weight >= 8 ? "high" : weight >= 5 ? "medium" : "low");
 
 /** What to say about a failed measurable guideline when the AI is not involved. */

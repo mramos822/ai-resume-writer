@@ -8,12 +8,15 @@ import { useProfile } from "@/context/profileContext";
 import { useToast } from "@/context/toastContext";
 import { authFetch } from "@/lib/authFetch";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   applyFixes,
   reviewForTemplate,
   scoreLabel,
   snapshotFor,
   patchChangesProfile,
+  lengthQuestion,
+  withLengthAnswer,
   type ProfilePatch,
   type ReviewFix,
   type ReviewIssue,
@@ -435,6 +438,21 @@ export default function ResumeReview({
   const settle = async (before: string) => {
     for (let waited = 0; waited < 1500 && JSON.stringify(profileRef.current) === before; waited += 50) await new Promise((r) => setTimeout(r, 50));
   };
+  // "Fix all" with a fix about the length of the resume among them: that choice is the person's (cut it to one page, or keep everything on
+  // two pages), so it is asked first and NOTHING is applied until it is answered; closing the question applies nothing.
+  const [lengthAsk, setLengthAsk] = useState<{ picked: ReviewIssue[]; issue: ReviewIssue } | null>(null);
+  const fixAll = (picked: ReviewIssue[]) => {
+    const issue = lengthQuestion(picked);
+    if (issue) setLengthAsk({ picked, issue });
+    else enqueue(picked);
+  };
+  const answerLength = (pages: "one" | "two") => {
+    if (!lengthAsk) return;
+    const { picked, issue } = lengthAsk;
+    setLengthAsk(null);
+    enqueue(withLengthAnswer(picked, issue.id, pages));
+  };
+
   /** Adds fixes to the queue; one that is already queued, being written or applied is not added twice. */
   const enqueue = (picked: ReviewIssue[]) => {
     const fresh = picked.filter((i) => !isApplied(i.id) && !working.includes(i.id) && !queueRef.current.some((q) => q.id === i.id));
@@ -666,8 +684,27 @@ export default function ResumeReview({
               <h2 className="text-lg font-extrabold">
                 {visibleIssues.length === 0 ? tr("Nothing to fix. Nice work.") : tr("{length} thing{v1} to improve", { length: visibleIssues.length, v1: visibleIssues.length > 1 ? "s" : "" })}
               </h2>
+              <Dialog open={!!lengthAsk} onOpenChange={(o) => !o && setLengthAsk(null)}>
+                <DialogContent className="max-w-md">
+                  <DialogTitle className="text-xl font-bold">{tr("One thing to decide before the fixes")}</DialogTitle>
+                  <DialogDescription className="text-base leading-relaxed">
+                    {tr("Your resume is too long for one page at a readable size. Do you want to cut it to fit one page, or keep everything and use two pages? The other fixes wait for your answer.")}
+                  </DialogDescription>
+                  <div className="mt-2 flex flex-col gap-2">
+                    <Button onClick={() => answerLength("one")} className="h-auto justify-start gap-3 whitespace-normal py-3 text-left">
+                      <Wand2 className="h-4 w-4 shrink-0" />
+                      <span><span className="block font-bold">{tr("Cut it to one page")}</span><span className="block text-xs font-normal opacity-80">{tr("The least useful details are taken out so it fits.")}</span></span>
+                    </Button>
+                    <Button onClick={() => answerLength("two")} variant="outline" className="h-auto justify-start gap-3 whitespace-normal py-3 text-left">
+                      <Pencil className="h-4 w-4 shrink-0" />
+                      <span><span className="block font-bold">{tr("Keep it all: use two pages")}</span><span className="block text-xs font-normal text-muted-foreground">{tr("Nothing is cut; the resume runs over two pages.")}</span></span>
+                    </Button>
+                    <Button onClick={() => setLengthAsk(null)} variant="ghost" className="text-muted-foreground">{tr("Cancel: apply nothing")}</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
               {notAskedYet.length > 0 ? (
-                <Button onClick={() => enqueue(notAskedYet)} variant="outline" className="h-10 gap-2 border-2 border-blue-600 px-4 font-bold text-blue-600 hover:bg-blue-600 hover:text-white">
+                <Button onClick={() => fixAll(notAskedYet)} variant="outline" className="h-10 gap-2 border-2 border-blue-600 px-4 font-bold text-blue-600 hover:bg-blue-600 hover:text-white">
                   <Wand2 className="h-4 w-4" />{" "}{tr("Fix all (")}{notAskedYet.length})
                 </Button>
               ) : inProgress > 0 ? (
