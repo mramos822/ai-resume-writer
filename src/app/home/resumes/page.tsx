@@ -276,8 +276,8 @@ export default function ResumesPage() {
                 <Button variant="outline" size="icon" aria-label={tr("Next version")} disabled={selIndex >= sorted.length - 1} onClick={() => goTo(selIndex + 1)}>
                   <ChevronRight className="h-5 w-5" />
                 </Button>
-                <Button asChild variant="outline" size="icon" aria-label={tr("New resume")}>
-                  <Link href="/home/resumes/new"><Plus className="h-5 w-5" /></Link>
+                <Button asChild variant="outline" className="h-9 shrink-0 gap-1 px-3 text-sm font-semibold">
+                  <Link href="/home/resumes/new"><Plus className="h-4 w-4" />{tr("New")}</Link>
                 </Button>
               </div>
             </div>
@@ -344,17 +344,18 @@ export default function ResumesPage() {
                   </motion.div>
                 </div>
                 {/* the dock */}
-                <div className="mx-auto -mt-6 flex w-fit max-w-full items-center justify-center gap-0.5 rounded-full border bg-card p-1.5 shadow-xl sm:flex-wrap sm:gap-1">
-                  <Button onClick={() => download(sel, "pdf")} className="gap-2 rounded-full font-bold">
-                    <Download className="h-4 w-4" />{" "}{tr("PDF")}</Button>
-                  <Button onClick={() => download(sel, "docx")} variant="ghost" aria-label={tr("DOCX")} className="gap-2 rounded-full max-sm:px-3">
-                    <FileDown className="h-4 w-4" /><span className="max-sm:sr-only">{tr("DOCX")}</span></Button>
-                  <Button onClick={() => setPreviewFileId(sel.id)} variant="ghost" aria-label={tr("Open")} className="gap-2 rounded-full max-sm:px-3">
-                    <FileText className="h-4 w-4" /><span className="max-sm:sr-only">{tr("Open")}</span></Button>
-                  <Button onClick={() => rename(sel)} variant="ghost" aria-label={tr("Rename")} className="gap-2 rounded-full max-sm:px-3">
-                    <Pencil className="h-4 w-4" /><span className="max-sm:sr-only">{tr("Rename")}</span></Button>
-                  <Button onClick={() => handleDelete(sel.id)} variant="ghost" aria-label={tr("Delete")} className="gap-2 rounded-full text-red-500 hover:text-red-500 max-sm:px-3">
-                    <Trash2 className="h-4 w-4" /><span className="max-sm:sr-only">{tr("Delete")}</span></Button>
+                {/* on a phone every action is an icon WITH its name under it (an icon alone did not say what it does); from 640 px up they are the round buttons */}
+                <div className="mx-auto -mt-6 grid max-w-full grid-cols-5 gap-1 rounded-2xl border bg-card p-1.5 shadow-xl sm:flex sm:w-fit sm:flex-wrap sm:items-center sm:justify-center sm:rounded-full">
+                  <Button onClick={() => download(sel, "pdf")} className="gap-2 rounded-full font-bold max-sm:h-auto max-sm:flex-col max-sm:gap-1 max-sm:rounded-xl max-sm:px-1 max-sm:py-2 max-sm:text-[11px] max-sm:leading-tight">
+                    <Download className="h-4 w-4 max-sm:h-5 max-sm:w-5" />{tr("PDF")}</Button>
+                  <Button onClick={() => download(sel, "docx")} variant="ghost" className="gap-2 rounded-full max-sm:h-auto max-sm:flex-col max-sm:gap-1 max-sm:rounded-xl max-sm:px-1 max-sm:py-2 max-sm:text-[11px] max-sm:leading-tight">
+                    <FileDown className="h-4 w-4 max-sm:h-5 max-sm:w-5" />{tr("DOCX")}</Button>
+                  <Button onClick={() => setPreviewFileId(sel.id)} variant="ghost" className="gap-2 rounded-full max-sm:h-auto max-sm:flex-col max-sm:gap-1 max-sm:rounded-xl max-sm:px-1 max-sm:py-2 max-sm:text-[11px] max-sm:leading-tight">
+                    <FileText className="h-4 w-4 max-sm:h-5 max-sm:w-5" />{tr("Open")}</Button>
+                  <Button onClick={() => rename(sel)} variant="ghost" className="gap-2 rounded-full max-sm:h-auto max-sm:flex-col max-sm:gap-1 max-sm:rounded-xl max-sm:px-1 max-sm:py-2 max-sm:text-[11px] max-sm:leading-tight">
+                    <Pencil className="h-4 w-4 max-sm:h-5 max-sm:w-5" />{tr("Rename")}</Button>
+                  <Button onClick={() => handleDelete(sel.id)} variant="ghost" className="gap-2 rounded-full text-red-500 hover:text-red-500 max-sm:h-auto max-sm:flex-col max-sm:gap-1 max-sm:rounded-xl max-sm:px-1 max-sm:py-2 max-sm:text-[11px] max-sm:leading-tight">
+                    <Trash2 className="h-4 w-4 max-sm:h-5 max-sm:w-5" />{tr("Delete")}</Button>
                 </div>
                 <p className="mt-3 hidden text-center text-sm text-muted-foreground 2xl:block">
                   <span className="font-semibold text-foreground">{prettyName(sel.filename)}</span>{" "}{tr("· made")}{" "}{format(new Date(sel.metadata?.createdAt || sel.uploadDate), "d MMMM, HH:mm")} · <span className="capitalize">{lookOf(sel)}</span>{" "}{tr("look")}</p>
