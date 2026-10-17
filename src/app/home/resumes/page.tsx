@@ -15,6 +15,7 @@ import { useToast } from "@/context/toastContext";
 import { useDialog } from "@/context/dialogContext";
 import { authFetch } from "@/lib/authFetch";
 import { evaluateAuto, scoreOf } from "@/lib/reviewRubric";
+import { maxPagesFor } from "@/lib/pageGoal";
 import { ago } from "@/lib/jobFit";
 import PdfPage, { forgetPdfPage } from "@/components/pdfPage";
 import ResumePreviewModal from "@/components/resumePreviewModal";
@@ -27,7 +28,7 @@ interface Resume {
   id: string;
   filename: string;
   uploadDate: string;
-  metadata: { profileId: string; template: string; format: string; createdAt: string; jobAdId?: string; isGenerated?: boolean };
+  metadata: { profileId: string; template: string; format: string; createdAt: string; jobAdId?: string; isGenerated?: boolean; scale?: number; pages?: number };
   profileName?: string;
   jobAdTitle?: string;
 }
@@ -108,7 +109,12 @@ export default function ResumesPage() {
   const sel = sorted.find((r) => r.id === selId) ?? sorted[0] ?? null;
 
   // what applicant tracking systems make of the selected resume: measured by code, so it is instant and always the same
-  const checks = useMemo(() => (sel ? evaluateAuto(profile, null, lookOf(sel)) : []), [profile, sel]);
+  // how the saved file fit its pages when it was made (text size and number of pages): the page filter needs it, and old files do not have it
+  const fit = useMemo(
+    () => (sel && typeof sel.metadata?.scale === "number" ? { pages: sel.metadata.pages ?? 1, scale: sel.metadata.scale, maxPages: maxPagesFor(profile, lookOf(sel)) } : null),
+    [profile, sel],
+  );
+  const checks = useMemo(() => (sel ? evaluateAuto(profile, fit, lookOf(sel)) : []), [profile, sel, fit]);
   const score = scoreOf(checks);
   const worst = useMemo(() => [...checks].filter((c) => c.verdict !== "pass").sort((a, b) => b.weight - b.earned - (a.weight - a.earned)), [checks]);
   const passed = checks.filter((c) => c.verdict === "pass").length;
