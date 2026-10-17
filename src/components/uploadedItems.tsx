@@ -20,6 +20,9 @@ import {
   FileText,
   X,
   GripVertical,
+  Wand2,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import * as mammoth from "mammoth";
@@ -40,7 +43,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useT } from "@/i18n/provider";
+import { useT, useLocaleTag } from "@/i18n/provider";
 
 type UploadedRecord = {
   id: string;
@@ -49,6 +52,27 @@ type UploadedRecord = {
   type: string;
   order?: number;
 };
+
+// Which files this browser has already read into the profile (the server does not keep that): they get a "Read" mark.
+const READ_KEY = "kaizo:read-uploads";
+const readIds = (): string[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(READ_KEY) || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+};
+const markRead = (id: string) => {
+  try {
+    localStorage.setItem(READ_KEY, JSON.stringify([...new Set([...readIds(), id])].slice(-200)));
+  } catch {
+    /* storage blocked: the mark is only for this visit */
+  }
+};
+
+// The sort bar is only worth its room when there are enough files to sort.
+const SORT_FROM = 4;
 
 type SortBy = "order" | "name" | "date" | "type";
 type SortDir = "asc" | "desc";
@@ -63,6 +87,9 @@ function SortableTile(props: {
   token: string;
   onParse: (id: string) => void;
   isParsing: boolean;
+  /** the name to show (two files with the same name get " (2)", " (3)"...) */
+  label: string;
+  isRead: boolean;
 }) {
   const { tr } = useT();
   const {
@@ -72,9 +99,10 @@ function SortableTile(props: {
     onDelete,
     getTypeLabel,
     viewMode,
-    token,
     onParse,
     isParsing,
+    label,
+    isRead,
   } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: it.id });
@@ -85,10 +113,6 @@ function SortableTile(props: {
     zIndex: isDragging ? 50 : undefined,
     cursor: isDragging ? "grabbing" : "grab",
   };
-
-  const thumbnailUrl =
-    `/api/download?id=${encodeURIComponent(it.id)}` +
-    `&type=upload&token=${encodeURIComponent(token)}`;
 
   const dialog = useDialog();
   const deleteBtn = (
@@ -103,7 +127,9 @@ function SortableTile(props: {
         });
         if (ok) onDelete(it.id);
       }}
-      className="p-1 hover:text-red-500"
+      aria-label={tr("Delete “{filename}”?", { filename: label })}
+      title={tr("Delete file")}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
     >
       <X className="h-4 w-4" />
     </button>
@@ -114,12 +140,15 @@ function SortableTile(props: {
       size="sm"
       variant="outline"
       disabled={isParsing}
+      aria-label={isParsing ? tr("Reading…") : tr("Fill my profile from “{filename}”", { filename: label })}
+      className="gap-1.5"
       onClick={(e) => {
         e.stopPropagation();
         onParse(it.id);
       }}
     >
-      {isParsing ? tr("Parsing…") : tr("Parse")}
+      {isParsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+      <span className="max-sm:sr-only">{isParsing ? tr("Reading…") : isRead ? tr("Read again") : tr("Fill my profile")}</span>
     </Button>
   );
 
@@ -133,16 +162,22 @@ function SortableTile(props: {
         style={style}
         className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-3 transition-colors hover:bg-muted"
       >
-        <div {...attributes} {...listeners} className="hidden cursor-grab p-1 hover:text-blue-400 sm:block">
+        <div {...attributes} {...listeners} title={tr("Drag to move this section")} className="hidden cursor-grab p-1 hover:text-blue-400 sm:block">
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600/10 text-blue-500">
           {it.type.startsWith("text/") ? <FileText className="h-5 w-5" /> : <FileIcon className="h-5 w-5" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-foreground">{it.filename}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            <span className="uppercase">{getTypeLabel(it.type, it.filename)}</span> · {fmt(it.createdAt)}
+          <p className="truncate font-medium text-foreground">{label}</p>
+          <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            <span className="rounded bg-muted px-1.5 py-0.5 font-semibold uppercase tracking-wide">{getTypeLabel(it.type, it.filename)}</span>
+            <span className="truncate">{fmt(it.createdAt)}</span>
+            {isRead && (
+              <span className="inline-flex items-center gap-1 font-medium text-green-600 dark:text-green-400">
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> {tr("Read")}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -160,52 +195,30 @@ function SortableTile(props: {
       {...listeners}
       onClick={() => onClick(it)}
       style={style}
-      className="relative flex flex-col items-center justify-center p-4 bg-card rounded hover:bg-muted"
+      className="relative flex cursor-pointer flex-col items-center rounded-xl border bg-card p-4 text-center transition-colors hover:bg-muted"
     >
-      {it.type === "application/pdf" ? (
-        <embed
-          src={thumbnailUrl}
-          type="application/pdf"
-          className="w-full h-32 object-cover rounded pointer-events-none"
-        />
-      ) : it.type.startsWith("text/") ? (
-        <embed
-          src={thumbnailUrl}
-          type={it.type}
-          className="w-full h-32 object-cover rounded whitespace-pre-wrap overflow-hidden"
-        />
-      ) : (
-        <FileIcon className="h-8 w-8 text-foreground" />
+      <div className="absolute right-1.5 top-1.5">{deleteBtn}</div>
+      <span className="mt-2 flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600/10 text-blue-500">
+        {it.type.startsWith("text/") ? <FileText className="h-7 w-7" /> : <FileIcon className="h-7 w-7" />}
+      </span>
+      <p className="mt-3 w-full truncate text-sm font-medium text-foreground">{label}</p>
+      <p className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+        <span className="rounded bg-muted px-1.5 py-0.5 font-semibold uppercase tracking-wide">{getTypeLabel(it.type, it.filename)}</span>
+        <span>{fmt(it.createdAt)}</span>
+      </p>
+      {isRead && (
+        <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> {tr("Read")}
+        </p>
       )}
-      <div className="mt-2 text-center w-full">
-        <span className="block text-sm text-foreground truncate">{it.filename}</span>
-        <span className="block text-xs uppercase bg-muted text-muted-foreground inline-block px-1 rounded truncate">
-          {getTypeLabel(it.type, it.filename)}
-        </span>
-        <span className="block text-xs text-muted-foreground truncate">
-          {new Date(it.createdAt).toLocaleDateString()}
-        </span>
-      </div>
-      <div className="absolute top-1 right-1 flex space-x-1">
-        <Button
-          size="icon"
-          variant="outline"
-          disabled={isParsing}
-          onClick={(e) => {
-            e.stopPropagation();
-            onParse(it.id);
-          }}
-        >
-          {isParsing ? "…" : "⟳"}
-        </Button>
-        {deleteBtn}
-      </div>
+      <div className="mt-3">{parseBtn}</div>
     </div>
   );
 }
 
 export default function UploadedItems() {
   const { tr } = useT();
+  const tag = useLocaleTag();
   const { user, loading } = useAuth();
   const { parseFile } = useProfile();
   const toast = useToast();
@@ -226,6 +239,8 @@ export default function UploadedItems() {
 
   // track which file is currently being parsed
   const [parsingId, setParsingId] = useState<string | null>(null);
+  const [read, setRead] = useState<string[]>([]);
+  useEffect(() => setRead(readIds()), []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -250,7 +265,7 @@ export default function UploadedItems() {
     }
     return mime.split("/")[1] || mime;
   };
-  const fmt = (iso: string) => new Date(iso).toLocaleString();
+  const fmt = (iso: string) => new Date(iso).toLocaleString(tag, { dateStyle: "medium", timeStyle: "short" });
 
   // Fetch uploads
   useEffect(() => {
@@ -299,6 +314,18 @@ export default function UploadedItems() {
     return arr;
   }, [items, sortBy, sortDir]);
 
+  // two files with the same name are told apart: the older one keeps its name, the next one is "name (2)"...
+  const labels = React.useMemo(() => {
+    const seen = new Map<string, number>();
+    const out = new Map<string, string>();
+    for (const it of [...items].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())) {
+      const n = (seen.get(it.filename) ?? 0) + 1;
+      seen.set(it.filename, n);
+      out.set(it.id, n === 1 ? it.filename : it.filename.replace(/(\.[^.]+)?$/, ` (${n})$1`));
+    }
+    return out;
+  }, [items]);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
@@ -333,12 +360,16 @@ export default function UploadedItems() {
     (id: string) => {
       setParsingId(id);
       parseFile(id)
+        .then(() => {
+          markRead(id);
+          setRead(readIds());
+        })
         .catch((err) =>
           toast.error(tr("We couldn't read that file: {message}. Try again, or paste the text in Write Biography.", { message: err.message }))
         )
         .finally(() => setParsingId(null));
     },
-    [parseFile, toast]
+    [parseFile, toast, tr]
   );
 
   // A file that was just uploaded is read into the profile automatically
@@ -398,35 +429,44 @@ export default function UploadedItems() {
     <div>
       {/* header + toggle */}
       <div className="mb-3 flex items-center justify-between">
-        <h4 className="text-base font-bold text-foreground sm:text-lg">{tr("Your Uploads")}</h4>
-        <div className="hidden space-x-2 sm:flex">
-          <Button variant="ghost" size="icon" onClick={() => setViewMode("list")}>
+        <h4 className="text-base font-bold text-foreground sm:text-lg">
+          {tr("Your uploads")}
+          {items.length > 0 && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{items.length}</span>}
+        </h4>
+        <div className="hidden gap-1 sm:flex">
+          <Button variant="ghost" size="icon" aria-label={tr("List view")} aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}>
             <List className={`h-5 w-5 ${viewMode === "list" ? "text-blue-600" : "text-muted-foreground"}`} />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setViewMode("icon")}>
+          <Button variant="ghost" size="icon" aria-label={tr("Grid view")} aria-pressed={viewMode === "icon"} onClick={() => setViewMode("icon")}>
             <GridIcon className={`h-5 w-5 ${viewMode === "icon" ? "text-blue-600" : "text-muted-foreground"}`} />
           </Button>
         </div>
       </div>
 
-      {/* SORT BAR */}
-      <div className="mb-4 hidden items-center space-x-2 sm:flex">
-        <span className="text-sm text-muted-foreground">{tr("Sort by:")}</span>
-        <select
-          aria-label={tr("Sort by:")}
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortBy)}
-          className="bg-card text-foreground text-sm rounded px-2 py-1"
-        >
-          <option value="order">{tr("Order")}</option>
-          <option value="name">{tr("Name")}</option>
-          <option value="date">{tr("Date")}</option>
-          <option value="type">{tr("Type")}</option>
-        </select>
-        <button onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} className="bg-card text-foreground text-sm rounded px-2 py-1">
-          {sortDir === "asc" ? "↑" : "↓"}
-        </button>
-      </div>
+      {/* SORT BAR: only when there are enough files to be worth sorting */}
+      {items.length >= SORT_FROM && (
+        <div className="mb-4 hidden items-center gap-2 sm:flex">
+          <span className="text-sm text-muted-foreground">{tr("Sort by:")}</span>
+          <select
+            aria-label={tr("Sort by:")}
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className="rounded-md border bg-card px-2 py-1 text-sm text-foreground"
+          >
+            <option value="order">{tr("Order")}</option>
+            <option value="name">{tr("Name")}</option>
+            <option value="date">{tr("Date")}</option>
+            <option value="type">{tr("Type")}</option>
+          </select>
+          <button
+            onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+            aria-label={sortDir === "asc" ? tr("Ascending") : tr("Descending")}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-card text-sm text-foreground"
+          >
+            {sortDir === "asc" ? "↑" : "↓"}
+          </button>
+        </div>
+      )}
 
       <DndContext accessibility={dndAccessibility(tr)} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={sortedItems.map((i) => i.id)} strategy={viewMode === "list" ? verticalListSortingStrategy : rectSortingStrategy}>
@@ -444,11 +484,13 @@ export default function UploadedItems() {
                   viewMode="list"
                   token={token}
                   isParsing={parsingId === it.id}
+                  label={labels.get(it.id) ?? it.filename}
+                  isRead={read.includes(it.id)}
                 />
               ))}
             </ul>
           ) : (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {sortedItems.map((it) => (
                 <SortableTile
                   key={it.id}
@@ -461,6 +503,8 @@ export default function UploadedItems() {
                   viewMode="icon"
                   token={token}
                   isParsing={parsingId === it.id}
+                  label={labels.get(it.id) ?? it.filename}
+                  isRead={read.includes(it.id)}
                 />
               ))}
             </div>
