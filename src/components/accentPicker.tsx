@@ -5,6 +5,26 @@ import { motion } from "framer-motion";
 import { ACCENTS, accentIdFor, supportsAccent } from "@/lib/accents";
 import { useT } from "@/i18n/provider";
 
+/** The switch that makes the text grow to fill the page when there is little content. It is in "Customize" and also next to the live preview of "Edit". */
+export function FillPageSwitch({ fill, onFill, className = "" }: { fill?: boolean; onFill: (on: boolean) => void; className?: string }) {
+  const { tr } = useT();
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={Boolean(fill)}
+      onClick={() => onFill(!fill)}
+      title={tr("With little content the text keeps its natural size. Turn this on to make it fill the page.")}
+      className={`flex shrink-0 items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-accent ${className}`}
+    >
+      <span className={`relative h-4 w-7 rounded-full transition-colors ${fill ? "bg-blue-600" : "bg-muted-foreground/30"}`}>
+        <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${fill ? "left-3.5" : "left-0.5"}`} />
+      </span>
+      {tr("Fill the page")}
+    </button>
+  );
+}
+
 /** The colors the chosen look can wear. It shows nothing for the looks that have no color (they are black and white). */
 export default function AccentPicker({ template, value, onChange, fill, onFill }: { template: string; value?: string; onChange: (id: string) => void; fill?: boolean; onFill?: (on: boolean) => void }) {
   const { tr } = useT();
@@ -47,21 +67,7 @@ export default function AccentPicker({ template, value, onChange, fill, onFill }
       <span className="hidden w-20 shrink-0 truncate text-right text-xs text-muted-foreground md:block">{tr(name)}</span>
         </>
       )}
-      {onFill && (
-        <button
-          type="button"
-          role="switch"
-          aria-checked={Boolean(fill)}
-          onClick={() => onFill(!fill)}
-          title={tr("With little content the text keeps its natural size. Turn this on to make it fill the page.")}
-          className="ml-auto flex shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition-colors hover:bg-accent"
-        >
-          <span className={`relative h-4 w-7 rounded-full transition-colors ${fill ? "bg-blue-600" : "bg-muted-foreground/30"}`}>
-            <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${fill ? "left-3.5" : "left-0.5"}`} />
-          </span>
-          {tr("Fill the page")}
-        </button>
-      )}
+      {onFill && <FillPageSwitch fill={fill} onFill={onFill} className="ml-auto" />}
     </motion.div>
   );
 }

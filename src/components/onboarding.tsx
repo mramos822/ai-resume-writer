@@ -71,7 +71,7 @@ import { normalizeBullets } from "@/lib/bullets";
 import type { SkillLevels } from "@/lib/skillLevels";
 import { cleanSkillGroups, type SkillGroups } from "@/lib/skillGroups";
 import SkillGroupsEditor from "@/components/skillGroupsEditor";
-import AccentPicker from "@/components/accentPicker";
+import AccentPicker, { FillPageSwitch } from "@/components/accentPicker";
 import type { LanguageEntry } from "@/lib/languages";
 import MonthPicker from "@/components/monthPicker";
 import { useTranslationOffer } from "@/components/useTranslationOffer";
@@ -2021,7 +2021,15 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
             <div className={showPreview ? "hidden" : ""}>
               <ResumeReview ready={reviewReady} template={template} onTemplateChange={onTemplate} onProfileChanged={() => { rehydrate.current = true; }} />
             </div>
-            {showPreview && <LivePreview d={previewData} template={template} active={null} inline large />}
+            {showPreview && (
+              <>
+                {/* the same switch as in Customize: with little content the text can grow to fill the page */}
+                <div className="mb-3 flex justify-end">
+                  <FillPageSwitch fill={fillPage} onFill={onFill} />
+                </div>
+                <LivePreview d={previewData} template={template} active={null} inline large />
+              </>
+            )}
           </div>
         )}
         </>
