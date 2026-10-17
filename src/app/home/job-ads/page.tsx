@@ -40,7 +40,7 @@ function Fit({ pct }: { pct: number }) {
         {pct}
         <span className="text-xs font-bold text-muted-foreground">%</span>
       </p>
-      <p className="mb-1.5 mt-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{tr("Fit with you")}</p>
+      <p className="mb-1.5 mt-0.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">{tr("Fit with you")}</p>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%`, background: color }} />
       </div>
@@ -323,10 +323,13 @@ export default function JobSearchPage() {
     r === "here" ? tr("In {place}", { place: searchedPlace }) : r === "near" ? tr("Near {place}", { place: searchedPlace }) : r === "city" ? tr("The nearest big city: {place}", { place: bigCity }) : r === "remote" ? tr("Remote jobs") : tr("More jobs in the country");
   const noneHere = tab === "results" && !!searchedPlace && jobs.length > 0 && !jobs.some((j) => j.reach === "here");
 
+  const greeting = !searched && !loading && !q.trim() && !where.trim();
   return (
     <div className="mx-auto max-w-6xl pb-16">
+      {/* once the greeting is gone the page still has its heading, for people who do not see the screen */}
+      {!greeting && <h1 className="sr-only">{tr("Job Search")}</h1>}
       {/* nothing written or searched yet: a greeting for this person; it goes away as soon as they search or filter */}
-      {!searched && !loading && !q.trim() && !where.trim() && (
+      {greeting && (
         <header className="mb-6">
           <h1 className="text-3xl font-extrabold leading-tight tracking-tight">
             {firstName ? tr("{name}, what job are you looking for?", { name: firstName }) : tr("What job are you looking for?")}

@@ -273,8 +273,14 @@ export default function UploadedItems() {
       setItems(data.map((f) => ({ ...f, createdAt: new Date(f.createdAt).toISOString() })));
     };
     fetchUploads();
-    const iv = setInterval(fetchUploads, 5000);
-    return () => clearInterval(iv);
+    // it refreshes when the person comes back to the tab, and every 30 seconds while the tab is in sight (not every 5, and never hidden)
+    const refresh = () => document.visibilityState === "visible" && fetchUploads();
+    const iv = setInterval(refresh, 30_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [user, token]);
 
   useEffect(() => {
@@ -407,6 +413,7 @@ export default function UploadedItems() {
       <div className="mb-4 hidden items-center space-x-2 sm:flex">
         <span className="text-sm text-muted-foreground">{tr("Sort by:")}</span>
         <select
+          aria-label={tr("Sort by:")}
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortBy)}
           className="bg-card text-foreground text-sm rounded px-2 py-1"
@@ -464,7 +471,7 @@ export default function UploadedItems() {
       {selected && (
         <div className="fixed inset-0 bg-background/50 flex items-center justify-center z-[70]">
           <div className="bg-card max-w-3xl w-full max-h-[80vh] overflow-auto rounded-lg p-6 relative">
-            <button onClick={closeModal} className="absolute top-4 right-4 p-1 text-muted-foreground hover:text-white">
+            <button onClick={closeModal} aria-label={tr("Close")} className="absolute top-4 right-4 p-1 text-muted-foreground hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
               <X className="h-6 w-6" />
             </button>
 

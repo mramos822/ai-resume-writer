@@ -23,6 +23,7 @@ export default function ProfileSelector() {
   return (
     <div className="flex items-center space-x-2">
       <select
+        aria-label={tr("Profile")}
         value={activeProfileId ?? ""}
         onChange={(e) => setActiveProfileId(e.target.value)}
         className="border p-1 rounded"
@@ -38,6 +39,7 @@ export default function ProfileSelector() {
 
       <input
         type="text"
+        aria-label={tr("New name")}
         value={newName}
         onChange={(e) => setNewName(e.target.value)}
         placeholder={tr("Rename to…")}

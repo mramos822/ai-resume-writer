@@ -121,6 +121,7 @@ export default function JobDescriptionEditor({
       </div>
 
       <textarea
+        aria-label={tr("Description")}
         ref={ref}
         value={value}
         rows={compact ? 4 : 8}

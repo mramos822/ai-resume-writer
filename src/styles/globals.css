@@ -112,6 +112,15 @@
   --sidebar-ring: #3b82f6;
 }
 
+/* Links that stand alone (the menus, the footer, the top bar) are at least 24px tall, as WCAG 2.2 asks; links inside a sentence are exempt. */
+header a:not(.inline-flex),
+footer a:not(.inline-flex),
+nav a:not(.inline-flex) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

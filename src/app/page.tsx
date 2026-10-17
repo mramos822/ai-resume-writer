@@ -74,7 +74,7 @@ const faqs = [
   },
   {
     q: "Will my resume pass applicant tracking systems (ATS)?",
-    a: "Our templates use a clean, single-flow structure with real, selectable text (no images of text, no tables that scramble the order), which is what ATS software parses best.",
+    a: "No tool can promise how every employer's system will read a resume, but our templates use a clean, single-flow structure with real, selectable text (no images of text, no tables that scramble the order), which is what ATS software parses best.",
     more: "Inside the app, every resume gets an ATS score with the exact checks it passes and the ones to fix, and Kaizo can fix most of them for you with one click.",
   },
   {
@@ -140,7 +140,7 @@ function ResumeMock() {
           <div className="relative rounded bg-blue-50 border border-blue-200 p-2 space-y-1.5">
             <div className="h-2 w-full bg-blue-200 rounded animate-pulse" />
             <div className="h-2 w-10/12 bg-blue-200 rounded animate-pulse" />
-            <span className="absolute -top-2.5 right-2 text-[10px] font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-md flex items-center gap-1">
+            <span className="absolute -top-2.5 right-2 text-xs font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-md flex items-center gap-1">
               <SparklesIcon className="w-3 h-3" />{" "}{tr("AI improved")}</span>
           </div>
           <div className="h-2 w-10/12 bg-gray-200 rounded" />
@@ -259,7 +259,7 @@ export default function MarketingPage() {
               <span className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 text-sm font-semibold px-3 py-1 rounded-md border border-blue-100 mb-6">
                 <SparklesIcon className="w-4 h-4" />{" "}{tr("AI-powered resume builder")}</span>
               <h1 className="text-5xl sm:text-6xl xl:text-7xl font-extrabold mb-6 leading-[1.05] tracking-tight">{tr("Build a resume that")}{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-500 to-indigo-500">{tr("gets you hired")}</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-500 to-indigo-500">{tr("gets you noticed")}</span>
               </h1>
               <p className="text-xl xl:text-2xl text-gray-600 mb-8 max-w-2xl">{tr("Tell us about yourself, paste the job ad, and our AI writes a polished, tailored resume you can download in minutes. No design skills needed.")}</p>
 
@@ -433,7 +433,7 @@ export default function MarketingPage() {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold leading-tight">{tr("Made for ATS software")}</h3>
-                    <p className="text-sm text-gray-500">{tr("16 of 17 checks pass")}</p>
+                    <p className="text-sm text-gray-500">{tr("Example: 16 of 17 checks pass")}</p>
                   </div>
                 </div>
                 <p className="mt-4 text-gray-600">{tr("Real text in a clean order, so the systems that screen resumes read all of it. Every resume gets a score, and Kaizo fixes what fails.")}</p>
@@ -445,7 +445,7 @@ export default function MarketingPage() {
               <div className="h-full rounded-xl border border-gray-200 bg-white p-7">
                 <div className="rounded-lg bg-gray-50 p-3.5">
                   <div className="flex items-baseline justify-between text-sm">
-                    <span className="font-semibold">{tr("Fit with this job")}</span>
+                    <span className="font-semibold">{tr("Example: fit with this job")}</span>
                     <span className="font-extrabold text-blue-600">82%</span>
                   </div>
                   <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200">

@@ -3,7 +3,7 @@
 // Guest start (temporary): "Create my resume" lands here, gets a guest Firebase session (custom token from /api/guest) and goes straight to the
 // app, with no sign-up. The backend sees a normal user id, so everything works the same.
 // If this browser still has a resume half done from an earlier visit, we ask whether to continue it or start over.
-// TODO(accounts): once sign-up is reworked, offer "save your resume" here and link this guest to a real account with
+// NOTE(accounts): once sign-up is reworked, offer "save your resume" here and link this guest to a real account with
 // linkWithCredential so nothing is lost. Until then the data lives only in this browser's session.
 import LanguageSwitch from "@/components/languageSwitch";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -82,7 +82,7 @@ export default function StartPage() {
       console.error("Guest start failed", err);
       if (!cancelled.current) setPhase("failed");
     }
-  }, [router]);
+  }, [router, tr]);
 
   useEffect(() => {
     cancelled.current = false;

@@ -57,7 +57,7 @@ function Ring({ value, size = 96 }: { value: number; size?: number }) {
 
 export default function ResumesPage() {
   const { tr } = useT();
-  const { user, loading } = useAuth();
+  const { user, loading, unverified } = useAuth();
   const router = useRouter();
   const { activeProfileId, activeProfile: profile, setActiveProfileId } = useProfile();
   const toast = useToast();
@@ -71,8 +71,8 @@ export default function ResumesPage() {
   const [copied, setCopied] = useState("");
 
   useEffect(() => {
-    if (!loading && !user) router.push("/");
-  }, [user, loading, router]);
+    if (!loading && !user) router.push(unverified ? "/login?view=login" : "/");
+  }, [user, loading, unverified, router]);
 
   // arriving from the guest builder after making an account: the resume is selected and its preview (with downloads) is open
   useEffect(() => {
@@ -102,7 +102,7 @@ export default function ResumesPage() {
       .then((r) => (r.ok ? r.json() : []))
       .then((d: Letter[]) => setLetters(d.filter((a) => a.coverLetter)))
       .catch(() => {});
-  }, [activeProfileId, toast]);
+  }, [activeProfileId, toast, tr]);
 
   const sorted = useMemo(() => [...resumes].sort((a, b) => +new Date(b.uploadDate) - +new Date(a.uploadDate)), [resumes]);
   const sel = sorted.find((r) => r.id === selId) ?? sorted[0] ?? null;

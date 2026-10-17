@@ -3,6 +3,8 @@
 
 // The dashboard: say what you want to do today (make a resume, look for a job, bring in an old resume), see how far you
 // are, and work from there. Resumes come first; the job search is an option.
+import { realName } from "@/lib/previewData";
+import { fromShouting } from "@/lib/nameCase";
 import { asTemplateId } from "@/lib/templates";
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "@/i18n/navigation";
@@ -102,7 +104,7 @@ function Illustration() {
 
 export default function HomePage() {
   const { tr } = useT();
-  const { user, loading } = useAuth();
+  const { user, loading, unverified } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const dialog = useDialog();
@@ -121,8 +123,8 @@ export default function HomePage() {
   const [way, setWay] = useState<"upload" | "linkedin" | "write">("upload"); // in the import section: a file, or write it yourself
 
   useEffect(() => {
-    if (!loading && !user) router.push("/");
-  }, [user, loading, router]);
+    if (!loading && !user) router.push(unverified ? "/login?view=login" : "/");
+  }, [user, loading, unverified, router]);
   useEffect(() => {
     if (!activeProfileId) return;
     authFetch(`/api/resumes?profileId=${activeProfileId}`).then((r) => (r.ok ? r.json() : [])).then(setResumes).catch(() => setResumes([]));
@@ -203,7 +205,9 @@ export default function HomePage() {
     return (!st || st === "prepared") && !(savedAtLoad?.has(job.key));
   });
   const progress = getProfileProgress(profile, tr);
-  const firstName = (user?.displayName || user?.email?.split("@")[0] || "").split(/[\s._-]/)[0];
+  // the name on the resume comes first (the account may be a Google name or a shared address); then the account
+  const profileName = fromShouting(realName(profile.name).trim()); // a name saved in capitals is greeted as a name
+  const firstName = (profileName || user?.displayName || user?.email?.split("@")[0] || "").split(/[\s._-]/)[0];
   const activeName = profiles.find((p) => p.id === activeProfileId)?.name ?? profile.name;
   const empty = progress.doneCount === 0;
   const recent = (resumes ?? []).slice().sort((a, b) => +new Date(b.uploadDate || b.metadata?.createdAt) - +new Date(a.uploadDate || a.metadata?.createdAt)).slice(0, 6);

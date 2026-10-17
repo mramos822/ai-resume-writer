@@ -15,7 +15,7 @@ import { useT } from "@/i18n/provider";
 export default function ApplyPage() {
   const { tr } = useT();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, unverified } = useAuth();
   const { profiles, activeProfileId, activeProfile, hasUnsavedChanges, reloadProfile } = useProfile();
   const [job, setJob] = useState<JobListing | null | undefined>(undefined); // undefined: not read yet
   // The base of the resume is ALWAYS the profile as it is now: it is read again from the server before the copy is made (the one in
@@ -38,8 +38,8 @@ export default function ApplyPage() {
   }, [activeProfileId, profiles.length]);
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/");
-  }, [loading, user, router]);
+    if (!loading && !user) router.replace(unverified ? "/login?view=login" : "/");
+  }, [loading, user, unverified, router]);
 
   useEffect(() => {
     try {

@@ -235,7 +235,8 @@ export default function JobDetail({
                 )}
 
                 <section>
-                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}</h3>
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}{analysis.blocks && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{tr("Written with AI")}</span>}</h3>
+                  {analysis.blocks && <p className="-mt-1.5 mb-3 text-xs text-muted-foreground">{tr("Summary made with AI from the posting. It can leave out details: check the original posting before you apply.")}</p>}
                   <div className="space-y-3.5 leading-relaxed">
                     {analysis.blocks
                       ? analysis.blocks.map((b, i) =>

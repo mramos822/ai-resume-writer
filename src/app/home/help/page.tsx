@@ -151,6 +151,7 @@ export default function HelpPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
+              aria-label={tr("Search help")}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -199,7 +200,7 @@ export default function HelpPage() {
                       </li>
                     ))}
                   </ol>
-                  <Link href={href} className="mt-4 inline-block text-sm font-semibold text-blue-600 hover:underline">
+                  <Link href={href} className="mt-4 inline-flex min-h-6 items-center text-sm font-semibold text-blue-600 hover:underline">
                     {tr(cta)} →
                   </Link>
                 </CardContent>

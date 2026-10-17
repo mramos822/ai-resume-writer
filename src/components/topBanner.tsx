@@ -94,7 +94,7 @@ export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
                 <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                         <button
-                            className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                            className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-[420px]:hidden"
                             aria-label={tr("Help")}
                         >
                             <HelpCircle className="h-[18px] w-[18px]" />
@@ -115,7 +115,7 @@ export default function TopBanner({ toggleSidePanel }: TopBannerProps) {
                 <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                         <button
-                            className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                            className="flex items-center gap-2 rounded-full py-1 pl-1 pr-1 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring sm:pr-3"
                             aria-label={tr("Account menu")}
                         >
                             <Avatar className="h-8 w-8">

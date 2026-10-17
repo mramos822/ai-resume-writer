@@ -289,6 +289,7 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-[1600px] pb-24">
+      <h1 className="sr-only">{tr("Profile")}</h1>
       <div className="grid gap-6 lg:grid-cols-1">
 
         {/* Active section */}
@@ -310,7 +311,7 @@ export default function ProfilePage() {
                   <p className="flex items-baseline gap-1.5 leading-none sm:justify-end">
                     <span className="text-3xl font-black tabular-nums tracking-tight">{progress.percent}</span>
                     <span className="text-base font-bold text-muted-foreground">%</span>
-                    <span className="ml-1 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{progress.percent === 100 ? tr("complete") : tr("done")}</span>
+                    <span className="ml-1 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{progress.percent === 100 ? tr("complete") : tr("done")}</span>
                   </p>
                   <div className="mt-2 flex gap-1" aria-hidden>
                     {progress.sections.map((sec) => (
@@ -325,7 +326,7 @@ export default function ProfilePage() {
                     onClick={handleReParse}
                     disabled={isReParsing}
                     title={tr("Reads the newest file you uploaded again and refreshes this profile with it (it replaces what you edited by hand)")}
-                    className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-60"
+                    className="mt-1 inline-flex min-h-6 items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-60"
                   >
                     <RefreshCw className={`h-3 w-3 ${isReParsing ? "animate-spin" : ""}`} />
                     {isReParsing ? tr("Reading your upload…") : tr("Refresh from my latest upload")}

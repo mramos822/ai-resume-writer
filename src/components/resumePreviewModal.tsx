@@ -120,6 +120,7 @@ export default function ResumePreviewModal({ isOpen, onClose, fileId }: ResumePr
                             {editing ? (
                                 <div className="mt-1 flex items-center gap-2">
                                     <input
+                                        aria-label={tr("File name")}
                                         className="h-8 w-56 rounded-md border bg-transparent px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
                                         value={newFilename}
                                         onChange={e => setNewFilename(e.target.value)}

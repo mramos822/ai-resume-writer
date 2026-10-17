@@ -18,6 +18,11 @@ function useLiveResumeCount(): number | null {
       const t = setInterval(ask, 10_000);
       return () => clearInterval(t);
     }
+    // the number is asked for at once (the live feed below can take a few seconds to open), and the feed keeps it moving
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((d) => typeof d.resumes === "number" && setTotal((cur) => cur ?? d.resumes))
+      .catch(() => {});
     const es = new EventSource("/api/stats/stream"); // reconnects by itself if the connection drops
     es.onmessage = (e) => {
       try {

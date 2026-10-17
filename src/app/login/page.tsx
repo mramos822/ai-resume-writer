@@ -95,7 +95,7 @@ export default function Page() {
         <div className="relative max-w-md">
           <span className="inline-flex items-center gap-2 bg-white/15 border border-white/25 text-sm font-semibold px-3 py-1 rounded-md mb-6">
             <SparklesIcon className="w-4 h-4" />{" "}{tr("AI-powered resume builder")}</span>
-          <h2 className="text-4xl xl:text-5xl font-extrabold leading-[1.1] tracking-tight mb-6">{tr("Build a resume that gets you hired.")}</h2>
+          <h2 className="text-4xl xl:text-5xl font-extrabold leading-[1.1] tracking-tight mb-6">{tr("Build a resume that gets you noticed.")}</h2>
           <ul className="space-y-3 mb-10">
             {perks.map((p) => (
               <li key={p} className="flex items-start gap-3 text-blue-50">

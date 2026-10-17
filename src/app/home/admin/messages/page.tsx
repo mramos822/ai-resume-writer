@@ -38,7 +38,7 @@ export default function AdminMessagesPage() {
         setRows((await r.json()).messages);
       })
       .catch(() => toast.error(tr("We couldn't load the messages.")));
-  }, [toast]);
+  }, [toast, tr]);
 
   const setStatus = async (m: Message, status: Message["status"]) => {
     setRows((list) => list?.map((x) => (x.id === m.id ? { ...x, status } : x)) ?? null);

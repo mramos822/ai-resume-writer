@@ -144,6 +144,7 @@ const SkillsSection: React.FC = () => {
       <div>
         <div className="flex gap-2">
           <input
+            aria-label={tr("New skill")}
             value={newSkill}
             onChange={(e) => setNewSkill(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addSkill()}
