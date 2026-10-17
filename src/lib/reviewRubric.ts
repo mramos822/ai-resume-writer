@@ -39,6 +39,10 @@ export interface CriterionResult {
 export interface PageFit {
   pages: number;
   scale: number;
+  /** pages the person accepts (1 when not said) */
+  maxPages?: number;
+  /** how full the last page is, 0 to 1, when there are two */
+  lastFill?: number;
 }
 
 /** How many of the most recent jobs a resume should always keep. */
@@ -85,7 +89,7 @@ export const CRITERIA: Criterion[] = [
   { id: "strongVerbs", label: "Bullets start with strong verbs", weight: 5, kind: "auto", guideline: 'No bullet starts with a weak phrase ("Responsible for", "Helped with", "Worked on", "Duties included", "In charge of", "Tasked with", "I"). pass: none. partial: up to 25%. fail: more.' },
   { id: "numbers", label: "Results with numbers", weight: 6, kind: "auto", guideline: "Share of bullets in the 3 most recent jobs that contain a number. pass: 30% or more. partial: 10% or more. fail: less." },
   { id: "education", label: "Education listed", weight: 5, kind: "auto", guideline: "pass: at least one school. fail: none." },
-  { id: "onePage", label: "Fits on one page", weight: 8, kind: "auto", guideline: "pass: one page without shrinking the text below 85% (a recruiter skips small print). partial: 70% to 85%. fail: smaller or more than one page." },
+  { id: "onePage", label: "Fits the page length", weight: 8, kind: "auto", guideline: "Judged against the length the person chose (one page, or up to two when the look allows it). pass: within that length with the text at 85% or more of its normal size (a recruiter skips small print), and a second page, if any, is worth having (more than a few lines). partial: the text is shrunk to 70% to 85%, or the second page holds only a few lines. fail: smaller text or more pages than chosen." },
   {
     id: "atsLayout",
     label: "Easy for ATS to read",
@@ -174,20 +178,37 @@ export function isRecentJob(p: ProfileData, jobId: string): boolean {
   return newestFirst(p.jobHistory ?? []).slice(0, MIN_RECENT_JOBS).some((j) => j.id === jobId);
 }
 
-function months(j: JobEntry): number {
+/** The months of a job as [first, last] counted from year 0, or null without a start date. A job with no end date is still going. */
+function span(j: JobEntry): [number, number] | null {
   const m = /^(\d{4})-(\d{2})$/;
   const s = m.exec(j.startDate ?? "");
-  if (!s) return 0;
+  if (!s) return null;
   const now = new Date();
   const e = j.current || !j.endDate ? null : m.exec(j.endDate);
-  const endY = e ? Number(e[1]) : now.getFullYear();
-  const endM = e ? Number(e[2]) : now.getMonth() + 1;
-  return Math.max(0, (endY - Number(s[1])) * 12 + (endM - Number(s[2])));
+  const start = Number(s[1]) * 12 + Number(s[2]);
+  const end = e ? Number(e[1]) * 12 + Number(e[2]) : now.getFullYear() * 12 + now.getMonth() + 1;
+  return [start, Math.max(start, end)];
+}
+
+/** Months actually worked: jobs that overlap (two at once, a side job) count once, and the gaps between jobs do not count. */
+function workedMonths(jobs: JobEntry[]): number {
+  const spans = jobs.map(span).filter((x): x is [number, number] => x !== null).sort((a, b) => a[0] - b[0]);
+  let total = 0;
+  let cur: [number, number] | null = null;
+  for (const sp of spans) {
+    if (cur && sp[0] <= cur[1]) cur[1] = Math.max(cur[1], sp[1]);
+    else {
+      if (cur) total += cur[1] - cur[0];
+      cur = [sp[0], sp[1]];
+    }
+  }
+  if (cur) total += cur[1] - cur[0];
+  return total;
 }
 
 /** Rough seniority from the dates of the listed jobs, used as context for the AI. */
 export function seniorityOf(p: ProfileData): { years: number; level: "entry-level" | "mid-level" | "senior" } {
-  const total = (p.jobHistory ?? []).reduce((n, j) => n + months(j), 0) / 12;
+  const total = workedMonths(p.jobHistory ?? []) / 12;
   const years = Math.round(total * 10) / 10;
   return { years, level: years < 2 ? "entry-level" : years < 6 ? "mid-level" : "senior" };
 }
@@ -326,9 +347,14 @@ function evalAuto(id: string, p: ProfileData, fit?: PageFit | null, template = "
       return (p.education?.length ?? 0) > 0 ? { verdict: "pass", reason: "Education is listed." } : { verdict: "fail", reason: "No education listed." };
     case "onePage": {
       if (!fit) return null;
-      if (passesPage(fit)) return { verdict: "pass", reason: "Fits on one page at a comfortable size." };
-      if (fit.pages <= 1 && fit.scale >= 0.7) return { verdict: "partial", reason: "It fits, but the text is shrunk a bit." };
-      return { verdict: "fail", reason: "Too much content: the text has to be very small to fit." };
+      const room = fit.maxPages ?? 1;
+      if (passesPage(fit)) {
+        // a second page with a handful of lines looks like a mistake: better to tighten it into one page
+        if (fit.pages > 1 && fit.lastFill !== undefined && fit.lastFill < 0.2) return { verdict: "partial", reason: "The second page has only a few lines. Tighten the resume to one page, or add what is worth a second page." };
+        return { verdict: "pass", reason: fit.pages > 1 ? "Two pages, as you chose, at a comfortable size." : room > 1 ? "Fits on one page at a comfortable size." : "Fits on one page at a comfortable size." };
+      }
+      if (fit.pages <= room && fit.scale >= 0.7) return { verdict: "partial", reason: room > 1 ? "It fits, but the text is shrunk a bit." : "It fits on one page, but the text is shrunk a bit." };
+      return { verdict: "fail", reason: room > 1 ? "It does not fit on two pages at a readable size." : "Too much content for one page: the text has to be very small to fit." };
     }
     case "atsLayout": {
       const problems: string[] = [];

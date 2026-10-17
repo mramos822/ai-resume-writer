@@ -12,6 +12,7 @@ import { faithfulBullets } from "@/lib/bulletFidelity";
 import { promptVersion } from "@/lib/promptVersion";
 import { MIN_RECENT_JOBS, newestFirst, type PageFit } from "@/lib/reviewRubric";
 import { passesPage } from "@/lib/pageRules";
+import { layoutFacts } from "@/lib/layoutFacts";
 import { fieldFromText, type LookField } from "@/lib/jobField";
 import { suggestedGroup } from "@/lib/skillCategories";
 import type { JobListing } from "@/lib/jobSearch";
@@ -48,6 +49,7 @@ export function withDraft(saved: ProfileData, draft: unknown): ProfileData {
   for (const k of DRAFT_TEXT) if (typeof d[k] === "string") out[k] = (d[k] as string).slice(0, 5000);
   for (const k of DRAFT_LISTS) if (Array.isArray(d[k])) out[k] = (d[k] as unknown[]).slice(0, 100);
   if (typeof d.fillPage === "boolean") out.fillPage = d.fillPage;
+  if (d.pageGoal === "one" || d.pageGoal === "two" || d.pageGoal === "any") out.pageGoal = d.pageGoal;
   for (const k of DRAFT_OBJECTS) if (d[k] && typeof d[k] === "object" && !Array.isArray(d[k])) out[k] = d[k];
   return out as unknown as ProfileData;
 }
@@ -147,7 +149,10 @@ export function cutSuggestions(p: ProfileData, job: JobListing, keep: string[] =
   return { skills: cutSkills, jobs, review };
 }
 
-export const pageNote = (fit: PageFit | null) => (fit ? { pages: fit.pages, scale: fit.scale, crowded: !passesPage(fit) } : null);
+export const pageNote = (fit: PageFit | null, p?: ProfileData, template?: string) =>
+  fit ? { pages: fit.pages, scale: fit.scale, maxPages: fit.maxPages ?? 1, crowded: !passesPage(fit), ...(p && template ? { layout: layoutFacts(p, template, fit) } : {}) } : null;
+/** What the AI is told about the page and the look of one resume. */
+export type PageNote = NonNullable<ReturnType<typeof pageNote>>;
 
 export const postingText = (job: JobListing) =>
   [`Title: ${job.title}`, `Company: ${job.company}`, job.location ? `Location: ${job.location}` : "", job.tags.length ? `Tags: ${job.tags.join(", ")}` : "", `Description: ${job.description || job.snippet}`].filter(Boolean).join("\n");
@@ -226,8 +231,13 @@ Judge it on three things:
 1. Requirements: does the resume (plus what the person confirmed) cover what the posting requires (skills, tools, experience, education, languages)?
 2. ATS: standard section names and wording, the posting's keywords where they are TRUE for the person, skills written the way the posting writes them, simple structure.
 3. Achievement bullets in the XYZ formula ("Accomplished [X] as measured by [Y], by doing [Z]"): do the bullets say what was achieved, how much, and how? Point out the weakest bullets by job and say how to rewrite them using ONLY facts that exist.
+Your opinion must come from THIS posting's job title, level and field, and from the format the person chose: "page.layout" gives the look ("family": ats-safe, one-column, two-column or form), the length chosen ("lengthChoice": one, two or kaizo = Kaizo decides) and the pages used. Rules for that:
+- Name the job title or its field in the improvements: a software role asks for stack, scale and metrics; a nursing role for licenses, units and ratios; a sales role for quota and revenue; and so on. Two different postings must get different advice.
+- Look "ats-safe": do not mention parsing risks. Any other look: make sure the posting's keywords also sit in plain text (objective, bullets, skills), not only in a graphic or a rating.
+- Never ask to cut content just to reach one page when "page.maxPages" is 2: the person chose a longer resume. Cut only when "page.crowded" is true. If page.layout.pagesNow is 2 and page.layout.lastPageFill is under 0.3, say that the second page is nearly empty and should be tightened or strengthened with what THIS job values.
+- Judge length against the level of the job: entry-level and junior postings fit a tight one page; senior and research postings can justify two.
 Use ONLY facts in the data. Never invent numbers, tools or experience.
-If "page" says the resume is crowded (more than one page, or the text would have to shrink below 85%, which a recruiter skips as small print), one of the improvements must say what to cut for this job: less relevant skills or older jobs, never the 3 most recent jobs.
+If "page" says the resume is crowded (more pages than "maxPages", or the text would have to shrink below 85%, which a recruiter skips as small print), one of the improvements must say what to cut for this job: less relevant skills or older jobs, never the 3 most recent jobs.
 "today" is the current date: a date on or before it is in the past or the present, never "in the future". Do not point at dates as mistakes unless they are after "today" or end before they start.
 The number (score) is measured by code, so you do not give one.
 Reply with ONE JSON object and nothing else:
@@ -277,7 +287,7 @@ export interface Evaluation {
   targets: string[];
 }
 
-export async function evaluateDraft(profile: ProfileData, job: JobListing, confirmed: { skills: string[]; facts: string[] }, level: string, lang: ResumeLang, page: { pages: number; scale: number; crowded: boolean } | null = null, memory?: ReviewMemory): Promise<Evaluation> {
+export async function evaluateDraft(profile: ProfileData, job: JobListing, confirmed: { skills: string[]; facts: string[] }, level: string, lang: ResumeLang, page: PageNote | null = null, memory?: ReviewMemory): Promise<Evaluation> {
   const raw = await askJson(`${EVALUATE}\n${speak(lang)}`, { today: new Date().toISOString().slice(0, 10), resume: profileForReview(profile), jobPosting: postingText(job), confirmed, level, ...(page ? { page } : {}), ...(memory ? { previous: { improvements: memory.improvements, applied: memory.applied, fixed: memory.fixed } } : {}) }, 3000, AI_MODEL_STRONG, "improvements");
   const list = (v: unknown, n: number) => (Array.isArray(v) ? v : []).map((x) => clip(x, 260)).filter((x) => x.length > 3).slice(0, n);
   // The improvements are checked by code. A "keywords" one is kept only while some of its terms are really in the posting, are true for
@@ -322,7 +332,7 @@ export async function evaluateDraft(profile: ProfileData, job: JobListing, confi
 }
 
 const FIX_ALL = `You are an expert resume writer improving the resume of a person for ONE job, for a US applicant tracking system (ATS) and recruiters.
-You receive the resume as JSON, the job posting, a list of "improvements" a reviewer asked for, the facts and skills the person confirmed ("confirmed"), sometimes "keywords" (posting terms the resume should say) and sometimes "page" (whether the resume is crowded).
+You receive the resume as JSON, the job posting, a list of "improvements" a reviewer asked for, the facts and skills the person confirmed ("confirmed"), sometimes "keywords" (posting terms the resume should say) and sometimes "page" (whether the resume is crowded, and its look and length in "page.layout"). Write for the job title and its field, and never cut content to reach one page when "page.maxPages" is 2.
 "keywords": work each one into the objective (and into a bullet of a job only where it is already true for that job), written exactly as given. The objective is the safest place: it speaks of the person as a whole.
 Reply with ONE JSON object and nothing else: { "fixes": [ <fix>, ... ] } where each fix is exactly one of:
   { "type": "objective", "text": "<3 to 5 sentences, 250 to 700 characters, no 'I', written for this job>" }
@@ -345,7 +355,7 @@ export async function fixesFor(
   improvements: string[],
   confirmed: { skills: string[]; facts: string[] },
   lang: ResumeLang,
-  page: { pages: number; scale: number; crowded: boolean } | null,
+  page: PageNote | null,
   keywords: string[] = []
 ): Promise<ReviewFix[]> {
   const raw = await askJson(`${FIX_ALL}\n${speak(lang)}`, { today: new Date().toISOString().slice(0, 10), resume: profileForReview(profile), jobPosting: postingText(job), improvements, confirmed, ...(keywords.length ? { keywords } : {}), ...(page ? { page } : {}) }, 5000, AI_MODEL_STRONG, "fixes");

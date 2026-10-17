@@ -3,7 +3,7 @@
 import { readNdjson } from "@/lib/ndjson";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, Check, ChevronDown, Loader2, Pencil, RotateCcw, Sparkles, Undo2, Wand2, X } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Pencil, RotateCcw, Sparkles, Undo2, Wand2, X } from "lucide-react";
 import { useProfile } from "@/context/profileContext";
 import { useToast } from "@/context/toastContext";
 import { authFetch } from "@/lib/authFetch";
@@ -64,7 +64,7 @@ function useCountUp(value: number, ms = 1100) {
 }
 
 function ScoreRing({ score }: { score: number }) {
-  const { tr, trd } = useT();
+  const { tr } = useT();
   score = Number.isFinite(score) ? score : 0; // never show NaN
   const shown = useCountUp(score);
   const r = 52;
@@ -99,7 +99,7 @@ function ScoreRing({ score }: { score: number }) {
 const NEEDS_YOU = new Set(["contact", "education", "experience", "dates", "gaps", "recentExperience"]);
 
 function FixPreview({ fix, jobLabel }: { fix: ReviewFix; jobLabel: string }) {
-  const { tr, trd } = useT();
+  const { tr } = useT();
   const box = "mt-2 rounded-lg border bg-muted/40 p-3 text-xs leading-relaxed";
   if (fix.type === "removeJob") {
     return (
@@ -165,6 +165,13 @@ function FixPreview({ fix, jobLabel }: { fix: ReviewFix; jobLabel: string }) {
       </div>
     );
   }
+  if (fix.type === "twoPages") {
+    return (
+      <div className={box}>
+        <p className="font-semibold text-muted-foreground">{tr("Keep everything and let the resume run to a second page")}</p>
+      </div>
+    );
+  }
   return (
     <div className={box}>
       <p className="mb-1.5 font-semibold text-muted-foreground">{tr("Skills to add")}</p>
@@ -224,6 +231,7 @@ export default function ResumeReview({
     setJobHistory,
     updatePhoto,
     updateSkillLevels,
+    updatePageGoal,
   } = useProfile();
 
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
@@ -390,6 +398,7 @@ export default function ResumeReview({
     if (patch.jobHistory !== undefined) setJobHistory(patch.jobHistory);
     if (patch.photo !== undefined) updatePhoto(patch.photo);
     if (patch.skillLevels !== undefined) updateSkillLevels(patch.skillLevels);
+    if (patch.pageGoal !== undefined) updatePageGoal(patch.pageGoal);
     onProfileChanged?.();
     setSaveTick((t) => t + 1);
   };
@@ -398,6 +407,13 @@ export default function ResumeReview({
   const [working, setWorking] = useState<string[]>([]);
   // while fixes are being written and saved, "Check again" and the fix buttons wait, so a review never reads a half-saved resume
   const [applying, setApplying] = useState(false);
+  // the fixes the person asked for wait in a queue and are carried out ONE BY ONE: each is written, saved and shown in the resume before the
+  // next starts (a second fix is built on the resume the first one left, never on an old copy)
+  const [queued, setQueued] = useState<string[]>([]);
+  const queueRef = useRef<ReviewIssue[]>([]);
+  const drainingRef = useRef(false);
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
   const [dismissed, setDismissed] = useState<string[]>(dismissedKeys);
   const dismiss = (issue: ReviewIssue) => {
     dismissedKeys = [...dismissedKeys, issueKey(issue)];
@@ -415,20 +431,43 @@ export default function ResumeReview({
     if (!res.ok || !Array.isArray(data.fixes) || data.fixes.length === 0) throw new Error(trd(data.error) || tr("I couldn't write that fix. Try again in a moment."));
     return { ...issue, fixes: data.fixes as ReviewFix[], fix: data.fixes[0] as ReviewFix };
   };
-  const apply = async (picked: ReviewIssue[]) => {
-    if (applying) return;
+  /** Waits until the resume on screen is the one the last fix wrote (or a moment passes), so the next fix starts from it. */
+  const settle = async (before: string) => {
+    for (let waited = 0; waited < 1500 && JSON.stringify(profileRef.current) === before; waited += 50) await new Promise((r) => setTimeout(r, 50));
+  };
+  /** Adds fixes to the queue; one that is already queued, being written or applied is not added twice. */
+  const enqueue = (picked: ReviewIssue[]) => {
+    const fresh = picked.filter((i) => !isApplied(i.id) && !working.includes(i.id) && !queueRef.current.some((q) => q.id === i.id));
+    if (fresh.length === 0) return;
+    queueRef.current.push(...fresh);
+    setQueued(queueRef.current.map((q) => q.id));
+    if (!drainingRef.current) void drain();
+  };
+  const drain = async () => {
+    drainingRef.current = true;
     setApplying(true);
+    let done = 0;
     try {
-      await applyNow(picked);
+      while (queueRef.current.length > 0) {
+        const next = queueRef.current.shift()!;
+        setQueued(queueRef.current.map((q) => q.id));
+        const before = JSON.stringify(profileRef.current);
+        if (await applyNow([next], true)) done += 1;
+        await settle(before);
+      }
+      if (done > 1) toast.success(tr("{n} fixes applied and saved", { n: done }) + ".");
       // the fixes are saved right after they are written: give that a moment before a new check can start
       await new Promise((r) => setTimeout(r, 900));
     } finally {
+      drainingRef.current = false;
       setApplying(false);
     }
   };
-  const applyNow = async (picked: ReviewIssue[]) => {
+  /** Carries out one fix (or the few of one issue). Returns true when it changed the resume. `quiet` leaves the success message to the queue. */
+  const applyNow = async (picked: ReviewIssue[], quiet = false): Promise<boolean> => {
+    const profile = profileRef.current; // the resume as the last fix left it
     const pending = picked.filter((i) => !isApplied(i.id));
-    if (pending.length === 0) return;
+    if (pending.length === 0) return false;
     let todo: ReviewIssue[] = [];
     try {
       setWorking((w) => [...w, ...pending.map((i) => i.id)]);
@@ -438,18 +477,18 @@ export default function ResumeReview({
       if (failed.length && todo.length === 0) throw failed[0].reason;
     } catch (err) {
       toast.error((err as Error).message || tr("We couldn't apply that. Please try again."));
-      return;
+      return false;
     } finally {
       setWorking((w) => w.filter((id) => !pending.some((i) => i.id === id)));
     }
-    if (todo.length === 0) return;
+    if (todo.length === 0) return false;
     const couldNot = pending.length - todo.length;
     try {
       const patch = applyFixes(profile, todo.flatMap((i) => (i.fixes ?? [i.fix!])) as ReviewFix[]);
       // a fix can already be in place: then nothing changes, and the person is told instead of seeing nothing happen
       if (!patchChangesProfile(profile, patch)) {
         toast.info(couldNot > 0 ? tr("{couldNot} fix{v1} could not be written. The others were already in your resume, so nothing changed.", { couldNot, v1: couldNot > 1 ? "es" : "" }) : tr("That is already how it is in your resume, so nothing changed. Press Check again to see the score."));
-        return;
+        return false;
       }
       if (todo.some((i) => (i.fixes ?? [i.fix]).some((f) => f?.type === "atsClean"))) onTemplateChange?.("classic");
       const labels: Record<string, string> = {};
@@ -464,17 +503,22 @@ export default function ResumeReview({
         };
       }
       write(patch);
+      const removedJobs = patch.jobHistory !== undefined ? (profile.jobHistory?.length ?? 0) - patch.jobHistory.length : 0;
       const parts = [
         patch.careerObjective !== undefined && "summary rewritten",
         patch.jobTitle !== undefined && "job title updated",
         patch.skills !== undefined && "skills updated",
-        patch.jobHistory !== undefined && "experience updated",
+        // a fix that takes jobs out says how many, so nobody finds out later that the resume has fewer
+        patch.jobHistory !== undefined && (removedJobs > 0 ? tr(removedJobs === 1 ? "1 job removed" : "{n} jobs removed", { n: removedJobs }) : "experience updated"),
         (patch.photo !== undefined || patch.skillLevels !== undefined) && "layout made ATS-friendly",
+        patch.pageGoal !== undefined && "two pages chosen",
       ].filter(Boolean) as string[];
-      toast.success(`${todo.length === 1 ? tr("Fix applied and saved") : tr("{n} fixes applied and saved", { n: todo.length })}${parts.length ? `: ${parts.map((x) => tr(x)).join(", ")}` : ""}.${couldNot > 0 ? ` ${tr("{n} could not be written, try those again.", { n: couldNot })}` : ` ${tr("Press Check my new score to see the change.")}`}`);
+      if (!quiet) toast.success(`${todo.length === 1 ? tr("Fix applied and saved") : tr("{n} fixes applied and saved", { n: todo.length })}${parts.length ? `: ${parts.map((x) => tr(x)).join(", ")}` : ""}.${couldNot > 0 ? ` ${tr("{n} could not be written, try those again.", { n: couldNot })}` : ` ${tr("Press Check my new score to see the change.")}`}`);
+      return true;
     } catch (err) {
       console.error("Applying the fixes failed", err);
       toast.error(tr("We couldn't apply that. Please try again."));
+      return false;
     }
   };
   const undo = (id: string) => {
@@ -488,6 +532,9 @@ export default function ResumeReview({
   const visibleIssues = (review?.issues ?? []).filter((i) => !dismissed.includes(issueKey(i)));
   // the look is the person's choice: "Fix all" never changes it, only its own button does
   const fixable = visibleIssues.filter((i) => !isApplied(i.id) && i.criterionId !== "atsLayout" && (i.fix || !NEEDS_YOU.has(i.criterionId ?? "")));
+  // "Fix all" is available as long as there is at least one fix not asked for yet; what is already waiting or being written is left alone
+  const notAskedYet = fixable.filter((i) => !queued.includes(i.id) && !working.includes(i.id));
+  const inProgress = queued.length + working.length;
   // issues that only the person can resolve (a phone number...) take them to the form where it goes
   const goTo = (criterionId: string) => {
     const title =
@@ -516,7 +563,7 @@ export default function ResumeReview({
         {/* the main action of this panel, always at the top */}
         <Button
           onClick={checkAgain}
-          disabled={phase === "loading" || applying || working.length > 0}
+          disabled={phase === "loading" || applying || working.length > 0 || queued.length > 0}
           className="h-12 gap-2.5 bg-blue-600 px-6 text-base font-bold shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/35"
         >
           <RotateCcw className={`h-5 w-5 ${phase === "loading" ? "animate-spin" : ""}`} />
@@ -585,7 +632,7 @@ export default function ResumeReview({
               <div className="flex shrink-0 flex-col items-center gap-1.5">
                 <ScoreRing score={review.score} />
                 {/* how well the resume is written, for any job: the fit with one job is another number, the one of the jobs */}
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{tr("Resume score")}</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr("Resume score")}</span>
               </div>
               <div className="min-w-0 flex-1 basis-60">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{tr("Your level")}</p>
@@ -619,11 +666,15 @@ export default function ResumeReview({
               <h2 className="text-lg font-extrabold">
                 {visibleIssues.length === 0 ? tr("Nothing to fix. Nice work.") : tr("{length} thing{v1} to improve", { length: visibleIssues.length, v1: visibleIssues.length > 1 ? "s" : "" })}
               </h2>
-              {fixable.length > 0 && (
-                <Button onClick={() => apply(fixable)} disabled={applying} variant="outline" className="h-10 gap-2 border-2 border-blue-600 px-4 font-bold text-blue-600 hover:bg-blue-600 hover:text-white">
-                  <Wand2 className="h-4 w-4" />{" "}{tr("Fix all (")}{fixable.length})
+              {notAskedYet.length > 0 ? (
+                <Button onClick={() => enqueue(notAskedYet)} variant="outline" className="h-10 gap-2 border-2 border-blue-600 px-4 font-bold text-blue-600 hover:bg-blue-600 hover:text-white">
+                  <Wand2 className="h-4 w-4" />{" "}{tr("Fix all (")}{notAskedYet.length})
                 </Button>
-              )}
+              ) : inProgress > 0 ? (
+                <Button disabled variant="outline" className="h-10 gap-2 border-2 px-4 font-bold">
+                  <Loader2 className="h-4 w-4 animate-spin" />{" "}{tr("Fixing… {n} left", { n: inProgress })}
+                </Button>
+              ) : null}
             </div>
 
             {visibleIssues.length > 0 && (
@@ -646,23 +697,30 @@ export default function ResumeReview({
                           <div className="flex shrink-0 flex-col items-end gap-1">
                             <span className="inline-flex items-center gap-1 text-sm font-semibold text-green-500">
                               <Check className="h-4 w-4" />{" "}{tr("Applied")}</span>
-                            <button onClick={() => undo(issue.id)} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                            <button onClick={() => undo(issue.id)} disabled={applying} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40">
                               <Undo2 className="h-3 w-3" />{" "}{tr("Undo")}</button>
                           </div>
                         ) : !issue.fix && NEEDS_YOU.has(issue.criterionId ?? "") ? (
                           <Button size="sm" variant="outline" onClick={() => goTo(issue.criterionId ?? "")} className="shrink-0 gap-1.5">
                             <Pencil className="h-3.5 w-3.5" />{" "}{tr("Add it")}</Button>
                         ) : (
-                          <Button size="sm" onClick={() => apply([issue])} disabled={applying || working.includes(issue.id)} className="shrink-0 gap-1.5">
-                            {working.includes(issue.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                            {working.includes(issue.id) ? tr("Writing…") : tr("Fix it for me")}
-                          </Button>
+                          <div className="flex shrink-0 flex-col items-stretch gap-1.5">
+                            <Button size="sm" onClick={() => enqueue([issue])} disabled={working.includes(issue.id) || queued.includes(issue.id)} className="gap-1.5">
+                              {working.includes(issue.id) || queued.includes(issue.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                              {working.includes(issue.id) ? tr("Writing…") : queued.includes(issue.id) ? tr("Waiting…") : tr("Fix it for me")}
+                            </Button>
+                            {issue.alt && (
+                              <Button size="sm" variant="outline" onClick={() => enqueue([{ ...issue, fix: issue.alt!, fixes: undefined }])} disabled={working.includes(issue.id) || queued.includes(issue.id)} className="gap-1.5">
+                                {tr("Keep it all: use two pages")}
+                              </Button>
+                            )}
+                          </div>
                         )}
                         {!done && (
                           <button
                             type="button"
                             onClick={() => dismiss(issue)}
-                            disabled={applying || working.includes(issue.id)}
+                            disabled={working.includes(issue.id) || queued.includes(issue.id)}
                             title={tr("Dismiss this suggestion")}
                             aria-label={tr("Dismiss this suggestion")}
                             className="-mr-1 -mt-1 shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"

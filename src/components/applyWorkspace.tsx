@@ -21,13 +21,14 @@ import SkillGroupsEditor from "@/components/skillGroupsEditor";
 import TemplateSelector from "@/components/templateSelector";
 import { loadTemplates } from "@/lib/templatePreload";
 import AccentPicker from "@/components/accentPicker";
+import PageLengthPicker from "@/components/pageLengthPicker";
+import { asPageGoal, canRunTwoPages } from "@/lib/pageGoal";
 import ExperienceLevelPicker from "@/components/experienceLevelPicker";
 import { useProfile, type ProfileData } from "@/context/profileContext";
 import { useToast } from "@/context/toastContext";
 import { authFetch } from "@/lib/authFetch";
 import { asTemplateId } from "@/lib/templates";
 import { APPLY_JOB_KEY } from "@/lib/applyJob";
-import { fitOf, skillsForFit } from "@/lib/jobFit";
 import { jobScore } from "@/lib/jobScore";
 import { levelOf } from "@/lib/jobLevel";
 import { baseSkills, covers, skillGap } from "@/lib/jobSkills";
@@ -61,6 +62,8 @@ interface Evaluation {
 interface PageInfo {
   pages: number | null;
   scale: number | null;
+  /** pages the person accepts for this look (1 or 2) */
+  maxPages?: number;
   crowded: boolean;
   cut: { skills: string[]; jobs: { id: string; title: string; company: string; start: string; end: string }[]; review: { skill: string; why: "repeats" | "generic" | "notAsked"; of?: string }[] };
 }
@@ -79,7 +82,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   const { tr, locale } = useT();
   const router = useRouter();
   const toast = useToast();
-  const { activeProfile: draft, updateSkills, updateSkillGroups: setSkillGroups, updateCertifications, updateLanguages, updateAccentColor, updateFillPage, updateCareerObjective, updateJobTitle, setJobHistory, updateSkillLevels, updateSkillGroups } = useProfile();
+  const { activeProfile: draft, updateSkills, updateSkillGroups: setSkillGroups, updateCertifications, updateLanguages, updateAccentColor, updateFillPage, updatePageGoal, updateCareerObjective, updateJobTitle, setJobHistory, updateSkillLevels, updateSkillGroups } = useProfile();
 
   const [step, setStep] = useState<"fit" | "edit" | "review">("fit");
   const [section, setSection] = useState<Section>("objective");
@@ -498,6 +501,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
     if ("careerObjective" in patch) updateCareerObjective(patch.careerObjective ?? "");
     if ("jobTitle" in patch) updateJobTitle(patch.jobTitle ?? "");
     if ("skills" in patch) updateSkills(patch.skills ?? []);
+    if ("pageGoal" in patch) updatePageGoal(patch.pageGoal ?? "one");
     if ("jobHistory" in patch) setJobHistory(patch.jobHistory ?? []);
   };
   // what changed, exactly: a title and the new text (the objective and the bullets are shown in full, with what they replaced)
@@ -587,6 +591,19 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
     }
   };
 
+  // The words of the review are about the length and the look in force when it was written ("too crowded for one page"). When the person
+  // changes either one while reading it, the review is written again, so what it says is always about what is on screen.
+  const lookKey = `${draft.pageGoal ?? "one"}|${template}`;
+  const lastLookKey = useRef(lookKey);
+  useEffect(() => {
+    if (lastLookKey.current === lookKey) return;
+    lastLookKey.current = lookKey;
+    if (step !== "review" || !checkedOnce.current || evaluating || fixing) return;
+    const t = setTimeout(() => check(), 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookKey]);
+
   const create = async () => {
     setError("");
     setCreating(0);
@@ -659,8 +676,9 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   const tone: "idle" | "ok" | "tight" | "full" = !pageInfo ? "idle" : pageInfo.crowded ? "full" : textSize < 90 ? "tight" : "ok";
   const toneColor = { idle: "#94a3b8", ok: "#22c55e", tight: "#f59e0b", full: "#ef4444" }[tone];
   const pageCount = pageInfo?.pages ?? 1;
+  const acceptsPages = pageInfo?.maxPages ?? 1;
   // the bar goes from 60% to 100% of the normal text size; the marker sits where this resume is (more than one page: at the far left)
-  const markerAt = !pageInfo ? 100 : pageCount > 1 ? 0 : Math.max(0, Math.min(100, ((textSize - 60) / 40) * 100));
+  const markerAt = !pageInfo ? 100 : pageCount > 1 && acceptsPages === 1 ? 0 : Math.max(0, Math.min(100, ((textSize - 60) / 40) * 100));
   const looksTab = (
     <button
       type="button"
@@ -675,6 +693,10 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   );
   const pageSize = (
     <section className="space-y-4 border-y py-4" aria-label={tr("Size of the page")}>
+      <div>
+        <p className="mb-2 text-sm font-bold">{tr("How long should it be?")}</p>
+        <PageLengthPicker compact value={asPageGoal(draft.pageGoal)} template={template} onChange={(g) => updatePageGoal(g)} />
+      </div>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
       <div className="flex min-w-0 flex-1 basis-72 items-center gap-4">
         {/* the sheet: it fills up as the resume takes more of the page */}
@@ -698,7 +720,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
             <p className="text-sm font-bold">{tr("Page")}</p>
             <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: toneColor }}>
               {measuring && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-              {tone === "idle" ? (measuring ? tr("Measuring the page…") : tr("We couldn't measure the page.")) : tone === "ok" ? tr("It fits on one page.") : tone === "tight" ? tr("Tight, but it fits") : pageCount > 1 ? tr("This resume takes {pages} pages.", { pages: pageCount }) : tr("It is crowded")}
+              {tone === "idle" ? (measuring ? tr("Measuring the page…") : tr("We couldn't measure the page.")) : tone === "ok" ? (pageCount > 1 ? tr("It fits on {pages} pages.", { pages: pageCount }) : tr("It fits on one page.")) : tone === "tight" ? tr("Tight, but it fits") : pageCount > 1 ? tr("This resume takes {pages} pages.", { pages: pageCount }) : tr("It is crowded")}
             </p>
           </div>
           {pageInfo ? (
@@ -723,7 +745,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
           )}
           {pageInfo && (
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {pageCount > 1 ? tr("A recruiter reads one page.") : textSize >= 100 ? tr("The text keeps its normal size.") : tr("The text is at {pct}% of its normal size.", { pct: textSize })}{" "}
+              {pageCount > 1 ? (acceptsPages > 1 ? tr("It is as long as you chose.") : tr("A recruiter reads one page.")) : textSize >= 100 ? tr("The text keeps its normal size.") : tr("The text is at {pct}% of its normal size.", { pct: textSize })}{" "}
               {tone === "full" || tone === "tight" ? tr("Below {min}% it is small print and gets skipped.", { min: minPct }) : ""}
             </p>
           )}
@@ -766,7 +788,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                         <span className="text-[11px] leading-tight" style={{ color: l.passes ? (l.scale < 0.9 ? "#d97706" : "#16a34a") : "#dc2626" }}>
                           {l.pages > 1 ? tr("Does not fit on one page") : l.passes ? tr("Fits at {pct}%", { pct: Math.round(l.scale * 100) }) : tr("Too small: {pct}%", { pct: Math.round(l.scale * 100) })}
                         </span>
-                        {l.id === template ? <span className="text-[10px] font-semibold text-blue-600">{tr("In use")}</span> : l.safe ? <span className="text-[10px] text-muted-foreground">{tr("Safe for ATS")}</span> : null}
+                        {l.id === template ? <span className="text-[11px] font-semibold text-blue-600">{tr("In use")}</span> : l.safe ? <span className="text-[11px] text-muted-foreground">{tr("Safe for ATS")}</span> : null}
                       </button>
                     </li>
                   ))}
@@ -780,12 +802,23 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
       {pageInfo?.crowded && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="max-w-sm text-sm font-semibold">{tr("It has to fit on one page at a readable size.")}</p>
-            <Button size="sm" onClick={trimIt} disabled={trimming} className="gap-1.5">
-              {trimming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
-              {tr("Trim it for me")}
-            </Button>
+            <p className="max-w-sm text-sm font-semibold">{acceptsPages > 1 ? tr("It has to fit on two pages at a readable size.") : tr("It has to fit on one page at a readable size.")}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* the person decides: keep everything on a second page, or cut what is least useful for this job */}
+              {canRunTwoPages(template) && asPageGoal(draft.pageGoal) === "one" && (
+                <Button size="sm" variant="outline" onClick={() => updatePageGoal("two")} className="gap-1.5">
+                  {tr("Keep it all: use two pages")}
+                </Button>
+              )}
+              <Button size="sm" onClick={trimIt} disabled={trimming} className="gap-1.5">
+                {trimming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
+                {tr("Trim it for me")}
+              </Button>
+            </div>
           </div>
+          {!canRunTwoPages(template) && asPageGoal(draft.pageGoal) !== "one" ? null : !canRunTwoPages(template) && (
+            <p className="text-xs text-muted-foreground">{tr("To keep everything, pick a one-column look such as Classic, ATS, Executive or Minimal: they can use two pages.")}</p>
+          )}
           {pageInfo.cut.skills.length > 0 && (
             <div>
               <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">{tr("Skills far from this field")}</p>
@@ -1059,7 +1092,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
 
               {!checking && unrelated.length > 0 && (
                 <section>
-                  <h3 className="text-sm font-bold">{tr("Do you have these skills?")}</h3>
+                  <h3 className="text-sm font-bold">{tr("Do you have these skills?")} <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{tr("Written with AI")}</span></h3>
                   <p className="mb-3 text-sm text-muted-foreground">{tr("The job asks for them and your profile does not show them. Say yes only if you really know them: they go on this resume and nowhere else.")}</p>
                   <ul className="divide-y rounded-xl border">
                     {unrelated.slice(0, 12).map((sk) => (
@@ -1113,7 +1146,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
               ) : (
                 questions.length > 0 && (
                   <section>
-                    <h3 className="text-sm font-bold">{tr("The job also asks for")}</h3>
+                    <h3 className="text-sm font-bold">{tr("The job also asks for")} <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{tr("Written with AI")}</span></h3>
                     <p className="mb-3 text-sm text-muted-foreground">{tr("It asks for these clearly and your resume does not show them. Answer only what is true.")}</p>
                     <ul className="divide-y rounded-xl border">
                       {questions.map((q, i) => (
@@ -1181,6 +1214,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
               <div>
                 <h2 className="text-lg font-extrabold">{tr("Check it before we write it")}</h2>
                 <p className="text-sm text-muted-foreground">{tr("This is what the resume starts from. The preview is your profile with what you confirmed; the final resume is then tailored to the job.")}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{tr("The questions, the check and the final resume and letter are written with AI. It can make mistakes: read everything before you send it.")}</p>
               </div>
 
               {pageSize}
@@ -1197,7 +1231,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                   <div className="flex items-center gap-4">
                     <div className="flex shrink-0 flex-col items-center gap-1">
                       <Ring value={reviewScore} size={72} loading={evaluating || !!fixing || (!evaluation && !evalError)} />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{tr("Your fit")}</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr("Your fit")}</span>
                       {scoreBefore !== null && scoreBefore !== reviewScore && !evaluating && !fixing && applied.length > 0 && (
                         <span className={`text-[11px] font-bold tabular-nums ${reviewScore > scoreBefore ? "text-green-500" : "text-muted-foreground"}`}>
                           {scoreBefore} → {reviewScore}
@@ -1326,7 +1360,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                   <input type="checkbox" checked={truthful} onChange={(e) => setTruthful(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 rounded" />
                   <span>
                     <span className="block font-semibold">{tr("I declare that everything I confirmed is true.")}</span>
-                    <span className="mt-0.5 block text-muted-foreground">{tr("Kaizo writes the resume and the letter with what you confirmed and does not check it. You are responsible for what you send to an employer, including any false or exaggerated claim.")}</span>
+                    <span className="mt-0.5 block text-muted-foreground">{tr("Kaizo writes the resume and the letter with AI, from what you confirmed, and does not check it. You are responsible for what you send to an employer, including any false or exaggerated claim.")}</span>
                   </span>
                 </label>
               )}

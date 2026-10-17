@@ -12,7 +12,7 @@ import type { ProfileData } from "@/context/profileContext";
 export async function measure(p: ProfileData, template: string, lang?: ResumeLang): Promise<PageFit | null> {
   try {
     const r = await renderResumeDetailed(p, template, { lang });
-    return { pages: r.pages, scale: r.scale };
+    return { pages: r.pages, scale: r.scale, maxPages: r.maxPages, lastFill: r.lastFill };
   } catch (err) {
     console.error("Resume review: could not measure the page fit", err);
     return null;

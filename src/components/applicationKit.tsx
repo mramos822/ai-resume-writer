@@ -171,13 +171,13 @@ export default function ApplicationKit({
                 <div>
                   <section>
                     <div className="mb-2 flex items-center justify-between">
-                      <p className="font-bold">{tr("Cover letter")}</p>
+                      <p className="font-bold">{tr("Cover letter")} <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{tr("Written with AI")}</span></p>
                       <Button variant="ghost" size="sm" onClick={copy} className="gap-1.5">
                         {copied ? <Check className="h-4 w-4 text-green-500" /> : <ClipboardCopy className="h-4 w-4" />}
                         {copied ? tr("Copied") : tr("Copy")}
                       </Button>
                     </div>
-                    <textarea readOnly value={app.coverLetter} rows={16} className="w-full resize-none rounded-xl border bg-muted/30 p-4 text-sm leading-relaxed outline-none" />
+                    <textarea readOnly aria-label={tr("Cover letter")} value={app.coverLetter} rows={16} className="w-full resize-none rounded-xl border bg-muted/30 p-4 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50" />
                   </section>
                 </div>
               </div>

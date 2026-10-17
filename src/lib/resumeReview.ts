@@ -1,5 +1,6 @@
 // Shared by the review API (server) and the review panel (client): types, the rule-based fallback review,
 // the validation of fixes the AI proposes, and the pure function that applies a fix to a profile.
+import { asPageGoal, canRunTwoPages } from "@/lib/pageGoal";
 import { faithfulBullets } from "@/lib/bulletFidelity";
 import type { ProfileData, JobEntry } from "@/context/profileContext";
 import { MIN_RECENT_JOBS, evaluateAuto, isRecentJob, newestFirst, scoreOf, type CriterionResult, type PageFit } from "@/lib/reviewRubric";
@@ -19,7 +20,9 @@ export type ReviewFix =
   | { type: "removeSkills"; skills: string[] }
   | { type: "sortJobs" }
   | { type: "removeJobs"; jobIds: string[] }
-  | { type: "atsClean" };
+  | { type: "atsClean" }
+  /** keep all the content and let the resume run to a second page */
+  | { type: "twoPages" };
 
 export interface ReviewIssue {
   id: string;
@@ -32,6 +35,8 @@ export interface ReviewIssue {
   fix: ReviewFix | null;
   /** set when the fix was written on demand and needs several changes (for example bullets for 3 jobs) */
   fixes?: ReviewFix[];
+  /** another way out the person can choose instead of the fix: for a resume that is too long, keep everything and use two pages */
+  alt?: ReviewFix | null;
 }
 
 export interface ReviewResult {
@@ -57,6 +62,11 @@ export function scoreLabel(score: number): string {
 
 export const isCrowded = (fit?: PageFit | null) => !passesPage(fit);
 
+/** For a resume that is too long: when the look can run to two pages and the person asked for one, offer to keep everything instead of cutting. */
+export function twoPagesAlt(criterionId: string | undefined, p: ProfileData, template: string): ReviewFix | null {
+  return criterionId === "onePage" && canRunTwoPages(template) && asPageGoal(p.pageGoal) === "one" ? { type: "twoPages" } : null;
+}
+
 /** The impact of a guideline depends on how many points it is worth. */
 export const impactOf = (weight: number): ReviewIssue["impact"] => (weight >= 8 ? "high" : weight >= 5 ? "medium" : "low");
 
@@ -77,7 +87,7 @@ export const AUTO_ADVICE: Record<string, { title: string; detail: string }> = {
   strongVerbs: { title: "Start bullets with strong verbs", detail: "Replace “Responsible for…” or “Helped with…” with verbs like Led, Built or Served." },
   numbers: { title: "Add numbers to your results", detail: "How many, how often, how much. “Served 100+ customers a day” beats “helped customers”." },
   education: { title: "Add your education", detail: "List your latest school, even if you are still studying." },
-  onePage: { title: "Your resume is too crowded", detail: "The text had to be shrunk to fit on one page. Cut the least relevant things so it is easy to read." },
+  onePage: { title: "Your resume is too long for its page", detail: "The text had to be shrunk to fit. Cut the least relevant things so it is easy to read." },
   noDuplicates: { title: "Remove repeated entries", detail: "The same job, school or skill appears more than once." },
   dates: { title: "Add start dates to your jobs", detail: "Dates let recruiters see how long you stayed and what is most recent." },
 };
@@ -101,7 +111,7 @@ export function basicReview(p: ProfileData, fit?: PageFit | null, template = "cl
     .map((c, i) => {
       const advice = AUTO_ADVICE[c.id] ?? { title: c.label, detail: c.reason };
       const fix = autoFixFor(c.id, p, role);
-      return { id: `b${i + 1}`, criterionId: c.id, title: advice.title, detail: `${advice.detail} ${c.reason}`.trim(), impact: impactOf(c.weight), fix };
+      return { id: `b${i + 1}`, criterionId: c.id, title: advice.title, detail: `${advice.detail} ${c.reason}`.trim(), impact: impactOf(c.weight), fix, alt: twoPagesAlt(c.id, p, template) };
     });
   const score = scoreOf(criteria);
   return {
@@ -278,7 +288,7 @@ export function cleanFix(input: unknown, p: ProfileData): ReviewFix | null {
   }
 }
 
-export type ProfilePatch = Partial<Pick<ProfileData, "careerObjective" | "jobTitle" | "skills" | "jobHistory" | "photo" | "skillLevels">>;
+export type ProfilePatch = Partial<Pick<ProfileData, "careerObjective" | "jobTitle" | "skills" | "jobHistory" | "photo" | "skillLevels" | "pageGoal">>;
 
 /** Applies several fixes at once and returns only the fields that changed (so one save covers them all). */
 export function applyFixes(p: ProfileData, fixes: ReviewFix[]): ProfilePatch {
@@ -302,6 +312,8 @@ export function applyFixes(p: ProfileData, fixes: ReviewFix[]): ProfilePatch {
     } else if (f.type === "removeJobs") {
       const drop = new Set(f.jobIds);
       jobs = (jobs ?? (p.jobHistory ?? []).map((j) => ({ ...j }))).filter((j) => !drop.has(j.id));
+    } else if (f.type === "twoPages") {
+      patch.pageGoal = "two";
     } else if (f.type === "atsClean") {
       patch.photo = "";
       patch.skillLevels = {};
@@ -321,6 +333,7 @@ export function patchChangesProfile(p: ProfileData, patch: ProfilePatch): boolea
   if ("jobTitle" in patch && !same(patch.jobTitle, p.jobTitle ?? "")) return true;
   if ("skills" in patch && !same(patch.skills, p.skills ?? [])) return true;
   if ("photo" in patch && !same(patch.photo ?? "", p.photo ?? "")) return true;
+  if ("pageGoal" in patch && (patch.pageGoal ?? "one") !== (p.pageGoal ?? "one")) return true;
   if ("skillLevels" in patch && !same(patch.skillLevels ?? {}, p.skillLevels ?? {})) return true;
   if ("jobHistory" in patch && !same(patch.jobHistory, p.jobHistory ?? [])) return true;
   return false;
@@ -335,5 +348,6 @@ export function snapshotFor(p: ProfileData, patch: ProfilePatch): ProfilePatch {
   if ("photo" in patch) snap.photo = p.photo ?? "";
   if ("skillLevels" in patch) snap.skillLevels = { ...(p.skillLevels ?? {}) };
   if ("jobHistory" in patch) snap.jobHistory = (p.jobHistory ?? []).map((j) => ({ ...j }));
+  if ("pageGoal" in patch) snap.pageGoal = p.pageGoal ?? "one";
   return snap;
 }

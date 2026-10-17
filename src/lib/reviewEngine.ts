@@ -16,6 +16,7 @@ import {
   type Verdict,
 } from "@/lib/reviewRubric";
 import type { RoleProfile } from "@/lib/roleProfile";
+import { layoutFacts } from "@/lib/layoutFacts";
 import {
   AUTO_ADVICE,
   applyFixes,
@@ -26,12 +27,13 @@ import {
   type ReviewFix,
   type ReviewIssue,
   type ReviewResult,
+  twoPagesAlt,
   worthListing,
   MAX_ISSUES,
 } from "@/lib/resumeReview";
 
 /** Bump when the rubric changes, so cached reviews are not reused. */
-export const RUBRIC_VERSION = "v5";
+export const RUBRIC_VERSION = "v6";
 
 export interface PreviousReview {
   verdicts: { id: string; verdict: Verdict }[];
@@ -44,7 +46,7 @@ export interface PreviousReview {
 export const REVIEW_SYSTEM = `You are a resume reviewer who follows a FIXED rubric. You never invent criteria, and you judge the same text the same way every time.
 The rubric encodes what the main applicant tracking systems (ATS) need to read a resume and what HR and recruiters check first. Your priority is that this resume passes both.
 
-You receive: the resume data as JSON, the person's TARGET ROLE and seniority, how the resume fits its single page, the results of the measurable guidelines (already computed by code, do not re-judge them), and, when this is a re-check, your previous verdicts and what the person changed since.
+You receive: the resume data as JSON, the person's TARGET ROLE and seniority, the LAYOUT facts (look, length chosen, pages used, size of the text), the results of the measurable guidelines (already computed by code, do not re-judge them), and, when this is a re-check, your previous verdicts and what the person changed since.
 
 Reply with ONE JSON object and nothing else:
 {
@@ -75,10 +77,15 @@ Rules, in order of importance:
 7. The profile (careerObjective) is the person's cover letter: a short narrative of 3 to 5 sentences (250 to 700 characters), never a one-liner. When you rewrite it, keep it in that range, name the target role or field, include their strongest real experience and skills, and say what they bring. Do not make it shorter than the original unless the original is over 700 characters.
 8. Skills must be consistent with the rest of the resume: only add skills clearly shown by the person's jobs, projects, education or coursework, and treat skills as a PRIORITY: never remove a skill just because the resume does not mention it or to save space. Important and in-demand skills and languages (programming languages, frameworks, tools, spoken languages) are NEVER removed, and it is never an issue that no job or project shows them: more skills is better. Remove a skill ONLY when it is a repeat of another one (like "JS" and "JavaScript"), very redundant, or clearly useless for any job (for example a joke or an empty word). Suggest removing redundant skills only when the list is very long (over 40); then say in "detail" that the list is long and which ones are redundant. Prefer adding the missing evidence (a bullet that uses the skill) over deleting the skill. For keyword coverage, use the standard terms of the target role, written the way ATS expect (for example "PostgreSQL", not "Postgres DB").
 9. ATS and HR: plain wording, standard terms, no first person, consistent tense (current job in present, past jobs in past), no abbreviations that only insiders know.
-10. If "onePage" is not passing, the fix must remove content: "removeJob" for the oldest or least relevant job (never the most recent one), or a shorter "bullets" rewrite. NEVER remove skills for space. If it is passing, do NOT suggest removing content.
+10. If "onePage" is not passing (more pages than layout.pagesAllowed, or the text smaller than 85%), the fix must remove content: "removeJob" for the oldest or least relevant job (never the most recent one), or a shorter "bullets" rewrite. NEVER remove skills for space. If it is passing, do NOT suggest removing content, even when the resume has two pages: the person chose that.
 11. EVERY issue should come with a usable "fix" (the person presses "Fix it for me"): rewrite the bullets, the summary, the skills. Only set "fix" to null when the guideline needs a fact only the person knows (a phone number, an address, a job they never listed); then say exactly what to add in "detail". Never invent employers, dates, degrees or numbers: when a bullet needs a metric you do not have, rewrite it stronger without a made-up number.
 12. Plain language, no emojis, no markdown.
 14. The target role is what the person is AIMING for. A student (a degree in progress) with a side job that has nothing to do with their field (waiter, cashier, delivery...) is NOT aiming for that job: judge them against the field they study, as an entry-level or student candidate, treat the side job only as evidence of reliability and customer service, and never propose a job title or a summary that presents them as that side job.
+15. FORMAT, LENGTH AND ROLE: your opinion must come from THIS person's look, length and target role, never from generic resume advice. "layout" tells you the look ("family": ats-safe, one-column, two-column or form), whether it has a photo or skill ratings, the length the person chose ("lengthChoice": one, two, or kaizo = Kaizo decides), the pages used and how full the last page is.
+   - ATS-safe look (family "ats-safe"): do not warn about parsing; spend the advice on keywords, bullets and proof.
+   - Designed look (any other family): the code already handles the layout guideline. You advise on CONTENT so an ATS still reads it: the target role's keywords, the contact data and the skills must also appear as plain text in the summary, the skills and the bullets, never only inside a graphic, a rating or a column. Do not suggest changing the look.
+   - Length: judge the content for the length the person chose and for the role's norm. Under about 5 years of experience: tight and one page; 10 years or more, or a field that uses long CVs (research, academia, medicine, law, senior engineering and management): two pages are normal, as long as the second page carries real, recent, relevant material. If "pagesNow" is 2 and "lastPageFill" is under 0.3, say the second page is nearly empty and the content should be tightened to one page or strengthened. If the person chose two pages or Kaizo decides, NEVER ask to cut just to reach one page. Never ask to pad a resume with filler.
+   - Role: every "title" and "detail" must be specific to the target role and its field, built from the roleProfile (keywords, requirements, recruiterPriorities, strongEvidence). Two different roles must get different advice: a software engineer is asked for stack, scale and latency or cost numbers; a nurse for licenses, units and patient ratios; a salesperson for quota, revenue and pipeline; a teacher for grade levels, outcomes and certifications; a designer for portfolio, tools and shipped work; a finance analyst for models, certifications and amounts managed. Name the role or its field in the headline.
 13. The person chose their look (template) on purpose. Respect it: improve the content (summary, bullets, skills, order, length) so the resume works well in THAT look. Never suggest changing the look or removing the photo in your issues or fixes; the layout guideline is handled separately and always comes last.`;
 
 export function reviewSystemPrompt(): string {
@@ -109,7 +116,7 @@ export function reviewPayload(p: ProfileData, ctx: ReviewContext, auto: Criterio
         }
       : null,
     seniority: { yearsOfExperience: s.years, level: s.level },
-    layout: { template: ctx.template, pages: ctx.fit?.pages ?? 1, fitScale: ctx.fit?.scale ?? 1 },
+    layout: layoutFacts(p, ctx.template, ctx.fit),
     measurable: auto.map((c) => ({ id: c.id, verdict: c.verdict, reason: c.reason })),
     previous: ctx.previous,
     resume: profileForReview(p),
@@ -191,7 +198,7 @@ export async function interpretAi(
       const stillFailsMeasurable = crit.kind === "auto" && targetAfter !== undefined && targetAfter.earned <= crit.earned + 1e-9;
       if (regressed || stillFailsMeasurable) fix = null; // would make something worse, or would not even fix its own guideline
     }
-    issues.push({ id: `a${issues.length + 1}`, criterionId, title, detail, impact: impactOf(crit.weight), fix });
+    issues.push({ id: `a${issues.length + 1}`, criterionId, title, detail, impact: impactOf(crit.weight), fix, alt: twoPagesAlt(criterionId, p, ctx.template) });
     covered.add(criterionId);
   }
 
@@ -206,6 +213,7 @@ export async function interpretAi(
       detail: `${advice?.detail ?? ""} ${crit.reason}`.trim(),
       impact: impactOf(crit.weight),
       fix: autoFixFor(crit.id, p, ctx.role),
+      alt: twoPagesAlt(crit.id, p, ctx.template),
     });
   }
 
