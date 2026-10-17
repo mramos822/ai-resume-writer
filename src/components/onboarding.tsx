@@ -475,6 +475,17 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
   // On a phone the final screen does not have two columns: one thing at a time (the details to edit, the AI review, or the resume as it looks),
   // chosen from a strip at the top. Before, the review and the preview were under ALL the sections, thousands of pixels down.
   const [mobilePane, setMobilePane] = useState<"edit" | "review" | "preview">("edit");
+  // the strip sticks right under the top bar, whatever its height is (on a phone the top bar has a second row with Edit / Customize)
+  const [barH, setBarH] = useState(0);
+  useEffect(() => {
+    const bar = document.querySelector("header.sticky") as HTMLElement | null;
+    if (!bar) return;
+    const read = () => setBarH(Math.round(bar.getBoundingClientRect().height));
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, [topSlot, open]);
   const choosePane = (p: "edit" | "review" | "preview") => {
     setMobilePane(p);
     if (p !== "edit") setShowPreview(p === "preview");
@@ -1771,7 +1782,7 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
       >
         <div className={`${intro && step !== "template" ? "enter-stagger " : ""}${reviewing ? "grid min-w-0 items-start gap-4 lg:h-full lg:grid-cols-[minmax(0,760px)_minmax(0,1fr)] lg:gap-x-10" : "min-w-0"}`}>
         {reviewing && (
-          <div className="sticky top-[3.75rem] z-20 -mx-5 border-b bg-background/90 px-3 py-2 backdrop-blur lg:hidden">
+          <div style={barH ? { top: barH } : undefined} className="sticky top-[3.75rem] z-20 -mx-5 border-b bg-background/90 px-3 py-2 backdrop-blur lg:hidden">
             <div className="flex items-center gap-2">
               <div role="tablist" aria-label={tr("What to show")} className="flex min-w-0 flex-1 rounded-full border bg-card p-1 shadow-sm">
                 {([
