@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { JobListing } from "@/lib/jobSearch";
 import { useT } from "@/i18n/provider";
+import { useHidePageScrollbar } from "@/lib/useHidePageScrollbar";
 
 interface Resume {
   id: string;
@@ -57,6 +58,7 @@ function Ring({ value, size = 96 }: { value: number; size?: number }) {
 }
 
 export default function ResumesPage() {
+  useHidePageScrollbar();
   const { tr } = useT();
   const { user, loading, unverified } = useAuth();
   const router = useRouter();

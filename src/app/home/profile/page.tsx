@@ -40,6 +40,7 @@ import { useTranslationOffer } from "@/components/useTranslationOffer";
 import { usePathname } from "@/i18n/navigation";
 import { authFetch } from "@/lib/authFetch";
 import { useT } from "@/i18n/provider";
+import { useHidePageScrollbar } from "@/lib/useHidePageScrollbar";
 
 const VALID_SECTIONS = ["contact", "objective", "skills", "jobs", "education", "projects", "internships", "links", "languages"] as const;
 type SectionKey = (typeof VALID_SECTIONS)[number];
@@ -216,6 +217,7 @@ function ResumeAdviceSection() {
 
 export default function ProfilePage() {
   const { tr } = useT();
+  useHidePageScrollbar();
   const { hasUnsavedChanges, saveChanges, activeProfile, parseFile, applyProfileData, updateSkillLevels, updateSkillGroups, updateLanguages } = useProfile();
   const dialog = useDialog();
   const offerTranslation = useTranslationOffer();
