@@ -121,7 +121,10 @@ export default function GuidedTour() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : finish())}>
-      <DialogContent showCloseButton={false} className="max-w-lg gap-0 overflow-hidden p-0">
+      <DialogContent
+        showCloseButton={false}
+        className="max-w-lg gap-0 overflow-hidden p-0 max-sm:!top-auto max-sm:!bottom-0 max-sm:!left-0 max-sm:max-h-[92dvh] max-sm:max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:rounded-t-2xl"
+      >
         {/* progress */}
         <div className="h-1.5 w-full bg-muted">
           <div
@@ -130,21 +133,21 @@ export default function GuidedTour() {
           />
         </div>
 
-        <div key={step} className="animate-pop-in p-7">
-          <div className="mb-5 flex items-center justify-between">
-            <span className="flex h-12 w-12 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
-              <Icon className="h-6 w-6" />
+        <div key={step} className="animate-pop-in p-5 sm:p-7">
+          <div className="mb-3 flex items-center justify-between sm:mb-5">
+            <span className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400 sm:h-12 sm:w-12">
+              <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
             </span>
             <span className="text-xs font-medium text-muted-foreground">{tr("Step")}{" "}{step + 1}{" "}{tr("of")}{" "}{STEPS.length}
             </span>
           </div>
 
-          <DialogTitle className="text-2xl font-bold leading-tight">{tr(s.title)}</DialogTitle>
-          <DialogDescription className="mt-2 text-base leading-relaxed text-muted-foreground">
+          <DialogTitle className="text-xl font-bold leading-tight sm:text-2xl">{tr(s.title)}</DialogTitle>
+          <DialogDescription className="mt-2 text-[15px] leading-relaxed text-muted-foreground sm:text-base">
             {tr(s.body)}
           </DialogDescription>
 
-          <div className="mt-5 flex gap-3 rounded-md border bg-accent/60 p-3 text-sm">
+          <div className="mt-4 flex gap-2.5 rounded-md border bg-accent/60 p-3 text-sm sm:mt-5 sm:gap-3">
             <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
             <p className="text-muted-foreground">{tr(s.tip)}</p>
           </div>
@@ -153,17 +156,17 @@ export default function GuidedTour() {
             <Link
               href={s.href}
               onClick={finish}
-              className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:underline"
+              className="mt-3 inline-flex min-h-6 items-center gap-1 text-sm font-semibold text-blue-600 hover:underline sm:mt-4"
             >
               {s.cta} <ArrowRight className="h-4 w-4" />
             </Link>
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t bg-muted/50 px-7 py-4">
+        <div className="flex items-center justify-between gap-2 border-t bg-muted/50 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-7 sm:py-4">
           <button
             onClick={finish}
-            className="text-sm text-muted-foreground hover:text-foreground"
+            className="inline-flex min-h-8 items-center text-sm text-muted-foreground hover:text-foreground"
           >
             {last ? tr("Close") : tr("Skip tour")}
           </button>
