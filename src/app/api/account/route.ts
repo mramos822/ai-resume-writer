@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyAuthToken } from "@/lib/firebase-admin";
 import { deleteAccount, exportAccount } from "@/lib/accountData";
 import { errorResponse, HttpError } from "@/lib/apiAuth";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 
 const RECENT_LOGIN_SECONDS = 15 * 60;
 
@@ -16,7 +16,7 @@ async function who(req: Request) {
 
 // GET: a copy of everything Kaizo keeps about you (your right to access your data), as a JSON download.
 export async function GET(req: Request) {
-  const tooMany = limited(req, "account-export", 5, 60 * 60 * 1000);
+  const tooMany = await limitedShared(req, "account-export", 5, 60 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const user = await who(req);
@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 
 // DELETE: removes the account and everything in it, for good. Needs a recent sign-in and the word DELETE as confirmation.
 export async function DELETE(req: Request) {
-  const tooMany = limited(req, "account-delete", 20, 60 * 60 * 1000);
+  const tooMany = await limitedShared(req, "account-delete", 20, 60 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const user = await who(req);

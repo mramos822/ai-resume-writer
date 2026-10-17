@@ -1,3 +1,4 @@
+import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import OpenAI from 'openai';
 
 import { AI_API_KEY, AI_BASE_URL } from './aiConfig';
@@ -13,7 +14,7 @@ const mistral = new OpenAI({
   maxRetries: 1,
 });
 
-export async function getMistralChatCompletion(params: any) {
+export async function getMistralChatCompletion(params: ChatCompletionCreateParamsNonStreaming) {
   const response = await mistral.chat.completions.create(params);
   let content = response.choices[0].message.content ?? '';
   // Remove markdown code fences if present

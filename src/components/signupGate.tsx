@@ -194,6 +194,13 @@ export default function SignupGate({ open, onClose, template, startMode = "regis
     setError("");
     try {
       const cred = await signInWithPopup(auth, new GoogleAuthProvider());
+      // logging in must not create an account: the age and terms confirmation only exists when registering
+      if (mode !== "register" && getAdditionalUserInfo(cred)?.isNewUser) {
+        await cred.user.delete().catch(() => {});
+        await auth.signOut().catch(() => {});
+        setError(tr("There is no Kaizo account for that Google account yet. Choose Create account first, so you can confirm that you are 16 or older and accept the terms."));
+        return;
+      }
       await finish(cred.user, getAdditionalUserInfo(cred)?.isNewUser === true);
     } catch (err) {
       const code = (err as { code?: string })?.code;

@@ -1,7 +1,8 @@
 // src/app/api/profiles/[id]/parse/route.ts
 
+import { fromShouting } from "@/lib/nameCase";
 import { groupsFromCategories } from "@/lib/skillCategories";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import fs from "fs";
 import { NextResponse } from "next/server";
 import admin from "firebase-admin";
@@ -66,7 +67,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const tooMany = limited(request, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(request, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   const { id: profileId } = await params;
 
@@ -105,9 +106,14 @@ export async function POST(
   }
 
   // 4) Lookup filename
+  // only the owner's own upload, into the owner's own profile (never another person's file or profile)
+  const ownProfile = await db.collection("profiles").findOne({ _id: new ObjectId(profileId), userId: decoded.uid }, { projection: { _id: 1 } });
+  if (!ownProfile) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
   const fileMeta = await db
     .collection("uploads.files")
-    .findOne<{ filename: string }>({ _id: new ObjectId(fileId) });
+    .findOne<{ filename: string }>({ _id: new ObjectId(fileId), "metadata.userId": decoded.uid });
   if (!fileMeta?.filename) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
@@ -211,7 +217,6 @@ Output only the JSON, no explanation.
         ],
       });
       const raw = completion.choices[0].message.content ?? "";
-      console.log("AI finish_reason:", completion.choices[0].finish_reason, "raw length:", raw.length);
       const json = extractJsonObject(raw);
       if (!json) continue;
       try {
@@ -267,10 +272,14 @@ Output only the JSON, no explanation.
   // 8) Save to Mongo (keep the photo, which the resume text can't contain)
   const previous = await db
     .collection("profiles")
-    .findOne<{ name?: string; data?: { photo?: string; name?: string } }>({ _id: new ObjectId(profileId), userId: decoded.uid });
+    .findOne<{ name?: string; data?: { photo?: string; name?: string; accentColor?: string; fillPage?: boolean; pageGoal?: string; sectionOrder?: string[] } }>({ _id: new ObjectId(profileId), userId: decoded.uid });
   // the photo the person already has stays; otherwise the one of the resume is used
   const keepPhoto = previous?.data?.photo || pdfPhoto;
   if (keepPhoto) parsed = { ...parsed, photo: keepPhoto };
+  // what the person chose about how the resume LOOKS is not in the text of a resume: reading a file must not wipe it
+  const keepLook: Record<string, unknown> = {};
+  for (const k of ["accentColor", "fillPage", "pageGoal", "sectionOrder"] as const) if (previous?.data?.[k] !== undefined) keepLook[k] = previous.data[k];
+  parsed = { ...parsed, ...keepLook };
   // the language of the resume is only for the answer (to offer a translation): it is not part of the saved profile
   const resumeLanguage = typeof parsed.resumeLanguage === "string" ? parsed.resumeLanguage.trim().toLowerCase().slice(0, 2) : "";
   delete parsed.resumeLanguage;
@@ -278,6 +287,9 @@ Output only the JSON, no explanation.
   // The profile takes the name of the resume it was read from. Only a name the person chose by hand is kept: that is a name that is
   // neither generated ("Profile 2", the sample "John Doe") nor the name of the resume read before (otherwise reading a second
   // resume would keep showing the first one's name).
+  // a look that prints the name in capitals must not leave the profile shouting
+  if (typeof parsed.name === "string") parsed.name = fromShouting(parsed.name);
+  if (typeof parsed.jobTitle === "string") parsed.jobTitle = fromShouting(parsed.jobTitle);
   const cvName = typeof parsed.name === "string" ? parsed.name.trim() : "";
   if (cvName) {
     const current = (previous?.name ?? "").trim();

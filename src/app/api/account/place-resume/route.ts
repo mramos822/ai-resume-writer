@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { authUid, ownedProfile, errorResponse, HttpError } from "@/lib/apiAuth";
 import { db } from "@/lib/mongodb";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 
 /**
  * After a guest creates an account their resume sits in a profile of its own. This lets them choose another profile of the
@@ -10,7 +10,7 @@ import { limited } from "@/lib/rateLimit";
  * was made for the resume is removed (it is a copy of what now lives in the chosen one).
  */
 export async function POST(req: Request) {
-  const tooMany = limited(req, "account", 20, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "account", 20, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);

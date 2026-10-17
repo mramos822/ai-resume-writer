@@ -71,7 +71,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         localStorage.setItem("theme", "system");
                     }
                 } catch (err) {
-                    console.error("Error loading theme from Firestore:", err);
+                    // the theme also lives in this browser: when the account document cannot be read (rules, offline) the saved one is used
+                    const code = (err as { code?: string })?.code;
+                    if (code !== "permission-denied" && code !== "unavailable") console.error("Error loading theme from Firestore:", err);
+                    const saved = localStorage.getItem("theme") as ThemeType | null;
+                    if (saved) setThemeState(saved);
                 }
             } else {
                 // Not signed in, fall back to localStorage or system

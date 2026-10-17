@@ -5,6 +5,6 @@ import { AI_MODEL } from './aiConfig';
 // Model is configured via AI_MODEL (see aiConfig.ts)
 export const MODEL = AI_MODEL;
 
-export async function getChatCompletion(params: any) {
+export async function getChatCompletion(params: Parameters<typeof getOpenAIChatCompletion>[0]) {
   return getOpenAIChatCompletion({ ...params, model: MODEL });
 }

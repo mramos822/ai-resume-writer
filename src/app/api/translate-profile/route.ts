@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authUid, errorResponse } from "@/lib/apiAuth";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { getChatCompletion, MODEL } from "@/lib/openai";
 
 const MAX_TEXTS = 400;
@@ -8,7 +8,7 @@ const MAX_CHARS = 60000;
 
 /** Translates the texts of a resume (a list of strings) into English or neutral Latin American Spanish, same order and length. */
 export async function POST(req: Request) {
-  const tooMany = limited(req, "ai", 30, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 30, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     await authUid(req);

@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import { ObjectId } from "mongodb";
 import { authUid, errorResponse, HttpError, ownedProfile } from "@/lib/apiAuth";
 import { db } from "@/lib/mongodb";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { mergeLinkedIn, readLinkedIn } from "@/lib/linkedinImport";
 import type { ProfileData } from "@/context/profileContext";
 
@@ -14,7 +14,7 @@ const MAX_UPLOAD = 10 * 1024 * 1024;
 const MAX_CSV = 2 * 1024 * 1024;
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const tooMany = limited(req, "linkedin-import", 15, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "linkedin-import", 15, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);

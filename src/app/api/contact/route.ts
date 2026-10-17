@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/mongodb";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 
 const TOPICS = ["question", "privacy", "appeal", "problem", "feedback", "other"];
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 
 // Public: the contact form. Messages are stored for the team to read; nothing is shown back to anyone.
 export async function POST(req: NextRequest) {
-  const tooMany = limited(req, "contact", 5, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "contact", 5, 10 * 60 * 1000);
   if (tooMany) return tooMany;
 
   let body: Record<string, unknown>;

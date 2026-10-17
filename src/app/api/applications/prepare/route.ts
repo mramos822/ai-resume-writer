@@ -1,14 +1,15 @@
+import { fromShouting } from "@/lib/nameCase";
 import { namesEmployer, withoutEmployer } from "@/lib/employerMention";
 import { asResumeLang, jobLang, langRule } from "@/lib/resumeLang";
 import { asLevel, LEVEL_LABEL } from "@/lib/experienceLevel";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { asTemplateId } from "@/lib/templates";
 import { NextResponse } from "next/server";
 import { authUid, ownedProfile, errorResponse, HttpError } from "@/lib/apiAuth";
 import { bucket, db } from "@/lib/mongodb";
 import { getOpenAIChatCompletionWithFallback } from "@/lib/openaiClient";
 import { AI_MODEL_STRONG } from "@/lib/aiConfig";
-import { renderResumeDetailed } from "@/lib/pdfResume";
+import { renderResumeDetailed, maxPagesFor } from "@/lib/pdfResume";
 import { trimToFit } from "@/lib/pageTrim";
 import { cleanListing } from "@/lib/jobSearch";
 import { profileForReview } from "@/lib/resumeReview";
@@ -28,7 +29,7 @@ You receive the person's resume as JSON and the job posting. Reply with ONE JSON
   "careerObjective": "<3 to 5 sentences, 250 to 700 characters, no 'I', written for THIS job: who they are, strongest real experience and skills, what they bring>",
   "skills": ["<skills from the resume, reordered so the ones the job asks for come first; you may drop at most 3 clearly irrelevant ones>"],
   "bullets": { "<jobId>": ["<3 to 5 bullets>"] },
-  "coverLetter": "<a cover letter of 130 to 190 words: greeting, why this role and company, 2 concrete real strengths, a closing. Plain text, no placeholders>"
+  "coverLetter": "<a cover letter of 130 to 190 words: greeting, why this role and company, 2 concrete real strengths, a closing, and the person's name on its own last line after a sign-off (\"Sincerely,\" or the same in the language of the letter). Plain text, no placeholders>"
 }
 Rules:
 - Use ONLY facts in the resume. Never invent employers, dates, tools, degrees, numbers or skills the person does not have.
@@ -38,7 +39,7 @@ Rules:
 - "focus" (when present) lists what a recruiter review asked this resume to do for this job. Follow each item only as far as the facts allow.
 - When the data shows what a bullet achieved and by how much, write it as "achieved X, measured by Y, by doing Z" (the XYZ formula) without inventing the measure.
 - "level" (when present) is the level the person confirmed and wants stated: say it naturally in the career objective (for example "{level} full stack developer…"). When "level" is absent, do NOT use words like junior, senior, entry-level or mid-level to describe the person anywhere, unless the resume itself says so.
-- The cover letter must not claim anything that is not in the resume or in "confirmed".
+- The cover letter must not claim anything that is not in the resume or in "confirmed". Do not open it with a stock line ("I am excited to apply", "I am writing to express my interest"): start with the strongest real fit for this role. It always ends with the sign-off and the person's name.
 - Never name the company the person is applying to, nor the posting, in the career objective or in the bullets: the resume is written for a kind of role, not for one employer, so it works for any similar job. Only the cover letter names the company.
 - Plain language, no emojis, no markdown.`;
 
@@ -52,7 +53,7 @@ GLOBAL CRITERIA (they ALWAYS hold, together with the job's requirements; the job
 - Tense: the current job in the present, past jobs in the past, consistently.
 - Skills: they are a priority; keep at least 8 when the person has them, never drop an important or in-demand one, and drop only repeats.
 - Keep the 3 most recent jobs, newest first, with their dates. Never invent anything.
-- Everything must fit on ONE page: tight, specific bullets, no filler.`;
+{{PAGE_RULE}}`;
 
 const SKILL_ALL = "Skills are a priority: keep nearly all of them.";
 const SKILL_RELEVANT = "Choose ONLY the skills that help for THIS job: the ones the posting names or clearly needs, and closely related ones (a framework with its language, a tool of the same kind). Drop only the skills that clearly have nothing to do with this role: when in doubt, keep the skill, because every skill is potential for the candidate. Order them from most to least useful for the job. Keep at least 20 when the person has that many (all of them if they have fewer).";
@@ -60,7 +61,7 @@ const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice
 const sanitize = (x: string) => (x || "").replace(/[^a-z0-9\-_]+/gi, "_").replace(/^_+|_+$/g, "");
 
 export async function POST(req: Request) {
-  const tooMany = limited(req, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);
@@ -97,7 +98,12 @@ export async function POST(req: Request) {
     const posting = [`Title: ${job.title}`, `Company: ${job.company}`, job.location ? `Location: ${job.location}` : "", job.tags.length ? `Tags: ${job.tags.join(", ")}` : "", `Description: ${job.description || job.snippet}`]
       .filter(Boolean)
       .join("\n");
-    const system = SYSTEM.replace("{{SKILL_RULE}}", relevantOnly ? SKILL_RELEVANT : SKILL_ALL) + GLOBAL_CRITERIA + langRule(lang, "the career objective, the bullet points and the cover letter", true);
+    const pageRule = maxPagesFor(base, template) > 1
+      ? base.pageGoal === "any"
+        ? "- Aim for ONE page: tight, specific bullets, no filler. Only if the recent jobs hold a lot of strong, relevant material may it run to TWO pages."
+        : "- The person accepts up to TWO pages: keep every real achievement of the recent jobs, but still tight, specific bullets and no filler."
+      : "- Everything must fit on ONE page: tight, specific bullets, no filler.";
+    const system = SYSTEM.replace("{{PAGE_RULE}}", pageRule).replace("{{SKILL_RULE}}", relevantOnly ? SKILL_RELEVANT : SKILL_ALL) + GLOBAL_CRITERIA + langRule(lang, "the career objective, the bullet points and the cover letter", true);
     const userMessage = JSON.stringify({ resume: profileForReview(base), jobPosting: posting, ...(statedLevel ? { level: statedLevel } : {}), ...(confirmed.length ? { confirmed } : {}), ...(focus.length ? { focus } : {}) });
     const postingText = `${job.title}. ${job.tags.join(", ")}. ${job.description || job.snippet}`;
 
@@ -192,7 +198,7 @@ export async function POST(req: Request) {
     // this job is taken out of THIS resume (never from the saved profile) until it does
     const fitted = await trimToFit(tailored, job, template, lang, extraSkills);
     const { buffer } = await renderResumeDetailed(fitted.profile, template, { lang });
-    const filename = `${sanitize(base.name || "resume")}_${sanitize(job.company) || "company"}_${sanitize(job.title).slice(0, 40)}.pdf`;
+    const filename = `${sanitize(fromShouting(base.name || "resume"))}_${sanitize(job.company) || "company"}_${sanitize(job.title).slice(0, 40)}.pdf`;
     const upload = bucket.openUploadStream(filename, {
       metadata: {
         profileId: String(body.profileId),

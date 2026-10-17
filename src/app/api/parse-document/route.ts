@@ -1,6 +1,6 @@
 // src/app/api/parse-document/route.ts
 
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import fs from "fs";
 import { NextResponse } from "next/server";
 import { getOpenAIChatCompletion } from "@/lib/openaiClient";
@@ -72,7 +72,7 @@ function mergeProfiles(a: Partial<ProfileData>, b: Partial<ProfileData>): Partia
 
 // 7) The handler
 export async function POST(request: Request) {
-  const tooMany = limited(request, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(request, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     await authUid(request);

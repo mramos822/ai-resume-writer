@@ -9,7 +9,7 @@ if (!AI_API_KEY) {
   throw new Error("Missing AI_API_KEY");
 }
 
-const client = new OpenAI({ apiKey: AI_API_KEY, baseURL: AI_BASE_URL });
+const client = new OpenAI({ apiKey: AI_API_KEY, baseURL: AI_BASE_URL, timeout: 60_000 });
 const MODEL  = AI_MODEL;
 
 /** 

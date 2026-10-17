@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { fetchJobAdText, JOB_AD_LINK_ERROR } from "@/lib/jobAdText";
 import { isSafePublicUrl } from "@/lib/safeUrl";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { describe, readPosting, str } from "@/lib/jobDigest";
 import { cleanListing, type JobListing } from "@/lib/jobSearch";
 
@@ -12,7 +12,7 @@ import { cleanListing, type JobListing } from "@/lib/jobSearch";
 // The AI only reads out the facts (title, company, place...). The description is the posting's own text, not a rewrite.
 
 export async function POST(req: Request) {
-  const tooMany = limited(req, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     await authUid(req);

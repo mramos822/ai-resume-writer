@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authUid, ownedProfile, errorResponse, HttpError } from "@/lib/apiAuth";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { cleanListing } from "@/lib/jobSearch";
 import { asResumeLang } from "@/lib/resumeLang";
 import { AiAnswerError, cleanAnswers, cleanMemory, clip, EVALUATE_VERSION, evaluateDraft, fixesFor, groupsForNewSkills, OBJECTIVE_VERSION, objectiveWithLevelAi, pageNote, QUESTIONS_VERSION, questionsFor, SHOWN_VERSION, skillsAlreadyShown, withDraft } from "@/lib/applicationCoach";
@@ -19,7 +19,7 @@ import type { ProfileData } from "@/context/profileContext";
 //  - action "questions": what the person may have that the resume does not show (yes/no questions that raise the fit)
 //  - action "evaluate":  the draft judged for this job (requirements, ATS, XYZ bullets), counting what the person confirmed
 export async function POST(req: Request) {
-  const tooMany = limited(req, "ai", 60, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 60, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       const fit = await measure(data, asTemplateId((body as { template?: unknown }).template), lang);
       const extra = names(body.extraSkills);
       const targets = names(body.targets);
-      const proposed = await fixesFor(data, job, improvements, { skills: extra, facts: answers.map((a) => (a.note ? `${a.question} Yes. ${a.note}` : `${a.question} Yes.`)) }, lang, pageNote(fit), targets);
+      const proposed = await fixesFor(data, job, improvements, { skills: extra, facts: answers.map((a) => (a.note ? `${a.question} Yes. ${a.note}` : `${a.question} Yes.`)) }, lang, pageNote(fit, data, asTemplateId((body as { template?: unknown }).template)), targets);
       // a fix is kept only if it does not really lower the score of the resume for this job (one point of rounding is allowed, so a
       // better written bullet is not thrown away for it)
       const template = asTemplateId((body as { template?: unknown }).template);
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
         { v: EVALUATE_VERSION, job: sig, resume, confirmed, level, lang, template, memory: memory ?? null },
         async () => {
           const fit = await measure(data, template, lang);
-          return evaluateDraft(data, job, confirmed, level, lang, pageNote(fit), memory);
+          return evaluateDraft(data, job, confirmed, level, lang, pageNote(fit, data, template), memory);
         },
         (ev) => ev.headline.length > 0, // an empty answer is a failed call: it is never kept
         body.refresh === true // "Check again": a new reading on purpose

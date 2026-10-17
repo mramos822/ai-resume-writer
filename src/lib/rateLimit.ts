@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-// A small in-memory limiter: N requests per window per client. It is enough to stop a script from hammering one endpoint on a
-// single server; with several servers each keeps its own count (move it to a shared store such as Redis if that happens).
+// `limited` is a small in-memory limiter: N requests per window per client, per server. `limitedShared` adds a count kept in the database,
+// so the limit also holds when the site runs on several servers (or serverless instances) that do not share memory.
 const hits = new Map<string, { n: number; reset: number }>();
 
 export function clientKey(req: Request): string {
@@ -23,4 +23,34 @@ export function limited(req: Request, bucket: string, max: number, windowMs: num
   if (cur.n <= max) return null;
   const wait = Math.max(1, Math.ceil((cur.reset - now) / 1000));
   return NextResponse.json({ error: "Too many requests. Please try again in a moment." }, { status: 429, headers: { "Retry-After": String(wait) } });
+}
+
+let indexed = false;
+
+/** Like `limited`, but the count is shared by all servers. If the database is not available it falls back to the in-memory count only. */
+export async function limitedShared(req: Request, bucket: string, max: number, windowMs: number): Promise<NextResponse | null> {
+  const local = limited(req, bucket, max, windowMs);
+  if (local) return local;
+  try {
+    const { db } = await import("@/lib/mongodb");
+    const col = db.collection<{ _id: string; n: number; expireAt: Date }>("rateLimits");
+    if (!indexed) {
+      indexed = true;
+      col.createIndex({ expireAt: 1 }, { expireAfterSeconds: 0 }).catch(() => {});
+    }
+    const now = Date.now();
+    const slot = Math.floor(now / windowMs);
+    const doc = await col.findOneAndUpdate(
+      { _id: `${bucket}:${clientKey(req)}:${slot}` },
+      { $inc: { n: 1 }, $setOnInsert: { expireAt: new Date((slot + 2) * windowMs) } },
+      { upsert: true, returnDocument: "after" }
+    );
+    if (doc && doc.n > max) {
+      const wait = Math.max(1, Math.ceil(((slot + 1) * windowMs - now) / 1000));
+      return NextResponse.json({ error: "Too many requests. Please try again in a moment." }, { status: 429, headers: { "Retry-After": String(wait) } });
+    }
+  } catch {
+    /* the in-memory limit above still applies */
+  }
+  return null;
 }

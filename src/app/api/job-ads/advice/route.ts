@@ -1,11 +1,11 @@
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { NextResponse } from 'next/server';
 import { getOpenAIChatCompletion } from '@/lib/openaiClient';
 import { AI_MODEL } from '@/lib/aiConfig';
 import { authUid, errorResponse, HttpError } from '@/lib/apiAuth';
 
 export async function POST(request: Request) {
-  const tooMany = limited(request, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(request, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     await authUid(request);

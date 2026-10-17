@@ -1,5 +1,5 @@
 import { asResumeLang, langRule } from "@/lib/resumeLang";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { authUid, ownedProfile, ownedJobAd, errorResponse } from "@/lib/apiAuth";
@@ -14,7 +14,7 @@ import { targetRoleOf } from "@/lib/roleProfile";
 import type { ProfileData } from "@/context/profileContext";
 
 export async function POST(req: Request) {
-  const tooMany = limited(req, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);

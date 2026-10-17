@@ -17,6 +17,7 @@ import {
     sendEmailVerification,
     GoogleAuthProvider,
     signInWithPopup,
+    getAdditionalUserInfo,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getFriendlyFirebaseErrorMessage } from "@/utils/firebaseErrorHandler";
@@ -57,7 +58,14 @@ export function LoginForm({
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
 
-            console.log("Google sign-in successful:", user);
+            // a brand-new Google account would be created here without the age and terms confirmation: undo it
+            if (getAdditionalUserInfo(result)?.isNewUser) {
+                await user.delete().catch(() => {});
+                await auth.signOut().catch(() => {});
+                toast.error(tr("There is no Kaizo account for that Google account yet. Choose Create account first, so you can confirm that you are 16 or older and accept the terms."));
+                return;
+            }
+
             onLogin();
             router.push("/home");
         } catch (err: unknown) {

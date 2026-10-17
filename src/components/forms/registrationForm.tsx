@@ -45,9 +45,7 @@ export function RegistrationForm({ onRegister }: { onRegister: () => void }) {
         try {
             const provider = new GoogleAuthProvider(); // Initialize GoogleAuthProvider
             const result = await signInWithPopup(auth, provider); // Sign in with Google popup
-            const user = result.user;
 
-            console.log("Google sign-in successful:", user);
             onRegister(); // Notify the parent component
         } catch (err: unknown) {
             toast.error(tr("Failed to sign in with Google. Please try again."));

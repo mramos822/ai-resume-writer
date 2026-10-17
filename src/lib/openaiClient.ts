@@ -10,6 +10,7 @@ if (!AI_API_KEY) {
 const openai = new OpenAI({
   baseURL: AI_BASE_URL,
   apiKey: AI_API_KEY,
+  timeout: 60_000, // never wait on the provider for more than a minute unless a call sets its own
 });
 
 export { openai };

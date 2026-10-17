@@ -19,6 +19,13 @@ const jobWords = (j: JobEntry) => new Set([...words(j.title), ...words(j.company
 function sameJob(a: JobEntry, b: JobEntry): boolean {
   if (norm(a.title) === norm(b.title) && norm(a.company) === norm(b.company) && (a.startDate ?? "") === (b.startDate ?? "")) return true;
   if (!a.startDate || a.startDate !== b.startDate) return false;
+  // two different employers are two jobs, even when the title and the start month are the same (a nurse in two hospitals)
+  const ca = norm(a.company);
+  const cb = norm(b.company);
+  if (ca && cb && ca !== cb && !ca.includes(cb) && !cb.includes(ca)) {
+    const wc = new Set(words(a.company).filter((w) => w.length >= 4 && !GENERIC_JOB_WORDS.has(w)));
+    if (!words(b.company).some((w) => wc.has(w))) return false;
+  }
   const wa = jobWords(a);
   for (const w of jobWords(b)) if (wa.has(w)) return true;
   return false;

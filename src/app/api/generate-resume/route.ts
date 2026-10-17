@@ -1,5 +1,6 @@
+import { fromShouting } from "@/lib/nameCase";
 import { asResumeLang } from '@/lib/resumeLang';
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { bumpResumeCount, bumpTemplateCount } from '@/lib/resumeCounter';
 import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
@@ -11,7 +12,7 @@ import { renderResumeDetailed } from '@/lib/pdfResume';
 import { authUid, ownedProfile, ownedJobAd, errorResponse } from '@/lib/apiAuth';
 
 export async function POST(req: NextRequest) {
-  const tooMany = limited(req, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
     // Sanitize names for filename
     const sanitize = (str: string) =>
       (str || '').replace(/[^a-z0-9\-_]+/gi, '_').replace(/^_+|_+$/g, '');
-    const filename = `${sanitize(profileData.name || 'profile')}_${sanitize(jobAdTitle) || 'resume'}.pdf`;
+    const filename = `${sanitize(fromShouting(profileData.name || 'profile'))}_${sanitize(jobAdTitle) || 'resume'}.pdf`;
 
     // Save the PDF to GridFS
     const uploadStream = bucket.openUploadStream(filename, {

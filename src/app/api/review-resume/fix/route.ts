@@ -1,4 +1,4 @@
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { detectResumeLanguage } from "@/lib/resumeTranslate";
 import { asResumeLang } from "@/lib/resumeLang";
 import { NextResponse } from "next/server";
@@ -36,7 +36,7 @@ function languageRule(data: ProfileData, siteLang?: string): string {
 }
 
 export async function POST(req: Request) {
-  const tooMany = limited(req, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);

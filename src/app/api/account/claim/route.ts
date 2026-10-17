@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { verifyAuthToken } from "@/lib/firebase-admin";
 import { claimGuest } from "@/lib/claimGuest";
 import { errorResponse, HttpError } from "@/lib/apiAuth";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 
 // POST: a guest just made an account (or logged in): their resume moves to it. Authorization is the NEW account's token and the
 // body carries the guest's token.
 export async function POST(req: Request) {
-  const tooMany = limited(req, "claim", 20, 60 * 60 * 1000);
+  const tooMany = await limitedShared(req, "claim", 20, 60 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     let user;

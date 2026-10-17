@@ -4,7 +4,7 @@ import { fetchJobAdText } from "@/lib/jobAdText";
 import { describe, readPosting } from "@/lib/jobDigest";
 import { cleanListing } from "@/lib/jobSearch";
 import { isSafePublicUrl } from "@/lib/safeUrl";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 
 // The whole job, for the page of a job: the posting itself is read (job boards only share its first lines) and turned into a short
 // summary plus the sections of the job. If the page can't be read, the text the board gave is organized instead.
@@ -13,7 +13,7 @@ const cache = new Map<string, { at: number; text: string }>();
 const TTL = 6 * 60 * 60 * 1000;
 
 export async function POST(req: Request) {
-  const tooMany = limited(req, "job-detail", 60, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "job-detail", 60, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     await authUid(req);

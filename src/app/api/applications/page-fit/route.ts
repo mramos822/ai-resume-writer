@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authUid, ownedProfile, errorResponse, HttpError } from "@/lib/apiAuth";
-import { limited } from "@/lib/rateLimit";
+import { limitedShared } from "@/lib/rateLimit";
 import { cleanListing } from "@/lib/jobSearch";
 import { asResumeLang } from "@/lib/resumeLang";
 import { asTemplateId } from "@/lib/templates";
@@ -13,7 +13,7 @@ import type { ProfileData } from "@/context/profileContext";
 // How the resume of a job (the profile plus the person's edits for it) sits on the page, with the look chosen. When it is crowded, what
 // could be taken out FOR THIS JOB. Nothing is saved and the saved profile is never touched: the person decides what to apply.
 export async function POST(req: Request) {
-  const tooMany = limited(req, "page-fit", 150, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "page-fit", 150, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     // looks that suit this job, each measured with this resume (asked for by the person, since it renders several)
     if (body.mode === "looks") return NextResponse.json(await adviseLooks(data, job, asTemplateId(body.template), asResumeLang(body.lang)));
 
-    const note = pageNote(await measure(data, asTemplateId(body.template), asResumeLang(body.lang)));
+    const note = pageNote(await measure(data, asTemplateId(body.template), asResumeLang(body.lang)), data, asTemplateId(body.template));
     if (!note) return NextResponse.json({ pages: null, scale: null, crowded: false, cut: { skills: [], jobs: [], review: [] } });
     // what could go: when it is crowded; and, when it is only tight, just the skills worth reviewing (the rest is not needed yet)
     const wide = note.crowded ? cutSuggestions(data, job, keep) : isTightPage(note) ? { ...cutSuggestions(data, job, keep), skills: [], jobs: [] } : { skills: [], jobs: [], review: [] };
