@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
-import { BOARDS } from "@/lib/ingest/boards";
 import { ingestNow } from "@/lib/ingest/schedule";
 import { runMigrations } from "@/lib/migrations";
 
 // For a scheduler (a cron on the host, for example every hour): reads every company board and brings the jobs index up to date.
 // It needs `Authorization: Bearer <CRON_SECRET>`. Vercel's cron calls it with GET and sends that header by itself (see vercel.json);
-// POST also takes an optional body { "only": "greenhouse" | "lever" } to read one system only.
+// "?only=smartrecruiters" (or the same in the POST body) reads the slow set instead: SmartRecruiters needs one request per new posting.
 export const maxDuration = 60; // a full reading takes about twenty seconds
 
 export async function GET(req: Request) {
-  return run(req, undefined);
+  return run(req, new URL(req.url).searchParams.get("only") ?? undefined);
 }
 
 export async function POST(req: Request) {
@@ -24,9 +23,10 @@ async function run(req: Request, only: string | undefined) {
   const ok = secret.length >= 16 && given.length === secret.length && timingSafeEqual(Buffer.from(given), Buffer.from(secret));
   if (!ok) return NextResponse.json({ error: "Not allowed." }, { status: 401 });
   try {
-    const boards = BOARDS.filter((b) => !only || b.source === only);
+    // by default the boards that take seconds; the ones that need a request per posting (SmartRecruiters) are read apart: ?only=smartrecruiters
+    const slow = only === "smartrecruiters";
     await runMigrations(); // the indexes of the jobs index exist before anything is written
-    const res = await ingestNow({ by: "scheduler", onlyIfDue: false, boards });
+    const res = await ingestNow({ by: "scheduler", onlyIfDue: false, set: slow ? "slow" : "fast" });
     return NextResponse.json(res.started ? { ...res.run } : { skipped: res.reason }, { status: res.started || res.reason === "running" ? 200 : 500 });
   } catch (e) {
     console.error("Ingestion failed", e instanceof Error ? e.message : e);

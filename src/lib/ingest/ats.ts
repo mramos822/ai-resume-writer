@@ -134,8 +134,90 @@ export function fromAshby(b: Board, j: AshbyJob): IndexedJob | null {
   };
 }
 
+interface SrListItem {
+  id?: string;
+  name?: string;
+  releasedDate?: string;
+  ref?: string;
+  location?: { fullLocation?: string; city?: string; country?: string; remote?: boolean };
+  department?: { label?: string };
+  typeOfEmployment?: { label?: string };
+  experienceLevel?: { label?: string };
+}
+interface SrDetail {
+  postingUrl?: string;
+  company?: { name?: string };
+  jobAd?: { sections?: Record<string, { title?: string; text?: string }> };
+}
+
+export function fromSmartRecruiters(b: Board, item: SrListItem, d: SrDetail): IndexedJob | null {
+  if (!item.id || !item.name || !d.postingUrl || !/^https?:\/\//.test(d.postingUrl)) return null;
+  const sec = d.jobAd?.sections ?? {};
+  // what the job is and what it asks for; the paragraph about the company is marketing and is left out
+  const full = ["jobDescription", "qualifications", "additionalInformation"]
+    .map((k) => (sec[k]?.text ? `## ${nice(sec[k].title ?? "")}\n${htmlToText(sec[k].text as string, true)}` : ""))
+    .filter(Boolean)
+    .join("\n\n");
+  if (full.length < 80) return null;
+  const location = nice(item.location?.fullLocation ?? item.location?.city ?? "");
+  return {
+    key: `smartrecruiters:${b.token}:${item.id}`,
+    source: "smartrecruiters",
+    title: clip(nice(item.name), 200),
+    company: clip(nice(d.company?.name ?? company(b)), 200),
+    location: clip(location, 200),
+    remote: item.location?.remote === true || REMOTE.test(item.name),
+    url: clip(d.postingUrl, 1000),
+    postedAt: iso(item.releasedDate),
+    tags: [nice(item.department?.label ?? ""), nice(item.typeOfEmployment?.label ?? "")].filter(Boolean),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    board: `smartrecruiters:${b.token}`,
+  };
+}
+
+/** How many postings of a company are followed (the newest ones), and how many NEW ones are read in full per run. */
+export const SR_WINDOW = 300;
+export const SR_NEW_PER_RUN = 120;
+
+/**
+ * The newest postings of a company. A posting already in the index (`known`) is not read again: it only counts as still open. Of the new
+ * ones, at most SR_NEW_PER_RUN are read in full (the rest wait for the next run).
+ */
+export async function fetchSmartRecruiters(b: Board, known: Set<string>): Promise<{ jobs: IndexedJob[]; seen: string[] }> {
+  const items: SrListItem[] = [];
+  for (let offset = 0; offset < SR_WINDOW; offset += 100) {
+    const res = await fetch(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(b.token)}/postings?limit=100&offset=${offset}`, { signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`smartrecruiters ${b.token}: ${res.status}`);
+    const page = (await res.json()) as { content?: SrListItem[]; totalFound?: number };
+    items.push(...(page.content ?? []));
+    if ((page.content ?? []).length < 100 || items.length >= (page.totalFound ?? 0)) break;
+  }
+  const window = items.slice(0, SR_WINDOW).filter((i) => i.id && i.ref);
+  const keyOf = (i: SrListItem) => `smartrecruiters:${b.token}:${i.id}`;
+  const seen = window.filter((i) => known.has(keyOf(i))).map(keyOf);
+  const fresh = window.filter((i) => !known.has(keyOf(i))).slice(0, SR_NEW_PER_RUN);
+  const jobs: IndexedJob[] = [];
+  const queue = [...fresh];
+  const worker = async () => {
+    for (let i = queue.shift(); i; i = queue.shift()) {
+      try {
+        const res = await fetch(i.ref as string, { signal: AbortSignal.timeout(20_000) });
+        if (!res.ok) continue;
+        const job = fromSmartRecruiters(b, i, (await res.json()) as SrDetail);
+        if (job) jobs.push(job);
+      } catch {
+        /* this posting is read in the next run */
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  return { jobs, seen };
+}
+
 /** Every opening of one board. Throws when the board does not exist or the site is down: the ingestion reports it and moves on. */
 export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
+  if (b.source === "smartrecruiters") throw new Error("smartrecruiters is read with fetchSmartRecruiters (it needs to know what the index already has)");
   if (b.source === "greenhouse") {
     const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(b.token)}/jobs?content=true`, { signal: AbortSignal.timeout(30_000) });
     if (!res.ok) throw new Error(`greenhouse ${b.token}: ${res.status}`);

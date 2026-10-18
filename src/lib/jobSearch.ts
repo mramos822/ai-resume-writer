@@ -13,7 +13,7 @@ import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 export interface JobListing {
   /** stable id: "source:id" */
   key: string;
-  source: "remotive" | "arbeitnow" | "adzuna" | "greenhouse" | "lever" | "ashby" | "link";
+  source: "remotive" | "arbeitnow" | "adzuna" | "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "link";
   title: string;
   company: string;
   location: string;
@@ -365,7 +365,7 @@ export function cleanListing(j: Partial<JobListing> | null | undefined): JobList
   if (!/^https?:\/\//.test(j.url) && !(j.source === "link" && j.url === "")) return null;
   return {
     key: j.key.slice(0, 120),
-    source: (["remotive", "arbeitnow", "adzuna", "greenhouse", "lever", "ashby", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
+    source: (["remotive", "arbeitnow", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
     title: j.title.slice(0, 200),
     company: String(j.company ?? "").slice(0, 200),
     location: String(j.location ?? "").slice(0, 200),

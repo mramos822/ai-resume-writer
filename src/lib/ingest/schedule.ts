@@ -3,7 +3,7 @@
 //  - the job search itself, when the last reading is older than EVERY_MS (so it keeps up to date even if the scheduler is not set up yet).
 // Every run is written to `ingest_runs`: what was read, what was closed, what failed.
 import { db } from "@/lib/mongodb";
-import { BOARDS, type Board } from "@/lib/ingest/boards";
+import { FAST_BOARDS, SLOW_BOARDS, type Board } from "@/lib/ingest/boards";
 import { runIngestion } from "@/lib/ingest/run";
 
 /** how old the last reading may be before a search starts a new one */
@@ -15,6 +15,8 @@ export interface RunDoc {
   startedAt: Date;
   finishedAt?: Date;
   by: "scheduler" | "search";
+  /** "fast" (one request per board) or "slow" (SmartRecruiters: one request per new posting) */
+  set?: "fast" | "slow";
   boards: number;
   jobs?: number;
   closed?: number;
@@ -29,17 +31,21 @@ export type Started = { started: true; run: Omit<RunDoc, "startedAt" | "finished
  * Reads the boards now, unless another run is going (started less than STUCK_MS ago and not finished) or, when `onlyIfDue`, the last
  * finished reading is newer than EVERY_MS. Never throws.
  */
-export async function ingestNow({ by, onlyIfDue, boards = BOARDS, now = new Date() }: { by: RunDoc["by"]; onlyIfDue: boolean; boards?: Board[]; now?: Date }): Promise<Started> {
+export async function ingestNow({ by, onlyIfDue, set = "fast", boards, now = new Date() }: { by: RunDoc["by"]; onlyIfDue: boolean; set?: "fast" | "slow"; boards?: Board[]; now?: Date }): Promise<Started> {
+  boards = boards ?? (set === "slow" ? SLOW_BOARDS : FAST_BOARDS);
+  // the runs of the other set are not this one's business (a run from before sets existed has no set: it was a fast one)
+  const mine = (set === "slow" ? { set: "slow" } : { set: { $ne: "slow" } }) as Record<string, unknown>;
+  const filter = (extra: Record<string, unknown> = {}) => ({ ...mine, ...extra }) as never;
   try {
-    const [last] = await runs().find({}).sort({ startedAt: -1 }).limit(1).toArray();
+    const [last] = await runs().find(filter()).sort({ startedAt: -1 }).limit(1).toArray();
     if (last && !last.finishedAt && +now - +new Date(last.startedAt) < STUCK_MS) return { started: false, reason: "running" };
-    const done = last?.finishedAt ? last : (await runs().find({ finishedAt: { $exists: true } }).sort({ startedAt: -1 }).limit(1).toArray())[0];
+    const done = last?.finishedAt ? last : (await runs().find(filter({ finishedAt: { $exists: true } })).sort({ startedAt: -1 }).limit(1).toArray())[0];
     if (onlyIfDue && done?.finishedAt && +now - +new Date(done.finishedAt) < EVERY_MS) return { started: false, reason: "fresh" };
 
     const startedAt = now;
-    await runs().insertOne({ startedAt, by, boards: boards.length } as RunDoc);
+    await runs().insertOne({ startedAt, by, set, boards: boards.length } as RunDoc);
     // two callers can pass the check above at the same moment: the one that started first goes on, the other steps back
-    const earlier = await runs().findOne({ finishedAt: { $exists: false }, startedAt: { $lt: startedAt, $gt: new Date(+startedAt - STUCK_MS) } });
+    const earlier = await runs().findOne(filter({ finishedAt: { $exists: false }, startedAt: { $lt: startedAt, $gt: new Date(+startedAt - STUCK_MS) } }));
     if (earlier) {
       await runs().deleteOne({ startedAt, by });
       return { started: false, reason: "running" };
