@@ -40,13 +40,15 @@ export async function GET(req: Request) {
       remoteOnly: sp.get("remote") === "1",
       country,
       origin: place?.at,
+      // English always; Spanish too for someone who uses Kaizo in Spanish (jobs of Latin America)
+      langs: sp.get("lang") === "es" ? ["en", "es"] : ["en"],
     };
     // wide = also search similar titles and the person's main skills, so the pool is bigger and closer to their profile
     const skills = (sp.get("skills") ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 3);
     after(() => ingestNow({ by: "search", onlyIfDue: true })); // the index follows the companies even without a scheduler
     const wide = sp.get("wide") === "1";
     // a search someone made a moment ago comes back at once, and does not use up the daily limit of the job boards
-    const qkey = searchKey([wide, query.q, query.location, query.remoteOnly, query.country, skills.join(",")]);
+    const qkey = searchKey([wide, query.q, query.location, query.remoteOnly, query.country, skills.join(","), query.langs.join("+")]);
     const again = await cachedSearch(qkey);
     if (again) return NextResponse.json({ ...again, place: place?.label ?? null });
     const result = wide ? await searchJobsWide(query, skills, OWN) : await searchJobs(query, OWN);

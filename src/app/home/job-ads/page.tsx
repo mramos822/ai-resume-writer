@@ -118,7 +118,7 @@ function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, onDelete, statu
 }
 
 export default function JobSearchPage() {
-  const { tr, trd } = useT();
+  const { tr, trd, locale } = useT();
   const { activeProfile: profile, activeProfileId } = useProfile();
   const toast = useToast();
   const dialog = useDialog();
@@ -195,6 +195,7 @@ export default function JobSearchPage() {
         if (remote) params.set("remote", "1");
         // a wider search: similar titles and the main skills of the profile, so there are more jobs that fit
         params.set("wide", "1");
+        params.set("lang", locale);
         if (profile.skills?.length) params.set("skills", profile.skills.slice(0, 3).join(","));
         const res = await authFetch(`/api/jobs/search?${params}`);
         const data = await res.json().catch(() => ({}));
@@ -212,7 +213,7 @@ export default function JobSearchPage() {
         setLoading(false);
       }
     },
-    [q, where, country, profile.skills]
+    [q, where, country, profile.skills, locale]
   );
 
   // the first search runs by itself once the profile gave a role to look for

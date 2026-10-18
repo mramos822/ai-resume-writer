@@ -3,11 +3,14 @@
 import { db } from "@/lib/mongodb";
 import { fetchBoard, fetchSmartRecruiters, type IndexedJob } from "@/lib/ingest/ats";
 import type { Board } from "@/lib/ingest/boards";
+import { detectLanguage, type PostingLang } from "@/lib/ingest/language";
 
 export const CLOSED_KEPT_MS = 14 * 24 * 60 * 60 * 1000;
 
 export interface IndexDoc extends IndexedJob {
   active: boolean;
+  /** the language the posting is written in (a job without it, from before, counts as English) */
+  lang?: PostingLang;
   firstSeenAt: Date;
   lastSeenAt: Date;
   closedAt?: Date;
@@ -48,7 +51,7 @@ export async function ingestBoard(b: Board, now = new Date()): Promise<BoardResu
           updateOne: {
             filter: { key: j.key },
             update: {
-              $set: { ...j, active: true, lastSeenAt: now },
+              $set: { ...j, lang: detectLanguage(`${j.title} ${j.description ?? ""}`), active: true, lastSeenAt: now },
               $setOnInsert: { firstSeenAt: now },
               $unset: { closedAt: "", expiresAt: "" },
             },

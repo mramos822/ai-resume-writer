@@ -10,7 +10,8 @@ export async function searchIndex(q: JobQuery, limit = 80): Promise<JobListing[]
     .toLowerCase()
     .split(/[^a-z0-9+#.]+/)
     .filter((w) => w.length > 1 && !STOP.has(w));
-  const filter: Record<string, unknown> = { active: true };
+  // a job from before the language was stored counts as English
+  const filter: Record<string, unknown> = { active: true, lang: { $in: [...(q.langs?.length ? q.langs : ["en"]), null] } };
   if (words.length) filter.$text = { $search: words.join(" ") };
   if (q.remoteOnly) filter.remote = true;
   else if (q.location.trim()) {

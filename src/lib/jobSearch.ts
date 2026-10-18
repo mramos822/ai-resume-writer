@@ -52,6 +52,8 @@ export interface JobQuery {
   country: string;
   /** where the place is, when it is known: jobs are then sorted by how far they are from it */
   origin?: Origin;
+  /** the languages the person reads (the index leaves out postings in any other); English when not said */
+  langs?: string[];
 }
 
 const strip = (html: string) =>
