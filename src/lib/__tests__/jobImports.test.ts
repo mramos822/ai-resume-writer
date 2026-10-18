@@ -3,7 +3,8 @@ import type { JobListing } from "@/lib/jobSearch";
 
 // a tiny in-memory stand-in for the collections
 const store: Record<string, Record<string, unknown>[]> = {};
-const match = (d: Record<string, unknown>, f: Record<string, unknown>) => Object.entries(f).every(([k, v]) => d[k] === v);
+const match = (d: Record<string, unknown>, f: Record<string, unknown>) =>
+  Object.entries(f).every(([k, v]) => (v && typeof v === "object" && "$in" in (v as object) ? ((v as { $in: unknown[] }).$in).includes(d[k]) : d[k] === v));
 const collection = (name: string) => {
   const rows = (store[name] ??= []);
   return {
@@ -19,7 +20,7 @@ jest.mock("@/lib/mongodb", () => ({ db: { collection: (n: string) => collection(
 jest.mock("@/lib/ingest/run", () => ({ index: () => collection("jobs_index") }));
 jest.mock("@/lib/migrations", () => ({ runMigrations: async () => undefined }));
 
-import { cachedImport, IMPORT_KEPT_MS, importKey, jobByKey, normalizeUrl, rememberImport } from "@/lib/jobImports";
+import { cachedImport, IMPORT_KEPT_MS, importKey, jobByKey, normalizeUrl, rememberImport, shareable, shareImport } from "@/lib/jobImports";
 
 const job = (over: Partial<JobListing> = {}): JobListing => ({ key: "x", source: "link", title: "Backend Developer", company: "Acme", location: "Lima", remote: false, url: "https://acme.example/jobs/1", postedAt: "", tags: [], snippet: "s", description: "d".repeat(100), ...over });
 
@@ -46,10 +47,11 @@ describe("the address of a posting", () => {
 describe("the postings added by link", () => {
   it("come back for the next person with the same link, as the same job", async () => {
     expect(await cachedImport("https://acme.example/jobs/1")).toBeNull();
-    await rememberImport("https://acme.example/jobs/1?utm_source=mail", job());
+    await rememberImport("https://acme.example/jobs/1?utm_source=mail", job(), "person-1");
     const again = await cachedImport("https://acme.example/jobs/1#apply");
-    expect(again?.title).toBe("Backend Developer");
-    expect(again?.key).toBe(importKey("https://acme.example/jobs/1"));
+    expect(again?.job.title).toBe("Backend Developer");
+    expect(again?.job.key).toBe(importKey("https://acme.example/jobs/1"));
+    expect(again?.by).toBe("person-1"); // who added it first: a second, different person is what shares it
   });
 
   it("are not served after their time", async () => {
@@ -68,5 +70,33 @@ describe("the postings added by link", () => {
     expect(found).not.toHaveProperty("board");
     expect(await jobByKey("adzuna:123")).toBeNull();
     expect(await jobByKey("link:doesnotexist")).toBeNull();
+  });
+});
+
+describe("sharing a posting that people added by link", () => {
+  const url = "https://acme.example/jobs/1";
+  const full = (over: Partial<JobListing> = {}) => job({ description: "Build services in Python and SQL. ".repeat(20), ...over });
+
+  it("is shared when it is a real posting from a public site, and not when it is too thin or from a site that is not ours to give on", () => {
+    expect(shareable(url, full())).toBe(true);
+    expect(shareable(url, full({ description: "short" }))).toBe(false);
+    expect(shareable(url, full({ company: "" }))).toBe(false);
+    expect(shareable("https://www.linkedin.com/jobs/view/123", full())).toBe(false);
+    expect(shareable("https://es.indeed.com/viewjob?jk=1", full())).toBe(false);
+    expect(shareable("not a link", full())).toBe(false);
+  });
+
+  it("goes into the index as one more job, with its own key, for a while, and carries no read of the AI", async () => {
+    expect(await shareImport(url, { ...full(), facts: { years: 5, level: "senior", required: [], preferred: [] } } as never)).toBe(true);
+    const doc = store.jobs_index.find((d) => d.key === importKey(url)) as Record<string, unknown>;
+    expect(doc).toMatchObject({ source: "link", board: "added:link", active: true, title: "Backend Developer", company: "Acme", url });
+    expect(doc.expiresAt).toBeInstanceOf(Date); // the index removes it by itself
+    expect(doc).not.toHaveProperty("facts");
+  });
+
+  it("is not put in twice, nor when the index already has that address", async () => {
+    store.jobs_index = [{ key: "greenhouse:acme:1", url, active: true, title: "Backend Developer" }];
+    expect(await shareImport(url, full())).toBe(false);
+    expect(store.jobs_index).toHaveLength(1);
   });
 });

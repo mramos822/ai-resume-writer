@@ -84,6 +84,8 @@ const MIGRATIONS: Migration[] = [
       await Promise.all([
         db.collection("job_imports").createIndex({ key: 1 }, { unique: true }),
         db.collection("job_imports").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+        // the postings added by link are looked up by address before they are shared, so the index does not hold the same posting twice
+        db.collection("jobs_index").createIndex({ url: 1 }),
       ]);
     },
   },

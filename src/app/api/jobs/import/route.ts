@@ -7,7 +7,8 @@ import { offerOfListLink } from "@/lib/ingest/computrabajo";
 import { limitedShared } from "@/lib/rateLimit";
 import { describe, factsOf, JOB_LIST_ERROR, looksLikeJobList, readPosting, str } from "@/lib/jobDigest";
 import { cleanListing, type JobListing } from "@/lib/jobSearch";
-import { cachedImport, importKey, rememberImport } from "@/lib/jobImports";
+import { cachedImport, importKey, rememberImport, shareImport } from "@/lib/jobImports";
+import { addComputrabajoOffer } from "@/lib/ingest/addOffer";
 
 // "Add a job": for a posting the job search did not find. The person pastes a link (any site) or the text of the posting and
 // it becomes a job like the others: it can be saved, compared with the profile and turned into an application.
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
   const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
-    await authUid(req);
+    const uid = await authUid(req);
     const body = (await req.json().catch(() => ({}))) as { url?: unknown; text?: unknown };
     let url = str(body.url, 1000);
     let text = str(body.text, 20000);
@@ -30,8 +31,16 @@ export async function POST(req: Request) {
       url = (await offerOfListLink(url)) ?? url;
       // the same link already read by somebody: it comes back at once (no download, no AI), and it is kept the same for everybody
       if (!text) {
+        // a Computrabajo offer goes into the search for everybody at once (read from its own data, no AI); it is the same job the scheduled reading brings
+        const offer = await addComputrabajoOffer(url);
+        const added = offer && cleanListing(offer as never);
+        if (added) return NextResponse.json({ job: added, shared: true });
         const known = await cachedImport(url);
-        if (known) return NextResponse.json({ job: known, cached: true });
+        if (known) {
+          // the second person to add the same link shares it with everybody: one person alone cannot
+          if (known.by && known.by !== uid) after(() => shareImport(url, known.job).then(() => undefined));
+          return NextResponse.json({ job: known.job, cached: true });
+        }
         text = (await fetchJobAdText(url, true)) ?? "";
         if (!text) throw new HttpError(422, JOB_AD_LINK_ERROR);
         fromPage = true;
@@ -66,7 +75,7 @@ export async function POST(req: Request) {
     const clean = cleanListing(job);
     if (!clean) throw new HttpError(422, "We couldn't read that posting.");
     // kept for the next person who adds the same link; what a person pastes by hand is never kept
-    if (fromPage && url) after(() => rememberImport(url, clean));
+    if (fromPage && url) after(() => rememberImport(url, clean, uid));
     return NextResponse.json({ job: clean });
   } catch (err) {
     return errorResponse(err, "We couldn't read that posting. Try pasting its text instead.");

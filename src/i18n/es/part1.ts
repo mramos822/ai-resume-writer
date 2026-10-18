@@ -97,6 +97,7 @@ export const PART1: Record<string, string> = {
   "Add your school": "Agrega tu institución",
   "Add your school, degree or course. Even a course you are still taking counts.": "Agrega tu institución, título o curso. Incluso un curso que aún estás tomando cuenta.",
   "Added by you from a posting you pasted.": "Agregado por ti desde una oferta que pegaste.",
+  "Added by a person from a link.": "Agregado por una persona desde un enlace.",
   "Added to your profile": "Agregado a tu perfil",
   "Additional details": "Detalles adicionales",
   "Additional email addresses": "Correos electrónicos adicionales",

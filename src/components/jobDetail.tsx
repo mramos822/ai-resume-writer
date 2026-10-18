@@ -362,7 +362,7 @@ export default function JobDetail({
                       ))}
                     </div>
                   )}
-                  <p className="mt-5 text-xs text-muted-foreground">{job.source === "link" ? tr("Added by you from a posting you pasted.") : tr("Information from {v0}. The full posting is on their site.", { v0: SOURCE[job.source] })}</p>
+                  <p className="mt-5 text-xs text-muted-foreground">{job.source === "link" ? tr("Added by a person from a link.") : tr("Information from {v0}. The full posting is on their site.", { v0: SOURCE[job.source] })}</p>
                 </section>
               </div>
 

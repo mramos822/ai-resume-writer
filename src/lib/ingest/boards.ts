@@ -3,7 +3,7 @@
 // To add a company, add its board name here (it is the last part of its jobs page: boards.greenhouse.io/<name>, jobs.lever.co/<name>).
 // A name that does not exist is skipped by the ingestion and reported in its summary (hubspot, doordash, etsy, unity... answered 404: they
 // use another system or another name, so they are not here; check a name at boards-api.greenhouse.io/v1/boards/<name>/jobs).
-import { CT_GROUPS, CT_SITES } from "@/lib/ingest/computrabajo";
+import { CT_GROUPS, CT_INGEST } from "@/lib/ingest/computrabajo";
 
 export type AtsSource = "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "computrabajo" | "remotive" | "arbeitnow";
 export interface Board {
@@ -71,5 +71,5 @@ export const FAST_BOARDS = BOARDS.filter((b) => b.source !== "smartrecruiters" &
 /** One request per new posting: read apart, with a limit of new postings per run, so it never fills a whole function call. */
 export const SLOW_BOARDS = BOARDS.filter((b) => b.source === "smartrecruiters");
 /** Computrabajo, read apart and slowly (see lib/ingest/computrabajo): one board is a country and a group of searches, and a run reads one board. */
-export const CT_BOARDS: Board[] = Object.keys(CT_SITES).flatMap((site) => Object.keys(CT_GROUPS).map((group) => ({ source: "computrabajo" as const, token: `${site}:${group}`, name: "Computrabajo" })));
+export const CT_BOARDS: Board[] = CT_INGEST.flatMap((site) => Object.keys(CT_GROUPS).map((group) => ({ source: "computrabajo" as const, token: `${site}:${group}`, name: "Computrabajo" })));
 

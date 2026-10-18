@@ -22,6 +22,7 @@ export const PART5: Record<string, string> = {
   "The look of your resume. Changing it never changes your words.": "El aspecto de tu currículum. Cambiarlo nunca cambia tus palabras.",
   "Rewording your resume to match the requirements in a specific job ad.": "Reformular tu currículum para que coincida con los requisitos de una oferta específica.",
   "a link you added": "un enlace que agregaste",
+  "a link a person added": "un enlace que agregó una persona",
   "Search real openings, see how well they fit you and save the ones you like. Your resumes are made in Resumes.": "Busca ofertas reales, mira qué tan bien te convienen y guarda las que te gusten. Tus currículums se crean en Currículums.",
   "Good morning": "Buenos días",
   "Good afternoon": "Buenas tardes",

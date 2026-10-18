@@ -12,11 +12,12 @@ import type { Board } from "@/lib/ingest/boards";
 import type { IndexedJob } from "@/lib/ingest/ats";
 import { payFromText, structuredPay } from "@/lib/ingest/pay";
 
-/** The portal of each country. */
-export const CT_SITES: Record<string, { host: string; country: string }> = {
-  pe: { host: "pe.computrabajo.com", country: "PE" },
-  cl: { host: "cl.computrabajo.com", country: "CL" },
-};
+/** The portal of each country: the ones that are read on a schedule (CT_INGEST), and the others, which only count when a person adds one of their postings. */
+export const CT_SITES: Record<string, { host: string; country: string }> = Object.fromEntries(
+  Object.entries({ pe: "PE", cl: "CL", co: "CO", mx: "MX", ar: "AR", ec: "EC", uy: "UY", ve: "VE", cr: "CR", bo: "BO", py: "PY", do: "DO", gt: "GT", hn: "HN", ni: "NI", pa: "PA", sv: "SV" }).map(([id, country]) => [id, { host: `${id}.computrabajo.com`, country }])
+);
+/** the countries read on a schedule (each one is 7 boards of searches) */
+export const CT_INGEST = ["pe", "cl"];
 /** The searches of each group: /trabajo-de-<what>. A board is a country and a group ("pe:tech"), so one run is one small piece and never a whole country. */
 export const CT_GROUPS: Record<string, string[]> = {
   tech: ["desarrollador", "programador", "analista-de-sistemas", "soporte-tecnico", "ingeniero-de-software", "analista-de-datos"],
@@ -55,7 +56,7 @@ async function turn(): Promise<void> {
 /** Thrown when the site turns the request away: the run stops (it is not insisted on). */
 export class BlockedError extends Error {}
 
-async function get(url: string): Promise<string | null> {
+export async function get(url: string): Promise<string | null> {
   await turn();
   const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "text/html", "Accept-Language": "es" }, signal: AbortSignal.timeout(20_000), redirect: "follow" });
   if (res.status === 403 || res.status === 429 || res.status === 503) throw new BlockedError(`computrabajo: ${res.status}`);

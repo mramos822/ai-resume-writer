@@ -89,7 +89,9 @@ export async function ingestBoard(b: Board, now = new Date()): Promise<BoardResu
       // a portal read through searches (Computrabajo) lists only the newest postings of each: one that is not on the list today may still be open, so it
       // is closed only when it has not been seen for ten days
       const unseenSince = b.source === "computrabajo" ? new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000) : now;
-      const res = await index().updateMany({ board, active: true, lastSeenAt: { $lt: unseenSince } }, { $set: { active: false, closedAt: now, expiresAt: new Date(now.getTime() + CLOSED_KEPT_MS) } });
+      // (the Computrabajo postings that people added by link belong to the same country: they are closed by the same rule)
+      const boards = b.source === "computrabajo" ? { $in: [board, `computrabajo:${b.token.split(":")[0]}:added`] } : board;
+      const res = await index().updateMany({ board: boards, active: true, lastSeenAt: { $lt: unseenSince } }, { $set: { active: false, closedAt: now, expiresAt: new Date(now.getTime() + CLOSED_KEPT_MS) } });
       closed = res.modifiedCount ?? 0;
     }
     return { board, jobs: jobs.length, closed };
