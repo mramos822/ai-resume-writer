@@ -50,6 +50,13 @@ function Fit({ pct, estimate }: { pct: number; estimate?: boolean }) {
   );
 }
 
+/** The jobs found later added to the ones on screen: a job that is already there (same link or same title and company) is not repeated. */
+function addJobs(prev: JobListing[], more: JobListing[]): JobListing[] {
+  const seen = new Set(prev.flatMap((j) => [j.key, `${j.title}|${j.company}`.toLowerCase()]));
+  const fresh = more.filter((j) => !seen.has(j.key) && !seen.has(`${j.title}|${j.company}`.toLowerCase()));
+  return fresh.length ? [...prev, ...fresh] : prev;
+}
+
 function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, onDelete, status }: { job: Saved; fit: { pct: number; matched: string[]; estimate?: boolean }; saved: boolean; onToggle: () => void; onPrepare: () => void; onOpen: () => void; onDelete?: () => void; status?: Application["status"] }) {
   const { tr } = useT();
   return (
@@ -165,6 +172,8 @@ export default function JobSearchPage() {
   const [jobs, setJobs] = useState<JobListing[]>([]);
   const [sources, setSources] = useState<string[]>([]);
   const [bigCity, setBigCity] = useState(""); // the nearest big city, when the results also have its jobs
+  const [loadingMore, setLoadingMore] = useState(false); // our own jobs are on screen and the other boards are still answering
+  const searchId = useRef(0); // only the answers of the last search are used
   const [searchedPlace, setSearchedPlace] = useState(""); // the place the results are about, as the search understood it
   const [searchedRemote, setSearchedRemote] = useState(false); // the search was for remote work
   const [loading, setLoading] = useState(false);
@@ -186,7 +195,9 @@ export default function JobSearchPage() {
   const search = useCallback(
     async (query = q, place = where) => {
       const remote = isRemotePlace(place);
+      const id = ++searchId.current;
       setLoading(true);
+      setLoadingMore(false);
       setError("");
       if (openSaved.current) openSaved.current = false;
       else setTab("results");
@@ -197,20 +208,43 @@ export default function JobSearchPage() {
         params.set("wide", "1");
         params.set("lang", locale);
         if (profile.skills?.length) params.set("skills", profile.skills.slice(0, 3).join(","));
-        const res = await authFetch(`/api/jobs/search?${params}`);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(trd(data.error) || tr("We couldn't search for jobs right now."));
-        setJobs(data.jobs ?? []);
-        setSources(data.sources ?? []);
-        setBigCity(typeof data.bigCity === "string" ? data.bigCity : "");
+        // two parts: our own jobs (instant) are shown at once, and what the other boards find is added when it arrives
+        const ask = async (phase: "own" | "live") => {
+          const res = await authFetch(`/api/jobs/search?${new URLSearchParams({ ...Object.fromEntries(params), phase })}`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(trd(data.error) || tr("We couldn't search for jobs right now."));
+          return data as { jobs?: JobListing[]; sources?: string[]; bigCity?: string; place?: string | null; more?: boolean };
+        };
+        const own = await ask("own");
+        if (id !== searchId.current) return;
+        setJobs(own.jobs ?? []);
+        setSources(own.sources ?? []);
+        setBigCity(typeof own.bigCity === "string" ? own.bigCity : "");
         setSearchedRemote(remote);
-        setSearchedPlace(remote ? tr("Remote") : typeof data.place === "string" && data.place ? data.place : place.trim());
+        setSearchedPlace(remote ? tr("Remote") : typeof own.place === "string" && own.place ? own.place : place.trim());
         setShown(PAGE);
         setSearched(true);
+        if (own.more) {
+          // an empty list is not shown as "nothing found" while the other boards are still looking
+          if ((own.jobs ?? []).length > 0) setLoading(false);
+          setLoadingMore(true);
+          try {
+            const more = await ask("live");
+            if (id === searchId.current) {
+              setJobs((prev) => addJobs(prev, more.jobs ?? []));
+              setSources((prev) => Array.from(new Set([...prev, ...(more.sources ?? [])])));
+              if (typeof more.bigCity === "string" && more.bigCity) setBigCity(more.bigCity);
+            }
+          } catch {
+            /* what is already on screen stays */
+          } finally {
+            if (id === searchId.current) setLoadingMore(false);
+          }
+        }
       } catch (err) {
-        setError((err as Error).message);
+        if (id === searchId.current) setError((err as Error).message);
       } finally {
-        setLoading(false);
+        if (id === searchId.current) setLoading(false);
       }
     },
     [q, where, country, profile.skills, locale]
@@ -333,6 +367,44 @@ export default function JobSearchPage() {
     return tab !== "results" ? withFit : withFit.sort((a, b) => group(a.job) - group(b.job) || (a.job.countryFit ?? 0) - (b.job.countryFit ?? 0) || b.fit.pct - a.fit.pct || +new Date(b.job.postedAt || 0) - +new Date(a.job.postedAt || 0));
   }, [list, skills, q, defaultRole, tab, myYears, showAbove, showSent, apps, profile, basics, template]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The jobs on screen (the first ten) are read in the background by the server, slowly, so their number becomes the exact one without
+  // opening them. What comes back is shown in place: the order of the list does not move while somebody looks at it.
+  const rankedRef = useRef(ranked);
+  rankedRef.current = ranked;
+  const profileRef = useRef({ profile, template, basics });
+  profileRef.current = { profile, template, basics };
+  const topKey = ranked.slice(0, 10).map((r) => r.job.key).join("|");
+  useEffect(() => {
+    if (tab !== "results" || loading || !topKey) return;
+    const top = rankedRef.current.slice(0, 10).map((r) => r.job).filter((j) => !j.facts);
+    if (top.length === 0) return;
+    let off = false;
+    const ask = async () => {
+      try {
+        const res = await authFetch("/api/jobs/warm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: top }) });
+        if (!res.ok || off) return;
+        const data = (await res.json()) as { ready?: Record<string, JobFacts> };
+        const now = profileRef.current;
+        for (const j of top) {
+          const facts = data.ready?.[j.key];
+          if (!facts || off) continue;
+          const pct = jobScore(now.profile, { ...j, facts }, [], now.template, [], now.basics).score;
+          setReadScores((r) => (r[j.key] === pct ? r : { ...r, [j.key]: pct }));
+          setReadFacts((f) => (f[j.key] ? f : { ...f, [j.key]: facts }));
+        }
+      } catch {
+        /* the numbers stay as estimates */
+      }
+    };
+    void ask();
+    // the readings take a few seconds each: the answers are collected again a little later
+    const again = [setTimeout(ask, 15_000), setTimeout(ask, 40_000)];
+    return () => {
+      off = true;
+      again.forEach(clearTimeout);
+    };
+  }, [topKey, tab, loading]);
+
   // the headings of a search by place
   const reachTitle = (r: NonNullable<JobListing["reach"]>) =>
     r === "here" ? tr("In {place}", { place: searchedPlace }) : r === "near" ? tr("Near {place}", { place: searchedPlace }) : r === "city" ? tr("The nearest big city: {place}", { place: bigCity }) : r === "remote" ? tr("Remote jobs") : tr("More jobs in the country");
@@ -434,6 +506,13 @@ export default function JobSearchPage() {
       )}
 
       {error && <p className="mb-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-500">{error}</p>}
+
+      {loadingMore && !loading && tab === "results" && (
+        <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {tr("Looking for more jobs…")}
+        </p>
+      )}
 
       {loading && tab === "results" ? (
         <ul className="space-y-3" aria-busy>

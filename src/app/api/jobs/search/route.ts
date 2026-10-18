@@ -6,7 +6,8 @@ import { enrichListings } from "@/lib/jobEnrich";
 import { cachedSearch, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
 import { searchIndex } from "@/lib/ingest/searchIndex";
 import { ingestNow } from "@/lib/ingest/schedule";
-import type { ExtraSource } from "@/lib/jobSearch";
+import { withStoredFacts } from "@/lib/jobFactsStore";
+import { ENOUGH_OWN, type ExtraSource } from "@/lib/jobSearch";
 
 // our own index (what the automatic ingestion keeps): complete postings, found at once
 const OWN: ExtraSource[] = [["Company career pages", (q) => searchIndex(q)]];
@@ -47,16 +48,21 @@ export async function GET(req: Request) {
     const skills = (sp.get("skills") ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 3);
     after(() => ingestNow({ by: "search", onlyIfDue: true })); // the index follows the companies even without a scheduler
     const wide = sp.get("wide") === "1";
+    // the page asks in two parts so it can show our own jobs at once: "own" (our index, instant) and "live" (the other boards, slower)
+    const phase = sp.get("phase") === "own" ? "own" : sp.get("phase") === "live" ? "live" : "all";
+    const live = phase === "own" ? "never" : phase === "live" ? "only" : "auto";
     // a search someone made a moment ago comes back at once, and does not use up the daily limit of the job boards
-    const qkey = searchKey([wide, query.q, query.location, query.remoteOnly, query.country, skills.join(","), query.langs.join("+")]);
+    const qkey = searchKey([wide, query.q, query.location, query.remoteOnly, query.country, skills.join(","), query.langs.join("+"), phase]);
+    // when our own jobs are plenty and no place was asked for, the other boards add nothing: the page need not ask for them
+    const moreToCome = (n: number) => phase === "own" && (query.location.trim() !== "" || n < ENOUGH_OWN);
     const again = await cachedSearch(qkey);
-    if (again) return NextResponse.json({ ...again, place: place?.label ?? null });
-    const result = wide ? await searchJobsWide(query, skills, OWN) : await searchJobs(query, OWN);
+    if (again) return NextResponse.json({ ...again, jobs: await withStoredFacts(again.jobs), place: place?.label ?? null, more: moreToCome(again.jobs.length) });
+    const result = wide ? await searchJobsWide(query, skills, OWN, { live }) : await searchJobs(query, OWN, { live });
     // the boards share only the start of some postings: what was already read is reused, the rest is read now, so the fit shown is the real one
     const jobs = withoutCut(await enrichListings(await withKnownText(result.jobs)));
     const found = { jobs, sources: result.sources, bigCity: result.bigCity };
     await rememberSearch(qkey, found);
-    return NextResponse.json({ ...found, place: place?.label ?? null });
+    return NextResponse.json({ ...found, jobs: await withStoredFacts(found.jobs), place: place?.label ?? null, more: moreToCome(found.jobs.length) });
   } catch (err) {
     return errorResponse(err, "We couldn't search for jobs right now.");
   }

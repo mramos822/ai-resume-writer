@@ -70,6 +70,13 @@ const MIGRATIONS: Migration[] = [
       ]);
     },
   },
+  {
+    id: 6,
+    name: "ai_budget: the count of AI readings of each day expires by itself",
+    up: async () => {
+      await db.collection("ai_budget").createIndex({ expireAt: 1 }, { expireAfterSeconds: 0 });
+    },
+  },
 ];
 
 let started: Promise<void> | null = null;

@@ -1,8 +1,8 @@
 /** @jest-environment node */
-import { searchJobs, ENOUGH_OWN, type JobListing, type JobQuery } from "@/lib/jobSearch";
+import { searchJobs, searchJobsWide, ENOUGH_OWN, type JobListing, type JobQuery } from "@/lib/jobSearch";
 
 const own = (n: number, title = "Platform Engineer"): JobListing[] =>
-  Array.from({ length: n }, (_, i) => ({ key: `greenhouse:x:${i}`, source: "greenhouse" as const, title: `${title} ${i}`, company: `Co ${i}`, location: "Remote", remote: true, url: `https://x.test/${i}`, postedAt: "2026-10-01", tags: [], snippet: "", description: "d" }));
+  Array.from({ length: n }, (_, i) => ({ key: `greenhouse:${title}:${i}`, source: "greenhouse" as const, title: `${title} ${i}`, company: `Co ${title} ${i}`, location: "Remote", remote: true, url: `https://x.test/${i}`, postedAt: "2026-10-01", tags: [], snippet: "", description: "d" }));
 
 const q = (over: Partial<JobQuery> = {}): JobQuery => ({ q: "platform engineer", location: "", remoteOnly: false, country: "us", ...over });
 
@@ -31,6 +31,20 @@ describe("our own index answers first", () => {
 
   it("asks the other boards when a place was typed, because local jobs come from them", async () => {
     await searchJobs(q({ q: "platform engineer three", location: "Hillside, New Jersey" }), [["Company career pages", async () => own(ENOUGH_OWN + 5, "Platform Engineer three")]]);
+    expect(calls.some((u) => u.includes("remotive"))).toBe(true);
+  });
+
+  it("a wide search (several titles) does not wait for the other boards when the index answers all of them together", async () => {
+    // (each test uses its own family of titles: the searches are remembered for a few minutes)
+    // each title brings a few jobs, none enough alone, but together plenty
+    const bytitle = async (q2: JobQuery) => own(Math.ceil(ENOUGH_OWN / 2), q2.q + " wide-a");
+    const r = await searchJobsWide(q({ q: "devops engineer wide-a" }), [], [["Company career pages", bytitle]]);
+    expect(calls).toHaveLength(0);
+    expect(r.jobs.length).toBeGreaterThanOrEqual(ENOUGH_OWN);
+  });
+
+  it("a wide search asks the other boards when even all the titles together are few", async () => {
+    await searchJobsWide(q({ q: "nurse wide-b" }), [], [["Company career pages", async (q2: JobQuery) => own(2, q2.q + " wide-b")]]);
     expect(calls.some((u) => u.includes("remotive"))).toBe(true);
   });
 
