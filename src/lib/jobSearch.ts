@@ -228,6 +228,9 @@ const cache = new Map<string, { at: number; jobs: JobListing[]; sources: string[
 const TTL = 5 * 60 * 1000;
 
 /** Searches every source, merges, removes repeats and puts the best matches and the newest first. */
+/** how many jobs of our own index make the other boards unnecessary for a search without a place */
+export const ENOUGH_OWN = 30;
+
 /** A source added by the caller (the server adds our own index): its name and how it searches. */
 export type ExtraSource = [name: string, search: (q: JobQuery) => Promise<JobListing[]>];
 
@@ -239,15 +242,27 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = []): Promis
   const sources: string[] = [];
   const jobs: JobListing[] = [];
   const info: { city?: string } = {};
-  const tasks: [string, Promise<JobListing[]>][] = [["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()], ...extra.map(([name, run]): [string, Promise<JobListing[]>] => [name, run(q)])];
-  if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY && adzunaCountry(q.country)) tasks.push(["Adzuna", adzunaAround(q, info)]);
-  const settled = await Promise.allSettled(tasks.map(([, p]) => p));
-  settled.forEach((r, i) => {
+  // our own index answers first: it is complete and instant. When it already holds plenty of jobs for what was typed (and no place was
+  // asked for: a place needs the boards that list local jobs) the other boards are not asked at all, so the search is not slowed down by them.
+  const own = await Promise.allSettled(extra.map(([, run]) => run(q)));
+  own.forEach((r, i) => {
     if (r.status === "fulfilled") {
-      sources.push(tasks[i][0]);
+      sources.push(extra[i][0]);
       jobs.push(...r.value);
     }
   });
+  const ownMatches = jobs.filter((j) => (!q.q.trim() || matchesQuery(j, q.q)) && (!q.remoteOnly || j.remote)).length;
+  if (q.location.trim() || ownMatches < ENOUGH_OWN) {
+    const tasks: [string, Promise<JobListing[]>][] = [["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()]];
+    if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY && adzunaCountry(q.country)) tasks.push(["Adzuna", adzunaAround(q, info)]);
+    const settled = await Promise.allSettled(tasks.map(([, p]) => p));
+    settled.forEach((r, i) => {
+      if (r.status === "fulfilled") {
+        sources.push(tasks[i][0]);
+        jobs.push(...r.value);
+      }
+    });
+  }
 
   const loc = q.location.toLowerCase().trim();
   let out = jobs.filter((j) => j.title && j.url);
