@@ -5,7 +5,7 @@
 // use another system or another name, so they are not here; check a name at boards-api.greenhouse.io/v1/boards/<name>/jobs).
 import { CT_GROUPS, CT_INGEST } from "@/lib/ingest/computrabajo";
 
-export type AtsSource = "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "computrabajo" | "remotive" | "arbeitnow";
+export type AtsSource = "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "computrabajo" | "getonboard" | "remoteok" | "jobicy" | "remotive" | "arbeitnow";
 export interface Board {
   source: AtsSource;
   token: string;
@@ -65,6 +65,9 @@ export const BOARDS: Board[] = [
 // Each is one request (or a few pages) a day, within what they ask of the people who use their feeds; every job keeps its own link to apply
 // and the person is told which board it came from.
 BOARDS.push({ source: "remotive", token: "all", name: "Remotive" }, { source: "arbeitnow", token: "all", name: "Arbeitnow" });
+// More boards of many companies, each one a request or a few a day, and each job keeps its own link and the name of the board (what their terms ask):
+// Get on Board (tech jobs of Latin America; its public API is made for showing its jobs elsewhere), Remote OK and Jobicy (remote jobs of the world).
+BOARDS.push({ source: "getonboard", token: "all", name: "Get on Board" }, { source: "remoteok", token: "all", name: "Remote OK" }, { source: "jobicy", token: "all", name: "Jobicy" });
 
 /** One request per board: a full reading takes seconds. */
 export const FAST_BOARDS = BOARDS.filter((b) => b.source !== "smartrecruiters" && b.source !== "computrabajo");

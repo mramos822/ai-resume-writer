@@ -430,6 +430,158 @@ export function fromTeamtailor(b: Board, it: TeamtailorItem): IndexedJob | null 
   };
 }
 
+/** The countries whose jobs are asked of Get on Board (Latin America). */
+export const GETONBOARD_COUNTRIES = ["CL", "PE", "CO", "MX", "AR", "UY", "EC", "CR", "BR", "PA", "DO", "GT", "BO", "PY", "VE"];
+// (no pause in the tests)
+const sleep = (ms: number) => (process.env.NODE_ENV === "test" ? Promise.resolve() : new Promise((r) => setTimeout(r, ms)));
+
+interface GetOnBoardJob {
+  id?: string;
+  links?: { public_url?: string };
+  attributes?: {
+    title?: string;
+    description_headline?: string;
+    description?: string;
+    projects?: string;
+    functions_headline?: string;
+    functions?: string;
+    benefits_headline?: string;
+    benefits?: string;
+    desirable_headline?: string;
+    desirable?: string;
+    remote?: boolean;
+    remote_modality?: string;
+    countries?: string[];
+    category_name?: string;
+    min_salary?: number | null;
+    max_salary?: number | null;
+    published_at?: number;
+    company?: { data?: { attributes?: { name?: string; logo?: string } } };
+    seniority?: { data?: { attributes?: { name?: string } } };
+    modality?: { data?: { attributes?: { name?: string } } };
+    location_cities?: { data?: { attributes?: { name?: string } }[] };
+    tags?: { data?: { attributes?: { name?: string } }[] };
+  };
+}
+
+/** A Get on Board job (the public search of its API, with the company, the place and the skills expanded). The pay is in dollars per month. */
+export function fromGetOnBoard(b: Board, j: GetOnBoardJob): IndexedJob | null {
+  const a = j.attributes;
+  const url = j.links?.public_url ?? "";
+  if (!j.id || !a?.title || !/^https?:\/\//.test(url)) return null;
+  // the sections of the job, each with the heading the company gave it
+  const part = (head: string | undefined, html: string | undefined) => (html ? `<h3>${head ?? ""}</h3>${html}` : "");
+  const full = text([part(a.description_headline, a.description), part(a.functions_headline, a.functions), part(a.desirable_headline, a.desirable), part(a.benefits_headline, a.benefits), part("", a.projects)].join(""));
+  const cities = (a.location_cities?.data ?? []).map((c) => nice(c.attributes?.name ?? "")).filter(Boolean);
+  const countries = (a.countries ?? []).map((c) => nice(String(c))).filter((c) => c && !/^remote$/i.test(c));
+  const remote = a.remote === true;
+  // "Remote" with the countries it is open to ("Remote, Chile, Colombia"), or the cities of the office
+  const location = nice(remote ? ["Remote", ...countries].join(", ") : [...cities, ...countries].join(", ") || "");
+  const company = nice(a.company?.data?.attributes?.name ?? "");
+  const logo = a.company?.data?.attributes?.logo;
+  return {
+    key: `getonboard:${j.id}`,
+    source: "getonboard",
+    title: clip(nice(a.title), 200),
+    company: clip(company, 200),
+    location: clip(location, 200),
+    remote,
+    url: clip(url, 1000),
+    postedAt: iso(typeof a.published_at === "number" ? a.published_at * 1000 : undefined),
+    salary: structuredPay("USD", a.min_salary, a.max_salary, "MONTH"),
+    tags: [nice(a.category_name ?? ""), nice(a.seniority?.data?.attributes?.name ?? ""), nice(a.modality?.data?.attributes?.name ?? ""), ...(a.tags?.data ?? []).map((t) => nice(t.attributes?.name ?? ""))].filter(Boolean).slice(0, 8),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    logo: typeof logo === "string" && /^https?:\/\//.test(logo) ? clip(logo, 500) : undefined,
+    board: `getonboard:${b.token}`,
+    // one country (an office or a country-only job) is where the job is; "Remote" or several countries is open to a region, so no country
+    country: countries.length === 1 ? countryOf(countries[0]) : undefined,
+  };
+}
+
+interface RemoteOkJob {
+  id?: string | number;
+  slug?: string;
+  epoch?: number;
+  company?: string;
+  company_logo?: string;
+  logo?: string;
+  position?: string;
+  tags?: string[];
+  description?: string;
+  location?: string;
+  salary_min?: number;
+  salary_max?: number;
+  url?: string;
+}
+
+/** A Remote OK job. Its terms: link to its page (not an apply link of yours) and name Remote OK as the source; the job keeps its own link and the board is named. */
+export function fromRemoteOk(b: Board, j: RemoteOkJob): IndexedJob | null {
+  if (!j.id || !j.position || !j.url || !/^https:\/\/remoteok\.com\//i.test(j.url)) return null;
+  const full = htmlToText(String(j.description ?? ""), true);
+  const location = nice(j.location || "Remote");
+  const logo = j.company_logo || j.logo;
+  return {
+    key: `remoteok:${j.id}`,
+    source: "remoteok",
+    title: clip(nice(j.position), 200),
+    company: clip(nice(j.company ?? ""), 200),
+    location: clip(location, 200),
+    remote: true,
+    url: clip(j.url, 1000),
+    postedAt: iso(typeof j.epoch === "number" ? j.epoch * 1000 : undefined),
+    salary: structuredPay("USD", j.salary_min, j.salary_max, "YEAR") ?? payFromText(full),
+    tags: (j.tags ?? []).map(nice).filter(Boolean).slice(0, 8),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    logo: typeof logo === "string" && /^https?:\/\//.test(logo) ? clip(logo, 500) : undefined,
+    board: `remoteok:${b.token}`,
+    country: countryOf(location),
+  };
+}
+
+interface JobicyJob {
+  id?: number;
+  url?: string;
+  jobTitle?: string;
+  companyName?: string;
+  companyLogo?: string;
+  jobIndustry?: string[];
+  jobType?: string[];
+  jobGeo?: string;
+  jobLevel?: string;
+  jobDescription?: string;
+  pubDate?: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
+  salaryPeriod?: string;
+}
+
+/** A Jobicy job. Its terms: credit Jobicy with a link and send the apply button to the job's address in its feed (that is `url`). */
+export function fromJobicy(b: Board, j: JobicyJob): IndexedJob | null {
+  if (!j.id || !j.jobTitle || !j.url || !/^https:\/\/jobicy\.com\//.test(j.url)) return null;
+  const full = htmlToText(String(j.jobDescription ?? ""), true);
+  const location = nice(j.jobGeo || "Remote");
+  return {
+    key: `jobicy:${j.id}`,
+    source: "jobicy",
+    title: clip(nice(decode(j.jobTitle)), 200),
+    company: clip(nice(decode(j.companyName ?? "")), 200),
+    location: clip(location.toLowerCase() === "anywhere" ? "Remote – anywhere" : `Remote – ${location}`, 200),
+    remote: true,
+    url: clip(j.url, 1000),
+    postedAt: iso(String(j.pubDate ?? "").replace(" ", "T")),
+    salary: structuredPay(j.salaryCurrency, j.salaryMin, j.salaryMax, j.salaryPeriod) ?? payFromText(full),
+    tags: [...(j.jobIndustry ?? []), ...(j.jobType ?? []), nice(j.jobLevel ?? "")].map((t) => nice(decode(String(t)))).filter(Boolean).slice(0, 8),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    logo: typeof j.companyLogo === "string" && /^https?:\/\//.test(j.companyLogo) ? clip(j.companyLogo, 500) : undefined,
+    board: `jobicy:${b.token}`,
+    country: undefined,
+  };
+}
+
 /** Every opening of one board. Throws when the board does not exist or the site is down: the ingestion reports it and moves on. */
 export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
   if (b.source === "smartrecruiters") throw new Error("smartrecruiters is read with fetchSmartRecruiters (it needs to know what the index already has)");
@@ -458,6 +610,40 @@ export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
       if (rows.length === 0) break;
     }
     return out;
+  }
+  if (b.source === "getonboard") {
+    // The public search wants at least one filter, so it is read by what the board is for: the remote jobs, and the jobs of each country of Latin America.
+    // A job can be in several of those lists: each is kept once. A short pause between requests (about thirty a run).
+    const expand = encodeURIComponent(JSON.stringify(["company", "seniority", "modality", "location_cities", "tags"]));
+    const searches = ["remote=true", ...GETONBOARD_COUNTRIES.map((c) => `country_code=${c}`)];
+    const byKey = new Map<string, IndexedJob>();
+    for (const search of searches) {
+      for (let page = 1; page <= 8; page++) {
+        const res = await fetch(`https://www.getonbrd.com/api/v0/search/jobs?${search}&per_page=100&page=${page}&expand=${expand}`, { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
+        if (!res.ok) throw new Error(`getonboard: ${res.status}`);
+        const data = (await res.json()) as { data?: GetOnBoardJob[]; meta?: { total_pages?: number } };
+        for (const j of data.data ?? []) {
+          const job = fromGetOnBoard(b, j);
+          if (job && !byKey.has(job.key)) byKey.set(job.key, job);
+        }
+        if ((data.data ?? []).length === 0 || page >= (data.meta?.total_pages ?? 1)) break;
+        await sleep(400);
+      }
+      await sleep(400);
+    }
+    return [...byKey.values()];
+  }
+  if (b.source === "remoteok") {
+    const res = await fetch("https://remoteok.com/api", { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`remoteok: ${res.status}`);
+    const rows = (await res.json()) as RemoteOkJob[];
+    return (Array.isArray(rows) ? rows : []).map((j) => fromRemoteOk(b, j)).filter((j): j is IndexedJob => !!j); // (the first row is its terms, not a job: it has no position)
+  }
+  if (b.source === "jobicy") {
+    const res = await fetch("https://jobicy.com/api/v2/remote-jobs?count=100", { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`jobicy: ${res.status}`);
+    const data = (await res.json()) as { jobs?: JobicyJob[] };
+    return (data.jobs ?? []).map((j) => fromJobicy(b, j)).filter((j): j is IndexedJob => !!j);
   }
   if (b.source === "workable") {
     const res = await fetch(`https://www.workable.com/api/accounts/${encodeURIComponent(b.token)}?details=true`, { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });

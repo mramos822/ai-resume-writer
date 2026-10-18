@@ -72,3 +72,11 @@ robots.txt leaves the postings and the searches by title open, so only those are
 - A posting is closed when it has not been seen for ten days (the lists only show the newest postings of each search).
 - To add a country: a line in `CT_SITES` (and the same number of parts in the workflow). To add searches: `CT_GROUPS`.
 - What is kept: the text, the place, the pay, the date and the link to apply on Computrabajo; no person's data. Every job shows "Computrabajo" as its source.
+
+## Other boards read into the index (one to thirty requests a day each)
+- **Get on Board** (tech jobs of Latin America; `getonbrd.com/api/v0/search/jobs`, public, no key; its help says the public API is for showing its jobs on other sites):
+  its search wants a filter, so it is read for `remote=true` and for each country of `GETONBOARD_COUNTRIES` (about thirty requests, with a pause). Pay is dollars a month.
+- **Remote OK** (`remoteok.com/api`) and **Jobicy** (`jobicy.com/api/v2/remote-jobs`): remote jobs of the world. Their terms: name the board and link to its own page of the
+  job (the "via ..." label and the job's link do it); do not use Remote OK's logo. Do not add Himalayas: its terms forbid giving its jobs to other aggregators.
+- Not read, and why: Indeed, Glassdoor, ZipRecruiter, Monster, OCC (they refuse programs); Jooble, Careerjet, The Muse (keys or terms that do not let us keep the text);
+  Arbeitsagentur (answered 403 from here); USAJOBS (needs a free key: a good next one for the United States).
