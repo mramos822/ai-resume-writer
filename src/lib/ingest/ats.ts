@@ -4,7 +4,7 @@ import { decode, htmlToText } from "@/lib/jobAdText";
 import type { JobListing } from "@/lib/jobSearch";
 import type { Board } from "@/lib/ingest/boards";
 import { countryOf } from "@/lib/ingest/country";
-import { payFromText } from "@/lib/ingest/pay";
+import { payFromText, structuredPay } from "@/lib/ingest/pay";
 
 /** A job of the index: the listing plus what only the index needs (the description keeps the first 6000 characters: the database is small). */
 export interface IndexedJob extends JobListing {
@@ -307,20 +307,6 @@ export function fromArbeitnow(b: Board, j: ArbeitnowJob): IndexedJob | null {
   };
 }
 
-const SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", CAD: "CA$", AUD: "A$" };
-/** A pay the system gives as numbers ("min 90000, max 120000, per year, USD") as text: "$90,000 – $120,000", "$30 per hour". */
-function structuredPay(currency: unknown, min: unknown, max: unknown, unit: unknown): string | undefined {
-  const lo = Number(min);
-  const hi = Number(max);
-  const a = lo > 0 ? lo : hi;
-  const b = hi > 0 ? hi : lo;
-  if (!(a > 0)) return undefined;
-  const code = String(currency ?? "").toUpperCase();
-  const sym = SYMBOL[code] ?? (code ? `${code} ` : "");
-  const per = /hour/i.test(String(unit ?? "")) ? " per hour" : /month/i.test(String(unit ?? "")) ? " per month" : "";
-  const n = (v: number) => `${sym}${Number.isInteger(v) ? v.toLocaleString("en-US") : v.toFixed(2)}`;
-  return `${a === b ? n(a) : `${n(a)} – ${n(b)}`}${per}`;
-}
 
 interface WorkableJob {
   title?: string;
@@ -353,7 +339,7 @@ export function fromWorkable(b: Board, j: WorkableJob, companyName?: string): In
     remote: j.telecommuting === true || REMOTE.test(j.title),
     url: clip(j.url, 1000),
     postedAt: iso(j.published_on) || iso(j.created_at),
-    salary: payFromText(full),
+    salary: payFromText(full, countryOf(location, j.locations?.[0]?.countryCode)),
     tags: [nice(j.department ?? ""), nice(j.function ?? ""), nice(j.employment_type ?? "")].filter(Boolean),
     snippet: clip(nice(full), 380),
     description: clip(full, 6000),
@@ -395,7 +381,7 @@ export function fromRecruitee(b: Board, o: RecruiteeOffer): IndexedJob | null {
     remote: o.remote === true || REMOTE.test(o.title),
     url: clip(o.careers_url, 1000),
     postedAt: iso(String(o.published_at ?? "").replace(" UTC", "Z").replace(" ", "T")),
-    salary: structuredPay(o.salary?.currency, o.salary?.min, o.salary?.max, o.salary?.period) ?? payFromText(full),
+    salary: structuredPay(o.salary?.currency, o.salary?.min, o.salary?.max, o.salary?.period) ?? payFromText(full, countryOf(location, o.country_code)),
     tags: [nice(o.department ?? ""), nice(String(o.employment_type_code ?? "").replace(/_/g, " ")), ...(o.tags ?? []).map(nice)].filter(Boolean).slice(0, 8),
     snippet: clip(nice(full), 380),
     description: clip(full, 6000),
@@ -435,7 +421,7 @@ export function fromTeamtailor(b: Board, it: TeamtailorItem): IndexedJob | null 
     remote: /telecommute/i.test(p.jobLocationType ?? "") || REMOTE.test(p.title),
     url: clip(it.url, 1000),
     postedAt: iso(p.datePosted),
-    salary: structuredPay(p.baseSalary?.currency, sal?.minValue ?? sal?.value, sal?.maxValue ?? sal?.value, sal?.unitText) ?? payFromText(full),
+    salary: structuredPay(p.baseSalary?.currency, sal?.minValue ?? sal?.value, sal?.maxValue ?? sal?.value, sal?.unitText) ?? payFromText(full, countryOf(location, where?.addressCountry)),
     tags: [],
     snippet: clip(nice(full), 380),
     description: clip(full, 6000),

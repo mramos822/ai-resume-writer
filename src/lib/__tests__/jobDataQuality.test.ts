@@ -67,6 +67,41 @@ describe("the pay a posting names", () => {
     expect(payFromText("Annual base salary range (excluding equity and bonus): R$347.900 - R$359.200 BRL - Application")).toBe("R$347,900 – R$359,200");
   });
 
+  it("reads the pay of Latin America in its own money, monthly when no unit is named, with Spanish and Portuguese words", () => {
+    expect(payFromText("Sueldo: S/ 3,500 a S/ 4,500 mensuales + bonos")).toBe("S/ 3,500 – S/ 4,500 per month");
+    expect(payFromText("Remuneración: S/. 2500 más comisiones")).toBe("S/ 2,500 per month");
+    expect(payFromText("Ofrecemos s/ 1,800 mensual, planilla completa")).toBe("S/ 1,800 per month");
+    expect(payFromText("Salario entre $3.000.000 y $4.500.000 COP")).toBe("COP $3,000,000 – $4,500,000 per month");
+    expect(payFromText("Sueldo: $800.000 - $1.000.000 al mes", "CL")).toBe("CLP $800,000 – $1,000,000 per month");
+    expect(payFromText("Sueldo líquido $650.000", "CL")).toBe("CLP $650,000 per month");
+    expect(payFromText("Sueldo base $15,000 MXN mensuales")).toBe("MXN $15,000 per month");
+    expect(payFromText("Sueldo: $18,000 - $22,000", "MX")).toBe("MXN $18,000 – $22,000 per month");
+    expect(payFromText("Salário de R$ 5.000 por mês")).toBe("R$5,000 per month");
+    expect(payFromText("Pago de S/ 25 por hora")).toBe("S/ 25 per hour");
+    // the same figures in the money of the dollar are still a yearly pay
+    expect(payFromText("The salary range is $80,000 - $100,000")).toBe("$80,000 – $100,000");
+    // a figure that is not the size of a pay in that money is not a pay
+    expect(payFromText("Capital social de S/ 500 millones")).toBeUndefined();
+    expect(payFromText("Nuestras ventas superan los $120.000 millones", "CL")).toBeUndefined();
+  });
+
+  it("reads any money of the world, by its sign or its code, judged in its own size", () => {
+    expect(payFromText("Gehalt: PLN 12 000 - 16 000 brutto")).toBe("PLN 12,000 – 16,000 per month");
+    expect(payFromText("Salary: SEK 38 000 - 45 000")).toBe("SEK 38,000 – 45,000 per month");
+    expect(payFromText("Salary: AED 15,000 - 20,000 per month")).toBe("AED 15,000 – 20,000 per month");
+    expect(payFromText("Salary: ZAR 35,000 - 50,000")).toBe("ZAR 35,000 – 50,000 per month");
+    expect(payFromText("Salary: ₱45,000 - ₱60,000")).toBe("₱45,000 – ₱60,000 per month");
+    expect(payFromText("Salary: ¥5,000,000 - ¥7,000,000")).toBe("¥5,000,000 – ¥7,000,000");
+    expect(payFromText("CTC: ₹18,00,000 - ₹24,00,000 per annum")).toBe("₹1,800,000 – ₹2,400,000");
+    expect(payFromText("Salary: ₩60,000,000 - ₩80,000,000")).toBe("₩60,000,000 – ₩80,000,000");
+    expect(payFromText("Pay is 80000 - 100000 USD per year")).toBe("USD 80,000 – 100,000");
+    expect(payFromText("Salary: SGD 6,000 - 8,000 per month")).toBe("SGD 6,000 – 8,000 per month");
+    expect(payFromText("Salary: $90,000 - $110,000", "CA")).toBe("CAD $90,000 – $110,000");
+    // a figure too small or too big to be a pay in that money is not one
+    expect(payFromText("Salary: SEK 200 - 300")).toBeUndefined();
+    expect(payFromText("Our turnover is PLN 500 000 000")).toBeUndefined();
+  });
+
   it("does not take the figures of the company for the pay of the job", () => {
     expect(payFromText("Carta: a $5.8B valuation, more than $1 billion in annualized bookings, $250B+ in assets")).toBeUndefined();
     expect(payFromText("Stripe processes over $1.9T in payments volume per year")).toBeUndefined();

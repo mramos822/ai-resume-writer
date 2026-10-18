@@ -1,4 +1,5 @@
 import { isSafePublicUrl } from "@/lib/safeUrl";
+import { structuredPay } from "@/lib/ingest/pay";
 // src/lib/jobAdText.ts
 // The LLM cannot browse, so job-ad URLs are downloaded and stripped to text server-side.
 
@@ -53,7 +54,11 @@ function postingOf(html: string): string | null {
       const org = job.hiringOrganization as { name?: unknown } | undefined;
       const address = (job.jobLocation as { address?: { addressLocality?: unknown; addressRegion?: unknown } } | undefined)?.address;
       const where = [address?.addressLocality, address?.addressRegion].filter((x) => typeof x === "string" && x).join(", ");
-      const head = [`Title: ${String(job.title ?? "")}`, org?.name ? `Company: ${String(org.name)}` : "", where ? `Location: ${where}` : "", job.datePosted ? `Posted: ${String(job.datePosted)}` : ""].filter(Boolean);
+      // the pay the page publishes in its data (many job boards do: "baseSalary": PEN 1530 per month); the AI and the pay reader see it as a line
+      const sal = job.baseSalary as { currency?: unknown; value?: { value?: unknown; minValue?: unknown; maxValue?: unknown; unitText?: unknown } | number } | undefined;
+      const salVal = sal && typeof sal.value === "object" && sal.value ? sal.value : undefined;
+      const pay = sal ? structuredPay(sal.currency, salVal?.minValue ?? salVal?.value ?? sal.value, salVal?.maxValue ?? salVal?.value ?? sal.value, salVal?.unitText) : undefined;
+      const head = [`Title: ${String(job.title ?? "")}`, org?.name ? `Company: ${String(org.name)}` : "", where ? `Location: ${where}` : "", job.datePosted ? `Posted: ${String(job.datePosted)}` : "", pay ? `Salary: ${pay}` : ""].filter(Boolean);
       return `${head.join("\n")}\n\n${htmlToText(decode(job.description), true)}`;
     } catch {
       /* not valid JSON: next block */

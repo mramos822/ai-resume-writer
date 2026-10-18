@@ -309,6 +309,8 @@ export const PART3: Record<string, string> = {
   "We couldn't read that file.": "No pudimos leer ese archivo.",
   "We couldn't read that file: {message}. Try again, or paste the text in Write Biography.": "No pudimos leer ese archivo: {message}. Inténtalo de nuevo o pega el texto en Escribir biografía.",
   "We couldn't read that posting.": "No pudimos leer esa oferta.",
+  "This is taking too long. Paste the text of the posting instead.": "Está tardando demasiado. Pega mejor el texto del anuncio.",
+  "That link is a list of jobs (a company's page or search results), not one posting. Open the job you want and paste its link.": "Ese enlace es una lista de empleos (la página de una empresa o los resultados de una búsqueda), no un solo anuncio. Abre el empleo que quieres y pega su enlace.",
   "We couldn't rename it. Try again.": "No pudimos renombrarlo. Inténtalo de nuevo.",
   "We couldn't review it": "No pudimos revisarlo",
   "We couldn't review your resume right now.": "No pudimos revisar tu currículum ahora.",

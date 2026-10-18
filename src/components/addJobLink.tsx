@@ -24,20 +24,27 @@ export default function AddJobLink({ open, onClose, onAdded }: { open: boolean; 
     if (!ready || busy) return;
     setBusy(true);
     setError("");
+    // it never waits for ever: after 45 seconds it says so and offers the text
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(), 45_000);
     try {
-      const res = await authFetch("/api/jobs/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mode === "link" ? { url: url.trim() } : { text: text.trim() }) });
+      const res = await authFetch("/api/jobs/import", { method: "POST", headers: { "Content-Type": "application/json" }, signal: stop.signal, body: JSON.stringify(mode === "link" ? { url: url.trim() } : { text: text.trim() }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        // a page that needs a login cannot be read: offer the text instead
-        if (res.status === 422 && mode === "link") setMode("text");
+        // a page that needs a login cannot be read: offer the text instead (a list of jobs is not that: the person only has to open one job)
+        if (res.status === 422 && mode === "link" && !/^That link is a list of jobs/.test(String(data.error ?? ""))) setMode("text");
         throw new Error(trd(data.error) || tr("We couldn't read that posting."));
       }
       onAdded(data.job as JobListing);
       setUrl("");
       setText("");
     } catch (err) {
-      setError((err as Error).message);
+      if (stop.signal.aborted) {
+        if (mode === "link") setMode("text");
+        setError(tr("This is taking too long. Paste the text of the posting instead."));
+      } else setError((err as Error).message);
     } finally {
+      clearTimeout(timer);
       setBusy(false);
     }
   };

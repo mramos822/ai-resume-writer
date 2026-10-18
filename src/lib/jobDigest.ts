@@ -7,6 +7,7 @@ import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 const SYSTEM = `You read a job posting and extract its facts. Reply with ONE JSON object and nothing else:
 {
   "title": "<job title>",
+  "isList": <true when the page is a LIST of several different jobs (a company's page of openings, search results, "35 offers"), not one posting; else false>,
   "company": "<employer name, or empty>",
   "location": "<city/state/country, or empty>",
   "remote": <true if the job is remote, else false>,
@@ -26,6 +27,19 @@ const SYSTEM = `You read a job posting and extract its facts. Reply with ONE JSO
 }
 The text was copied from a web page, so it also holds menus, buttons, "similar jobs", cookie notices, reactions, applicant counts and the company's marketing or legal text. Ignore all of that, but keep EVERY detail that helps someone decide on this job and apply to it: do not leave out a requirement, a tool, a duty, a benefit, a schedule or a deadline.
 Write the items in the language of the posting. Never invent anything that is not in the text, and leave a list empty when the posting says nothing about it. If the text is not a job posting, use an empty title.`;
+
+export const JOB_LIST_ERROR = "That link is a list of jobs (a company's page or search results), not one posting. Open the job you want and paste its link.";
+
+/** True for a page that is a list of jobs and not one posting: the address of a company or search page of the job boards, or a text that begins "35 job offers in...". */
+export function looksLikeJobList(url: string, text: string): boolean {
+  try {
+    const u = new URL(url);
+    if (/(^|\.)computrabajo\./i.test(u.hostname) && /^\/(empresas\/|trabajo-de-|empleos?-)/i.test(u.pathname)) return true; // a company's page or a search of Computrabajo; one offer is /ofertas-de-trabajo/oferta-de-trabajo-de-...
+  } catch {
+    /* not an address: the text decides */
+  }
+  return /^\s*\d[\d.,]*\s+(?:ofertas?|empleos?|vacantes?|puestos?|jobs?|openings?|offers?|stellen)\b/i.test(text.slice(0, 160));
+}
 
 export const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const items = (v: unknown, n: number) => (Array.isArray(v) ? v : []).map((x) => str(x, 260).replace(/^[-•*\s]+/, "")).filter((x) => x.length > 2).slice(0, n);

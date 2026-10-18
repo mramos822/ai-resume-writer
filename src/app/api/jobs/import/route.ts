@@ -4,7 +4,7 @@ import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { fetchJobAdText, JOB_AD_LINK_ERROR } from "@/lib/jobAdText";
 import { isSafePublicUrl } from "@/lib/safeUrl";
 import { limitedShared } from "@/lib/rateLimit";
-import { describe, factsOf, readPosting, str } from "@/lib/jobDigest";
+import { describe, factsOf, JOB_LIST_ERROR, looksLikeJobList, readPosting, str } from "@/lib/jobDigest";
 import { cleanListing, type JobListing } from "@/lib/jobSearch";
 
 // "Add a job": for a posting the job search did not find. The person pastes a link (any site) or the text of the posting and
@@ -29,7 +29,10 @@ export async function POST(req: Request) {
       }
     }
 
+    // a page of many jobs is not a posting: said at once, without asking the AI to make one job out of it
+    if (looksLikeJobList(url, text)) throw new HttpError(422, JOB_LIST_ERROR);
     const raw = await readPosting(text);
+    if (raw.isList === true) throw new HttpError(422, JOB_LIST_ERROR);
     const title = str(raw.title, 200);
     if (!title) throw new HttpError(422, "That doesn't look like a job posting. Paste the part of the page with the job description.");
 

@@ -29,6 +29,6 @@ export async function searchIndex(q: JobQuery, limit = 150): Promise<JobListing[
     const { score: _score, ...job } = r as unknown as JobListing & { score?: number };
     void _score;
     // the pay the system did not give is read from the text, so a job indexed before the reader learned a format shows it too
-    return job.salary ? job : { ...job, salary: payFromText(job.description ?? "") };
+    return job.salary ? job : { ...job, salary: payFromText(job.description ?? "", (job as { country?: string }).country) };
   });
 }

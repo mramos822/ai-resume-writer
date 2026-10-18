@@ -149,7 +149,7 @@ const adzunaCountry = (code: string) => {
 };
 
 /** The symbol of the money each Adzuna country pays in; the figure is shown with it so it is not a bare number. */
-const ADZUNA_CURRENCY: Record<string, string> = { us: "$", ca: "$", au: "$", nz: "$", sg: "$", mx: "$", gb: "£", in: "₹", br: "R$", za: "R", pl: "zł ", de: "€", fr: "€", it: "€", nl: "€", at: "€", es: "€", be: "€" };
+const ADZUNA_CURRENCY: Record<string, string> = { us: "$", ca: "$", au: "$", nz: "$", sg: "$", mx: "MX$", gb: "£", in: "₹", br: "R$", za: "R", pl: "zł ", de: "€", fr: "€", it: "€", nl: "€", at: "€", es: "€", be: "€" };
 
 interface AdzunaRow {
   id?: string | number;

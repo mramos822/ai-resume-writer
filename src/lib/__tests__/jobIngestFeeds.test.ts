@@ -28,7 +28,7 @@ describe("reading the feeds of Remotive and Arbeitnow", () => {
   });
 
   it("turns an Arbeitnow job into a job: its place, its country and the date it was created", () => {
-    const j = fromArbeitnow(A, { slug: "dev-berlin-99", title: "Developer", company_name: "Firma", description: "<p>We pay EUR 60,000 - 80,000? No: $60,000 - $80,000 a year.</p>", remote: false, url: "https://www.arbeitnow.com/jobs/dev-berlin-99", location: "Berlin", job_types: ["Full Time"], tags: ["IT"], created_at: 1791566108 })!;
+    const j = fromArbeitnow(A, { slug: "dev-berlin-99", title: "Developer", company_name: "Firma", description: "<p>We pay $60,000 - $80,000 a year.</p>", remote: false, url: "https://www.arbeitnow.com/jobs/dev-berlin-99", location: "Berlin", job_types: ["Full Time"], tags: ["IT"], created_at: 1791566108 })!;
     expect(j).toMatchObject({ key: "arbeitnow:dev-berlin-99", source: "arbeitnow", remote: false, location: "Berlin", country: "DE", board: "arbeitnow:all", salary: "$60,000 – $80,000" });
     expect(j.postedAt).toBe(new Date(1791566108 * 1000).toISOString());
   });

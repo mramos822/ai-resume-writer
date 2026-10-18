@@ -30,3 +30,24 @@ describe("reading the whole posting", () => {
     expect(isPartialPosting({ source: "link", snippet: "", description: "short" })).toBe(false); // an added job is read from its own page
   });
 });
+
+describe("the pay a page publishes in its data", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  const ld = (baseSalary: unknown) =>
+    `<html><head><script type="application/ld+json">${JSON.stringify({ "@type": "JobPosting", title: "Asistente de monitoreo GPS", description: "<p>" + "Monitoreo de unidades GPS en tiempo real. ".repeat(10) + "</p>", hiringOrganization: { name: "QREPS" }, baseSalary })}</script></head><body></body></html>`;
+  const read = async (baseSalary: unknown) => {
+    jest.spyOn(global, "fetch").mockImplementation(async () => new Response(ld(baseSalary), { status: 200 }));
+    return fetchJobAdText("https://pe.example.com/ofertas/1", true, 1);
+  };
+
+  it("is put at the top of the text as a line, in its own money", async () => {
+    expect(await read({ "@type": "MonetaryAmount", currency: "PEN", value: { "@type": "QuantitativeValue", value: 1530, unitText: "MONTH" } })).toContain("Salary: S/ 1,530 per month");
+    expect(await read({ currency: "USD", value: { minValue: 90000, maxValue: 120000, unitText: "YEAR" } })).toContain("Salary: $90,000 – $120,000");
+    expect(await read({ currency: "MXN", value: { value: 15000, unitText: "MONTH" } })).toContain("Salary: MXN 15,000 per month");
+  });
+
+  it("is left out when the page gives none", async () => {
+    expect(await read(undefined)).not.toContain("Salary:");
+  });
+});
