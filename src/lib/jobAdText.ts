@@ -82,13 +82,24 @@ function postingOf(html: string): string | null {
   return null;
 }
 
+/** A page that is a check for people ("Just a moment...", a captcha), not the posting: the site does not let programs read its pages. */
+const HUMAN_CHECK = /just a moment|enable javascript and cookies|cf-chl|challenge-platform|captcha|verify you are (?:a )?human|are you a robot|access denied/i;
+
 export async function fetchJobAdText(url: string, keepLines = false, tries = 3): Promise<string | null> {
-  if (!isSafePublicUrl(url)) return null; // never fetch internal/private addresses
+  return (await fetchJobAdPage(url, keepLines, tries)).text;
+}
+
+/**
+ * The text of the posting, and whether the site turned the request away with a check for people (Cloudflare and the like). That is respected: it
+ * is not insisted on and not worked around; the person is told to paste the text.
+ */
+export async function fetchJobAdPage(url: string, keepLines = false, tries = 3): Promise<{ text: string | null; blocked: boolean }> {
+  if (!isSafePublicUrl(url)) return { text: null, blocked: false }; // never fetch internal/private addresses
   let targets: string[];
   try {
     targets = candidateUrls(url);
   } catch {
-    return null; // not a valid URL
+    return { text: null, blocked: false }; // not a valid URL
   }
 
   // Some sites (LinkedIn) throttle intermittently, so retry each target a couple of times
@@ -99,12 +110,17 @@ export async function fetchJobAdText(url: string, keepLines = false, tries = 3):
           headers: { "User-Agent": "Mozilla/5.0 (compatible; ResumeWriter/1.0)" },
           signal: AbortSignal.timeout(8000),
         });
+        if (res.status === 403 || res.status === 429 || res.status === 503) {
+          const body = await res.text().catch(() => "");
+          if (res.headers.get("cf-mitigated") === "challenge" || HUMAN_CHECK.test(body.slice(0, 4000))) return { text: null, blocked: true };
+        }
         if (res.ok) {
           const html = await res.text();
           const posting = keepLines ? postingOf(html) : null;
           const text = posting && posting.length >= 200 ? posting : htmlToText(html, keepLines);
+          if (HUMAN_CHECK.test(text.slice(0, 300))) return { text: null, blocked: true };
           // Login walls and empty pages carry no job description
-          if (text.length >= 300 && !/sign in|join now|log in/i.test(text.slice(0, 400))) return text;
+          if (text.length >= 300 && !/sign in|join now|log in/i.test(text.slice(0, 400))) return { text, blocked: false };
         }
       } catch {
         // timeout / network error: fall through to retry
@@ -112,8 +128,11 @@ export async function fetchJobAdText(url: string, keepLines = false, tries = 3):
       await sleep(600);
     }
   }
-  return null;
+  return { text: null, blocked: false };
 }
+
+export const JOB_AD_BLOCKED_ERROR =
+  "That site doesn't let programs read its pages (it asks for a check that only a person can pass). Open the job in your browser, copy its text and paste it in \"Paste the text\".";
 
 export const JOB_AD_LINK_ERROR =
   "Could not read that link (the site probably requires login). Paste the job description text instead.";

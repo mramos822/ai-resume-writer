@@ -1,8 +1,8 @@
 "use client";
 
 // "Add a job": paste a link (or the text) of a posting from any site and it joins the job search like any other job.
-import React, { useState } from "react";
-import { Link2, Loader2, FileText } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { FileText, Link2, Loader2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { authFetch } from "@/lib/authFetch";
@@ -16,6 +16,7 @@ export default function AddJobLink({ open, onClose, onAdded }: { open: boolean; 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const urlBox = useRef<HTMLInputElement>(null);
 
   const ready = mode === "link" ? /^https?:\/\/\S+\.\S+/i.test(url.trim()) : text.trim().length >= 80;
 
@@ -70,14 +71,29 @@ export default function AddJobLink({ open, onClose, onAdded }: { open: boolean; 
           {mode === "link" ? (
             <div>
               <label htmlFor="job-url" className="mb-1.5 block text-sm font-semibold">{tr("Link to the job")}</label>
-              <input id="job-url" type="url" inputMode="url" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder={tr("https://company.com/careers/job-123")} className="h-11 w-full rounded-lg border bg-background px-3.5 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50" />
+              {/* the X empties the link in one click: a long link cannot be selected and deleted by hand without effort */}
+              <div className="relative">
+                <input ref={urlBox} id="job-url" type="url" inputMode="url" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder={tr("https://company.com/careers/job-123")} className="h-11 w-full rounded-lg border bg-background pl-3.5 pr-10 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50" />
+                {url && (
+                  <button type="button" aria-label={tr("Clear the link")} title={tr("Clear the link")} disabled={busy} onClick={() => { setUrl(""); setError(""); urlBox.current?.focus(); }} className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-blue-500/50 disabled:opacity-50">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
               <p className="mt-1.5 text-xs text-muted-foreground">{tr("Works with company pages and most job boards. Sites that ask you to log in cannot be read: paste the text instead.")}</p>
             </div>
           ) : (
             <div>
               <label htmlFor="job-text" className="mb-1.5 block text-sm font-semibold">{tr("Text of the posting")}</label>
               <textarea id="job-text" autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={9} placeholder={tr("Copy the job title, company and description from the page and paste it here.")} className="w-full resize-y rounded-lg border bg-background p-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50" />
-              <p className="mt-1 text-xs text-muted-foreground">{text.trim().length < 80 ? tr("Paste a little more of the posting.") : tr("{v0} characters", { v0: text.trim().length.toLocaleString() })}</p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">{text.trim().length < 80 ? tr("Paste a little more of the posting.") : tr("{v0} characters", { v0: text.trim().length.toLocaleString() })}</p>
+                {text && (
+                  <button type="button" disabled={busy} onClick={() => { setText(""); setError(""); }} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50">
+                    <X className="h-3.5 w-3.5" /> {tr("Clear the text")}
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

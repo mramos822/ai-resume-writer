@@ -7,7 +7,7 @@ import "flag-icons/css/flag-icons.min.css";
 import { Input } from "@/components/ui/input";
 import PickSelect from "@/components/pickSelect";
 import { authFetch } from "@/lib/authFetch";
-import { ADZUNA_COUNTRIES } from "@/lib/jobCountries";
+import { SEARCH_COUNTRIES } from "@/lib/jobCountries";
 import type { Suggestion } from "@/lib/jobPlaces";
 import { REMOTE_PLACE, isRemotePlace } from "@/lib/remotePlace";
 import { useT } from "@/i18n/provider";
@@ -35,7 +35,7 @@ export default function JobPlacePicker({
   const [active, setActive] = useState(-1);
   const box = useRef<HTMLDivElement>(null);
   const picked = useRef(""); // the text of the suggestion last chosen: it needs no new suggestions
-  const covered = ADZUNA_COUNTRIES.includes(country.toLowerCase());
+  const covered = SEARCH_COUNTRIES.includes(country.toLowerCase());
 
   const names = useMemo(() => {
     try {
@@ -83,9 +83,9 @@ export default function JobPlacePicker({
     };
   }, [open]);
 
-  // the countries the job board covers, plus the person's own and the one chosen, by name
+  // the countries where there are local jobs (the live board's and our own index's), plus the person's own and the one chosen, by name
   const options = useMemo(() => {
-    const codes = new Set([...ADZUNA_COUNTRIES, country.toLowerCase()]);
+    const codes = new Set([...SEARCH_COUNTRIES, country.toLowerCase()]);
     if (homeCountry) codes.add(homeCountry.toLowerCase());
     return Array.from(codes).sort((a, b) => nameOf(a).localeCompare(nameOf(b), locale));
     // eslint-disable-next-line react-hooks/exhaustive-deps

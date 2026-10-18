@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { after, NextResponse } from "next/server";
 import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
-import { fetchJobAdText, JOB_AD_LINK_ERROR } from "@/lib/jobAdText";
+import { fetchJobAdPage, JOB_AD_BLOCKED_ERROR, JOB_AD_LINK_ERROR } from "@/lib/jobAdText";
 import { isSafePublicUrl } from "@/lib/safeUrl";
 import { offerOfListLink } from "@/lib/ingest/computrabajo";
 import { limitedShared } from "@/lib/rateLimit";
@@ -41,8 +41,9 @@ export async function POST(req: Request) {
           if (known.by && known.by !== uid) after(() => shareImport(url, known.job).then(() => undefined));
           return NextResponse.json({ job: known.job, cached: true });
         }
-        text = (await fetchJobAdText(url, true)) ?? "";
-        if (!text) throw new HttpError(422, JOB_AD_LINK_ERROR);
+        const page = await fetchJobAdPage(url, true);
+        text = page.text ?? "";
+        if (!text) throw new HttpError(422, page.blocked ? JOB_AD_BLOCKED_ERROR : JOB_AD_LINK_ERROR);
         fromPage = true;
       }
     }

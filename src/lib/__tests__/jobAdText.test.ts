@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { fetchJobAdText } from "@/lib/jobAdText";
+import { fetchJobAdPage, fetchJobAdText } from "@/lib/jobAdText";
 import { isPartialPosting } from "@/lib/jobSearch";
 
 const PAGE = (body: string) =>
@@ -49,5 +49,27 @@ describe("the pay a page publishes in its data", () => {
 
   it("is left out when the page gives none", async () => {
     expect(await read(undefined)).not.toContain("Salary:");
+  });
+});
+
+describe("a site that asks for a check that only a person can pass", () => {
+  afterEach(() => jest.restoreAllMocks());
+  const CHECK = "<html><head><title>Just a moment...</title></head><body>Enable JavaScript and cookies to continue</body></html>";
+
+  it("is recognised at once and not insisted on: one request, and the reason is told", async () => {
+    const spy = jest.spyOn(global, "fetch").mockImplementation(async () => new Response(CHECK, { status: 403, headers: { "cf-mitigated": "challenge" } }));
+    expect(await fetchJobAdPage("https://www.ziprecruiter.com/jobs/v2/abc", true)).toEqual({ text: null, blocked: true });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(await fetchJobAdText("https://www.ziprecruiter.com/jobs/v2/abc", true)).toBeNull();
+  });
+
+  it("is recognised too when the check comes with an ordinary answer", async () => {
+    jest.spyOn(global, "fetch").mockImplementation(async () => new Response(CHECK, { status: 200 }));
+    expect(await fetchJobAdPage("https://example.com/job", true)).toEqual({ text: null, blocked: true });
+  });
+
+  it("is not confused with a page that simply cannot be read", async () => {
+    jest.spyOn(global, "fetch").mockImplementation(async () => new Response("not found", { status: 404 }));
+    expect(await fetchJobAdPage("https://example.com/job", true, 1)).toEqual({ text: null, blocked: false });
   });
 });
