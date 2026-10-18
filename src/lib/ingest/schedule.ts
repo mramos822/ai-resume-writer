@@ -3,7 +3,7 @@
 //  - the job search itself, when the last reading is older than EVERY_MS (so it keeps up to date even if the scheduler is not set up yet).
 // Every run is written to `ingest_runs`: what was read, what was closed, what failed.
 import { db } from "@/lib/mongodb";
-import { CT_BOARDS, FAST_BOARDS, SLOW_BOARDS, type Board } from "@/lib/ingest/boards";
+import { CT_BOARDS, FAST_BOARDS, FEED_BOARDS, SLOW_BOARDS, type Board } from "@/lib/ingest/boards";
 import { runIngestion } from "@/lib/ingest/run";
 
 /** how old the last reading may be before a search starts a new one */
@@ -16,7 +16,7 @@ export interface RunDoc {
   finishedAt?: Date;
   by: "scheduler" | "search";
   /** "fast" (one request per board), "slow" (SmartRecruiters: one request per new posting) or "ct" (Computrabajo: one slow board per run) */
-  set?: "fast" | "slow" | "ct";
+  set?: "fast" | "slow" | "ct" | "feeds";
   boards: number;
   jobs?: number;
   closed?: number;
@@ -44,10 +44,10 @@ export type Started = { started: true; run: Omit<RunDoc, "startedAt" | "finished
  * Reads the boards now, unless another run is going (started less than STUCK_MS ago and not finished) or, when `onlyIfDue`, the last
  * finished reading is newer than EVERY_MS. Never throws.
  */
-export async function ingestNow({ by, onlyIfDue, set = "fast", boards, now = new Date() }: { by: RunDoc["by"]; onlyIfDue: boolean; set?: "fast" | "slow" | "ct"; boards?: Board[]; now?: Date }): Promise<Started> {
-  boards = boards ?? (set === "ct" ? CT_BOARDS : set === "slow" ? SLOW_BOARDS : FAST_BOARDS);
+export async function ingestNow({ by, onlyIfDue, set = "fast", boards, now = new Date() }: { by: RunDoc["by"]; onlyIfDue: boolean; set?: "fast" | "slow" | "ct" | "feeds"; boards?: Board[]; now?: Date }): Promise<Started> {
+  boards = boards ?? (set === "ct" ? CT_BOARDS : set === "slow" ? SLOW_BOARDS : set === "feeds" ? FEED_BOARDS : FAST_BOARDS);
   // the runs of the other set are not this one's business (a run from before sets existed has no set: it was a fast one)
-  const mine = (set === "fast" ? { set: { $nin: ["slow", "ct"] } } : { set }) as Record<string, unknown>;
+  const mine = (set === "fast" ? { set: { $nin: ["slow", "ct", "feeds"] } } : { set }) as Record<string, unknown>;
   const filter = (extra: Record<string, unknown> = {}) => ({ ...mine, ...extra }) as never;
   try {
     const [last] = await runs().find(filter()).sort({ startedAt: -1 }).limit(1).toArray();
@@ -70,7 +70,7 @@ export async function ingestNow({ by, onlyIfDue, set = "fast", boards, now = new
       return { started: false, reason: "running" };
     }
     // the fast boards are many different servers (16 at a time keeps the whole reading well under a minute); the slow ones are one company each
-    const result = await runIngestion(boards, set === "ct" ? 1 : set === "slow" ? 4 : 16);
+    const result = await runIngestion(boards, set === "ct" ? 1 : set === "slow" ? 4 : set === "feeds" ? 6 : 16);
     const errors = result.results.filter((r) => r.error).map((r) => `${r.board}: ${r.error}`).slice(0, 30);
     await runs().updateOne({ startedAt, by }, { $set: { finishedAt: new Date(+startedAt + result.ms), jobs: result.jobs, closed: result.closed, failed: result.failed, errors } });
     return { started: true, run: { boards: boards.length, jobs: result.jobs, closed: result.closed, failed: result.failed, errors, seconds: Math.round(result.ms / 1000) } };

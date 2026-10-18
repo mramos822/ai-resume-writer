@@ -42,6 +42,7 @@ Lo que no se puede hacer desde el código (cuentas, claves, dominio) lo haces t�
 | `MONGODB_USER`, `MONGODB_PASS`, `MONGODB_HOST` | Atlas (paso 1) |
 | `AI_API_KEY` | Tu clave de Google AI Studio (Gemini). La gratis tiene límites bajos. |
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | developer.adzuna.com |
+| `USAJOBS_API_KEY`, `USAJOBS_EMAIL` | La clave gratis de developer.usajobs.gov y el correo con el que la pediste (la API pide los dos). Sin ellas, esa fuente solo avisa "not set". |
 | `ADMIN_EMAILS` | Tu correo (ves el buzón de mensajes de contacto). |
 | `CRON_SECRET` | 16 o más caracteres al azar. Lo usa Vercel para llamar a los cron; también sirve para lanzar la ingesta a mano. |
 | `CONTACT_WEBHOOK_URL` | Opcional: un aviso en Slack/Discord por cada mensaje de contacto. |
@@ -55,11 +56,16 @@ Lo que no se puede hacer desde el código (cuentas, claves, dominio) lo haces t�
 3. **Carga el índice de empleos** (la búsqueda queda vacía hasta que corra la ingesta; si no la lanzas, corre sola a las 6 h de la primera búsqueda):
    ```
    curl -X POST https://tu-app.vercel.app/api/admin/ingest-jobs -H "Authorization: Bearer TU_CRON_SECRET"
+   curl -X POST https://tu-app.vercel.app/api/admin/ingest-jobs -H "Authorization: Bearer TU_CRON_SECRET" -H "Content-Type: application/json" -d '{"only":"feeds"}'
    curl -X POST "https://tu-app.vercel.app/api/admin/ingest-jobs?only=smartrecruiters" -H "Authorization: Bearer TU_CRON_SECRET"
    ```
-   La primera tarda unos 40 s y devuelve cuántos empleos leyó. La segunda lee las empresas de SmartRecruiters (repítela 2 o 3 veces: lee
+   La primera (las empresas: Greenhouse, Lever, Ashby, Workable, Recruitee, Teamtailor) tarda unos 40 s y devuelve cuántos empleos leyó. La segunda lee los
+   agregadores (Get on Board, USAJOBS, Remote OK, Jobicy, Remotive, Arbeitnow) en unos 25 s: va aparte para que ninguna llamada pase del minuto que da el plan
+   gratis. La tercera lee las empresas de SmartRecruiters (repítela 2 o 3 veces: lee
    120 empleos nuevos por empresa en cada corrida).
-4. Revisa en **Vercel → Settings → Cron Jobs** que aparezcan los dos del archivo `vercel.json`
+4. Los agregadores y **Computrabajo** (Perú y Chile) los lanza una tarea de GitHub, `.github/workflows/ingest-extra.yml`, cada 8 horas (usa los mismos
+   secretos `SITE_URL` y `CRON_SECRET` de la tarea de abajo). Para llenar Computrabajo la primera vez, ejecútala a mano (Actions → *Run workflow*) un par de veces.
+5. Revisa en **Vercel → Settings → Cron Jobs** que aparezcan los dos del archivo `vercel.json`
    (`/api/admin/ingest-jobs` a las 06:00 UTC y `?only=smartrecruiters` a las 06:30 UTC). La segunda también hace la limpieza diaria de la
    política de privacidad (sesiones de invitado de 30 días y mensajes viejos).
 
@@ -84,10 +90,15 @@ nadie los vea hay una tarea lista: `.github/workflows/enrich-jobs.yml` llama cad
 
 ## 6. Límites del plan gratis de Vercel (Hobby)
 - Solo uso no comercial: sin cobros, sin anuncios.
-- Cada función dura como máximo 60 segundos (la ingesta usa unos 40 s).
+- Cada función dura como máximo 60 segundos (la ingesta de empresas usa unos 40 s y la de agregadores unos 25 s, cada una en su llamada).
 - Los cron corren a lo sumo una vez al día cada uno, y se permiten 2 (comprueba el límite actual en la documentación de Vercel).
 - Los límites de peticiones de `src/lib/rateLimit.ts` se cuentan por servidor, y en Vercel hay varios: son aproximados (ver `docs/OPERATIONS.md`).
 
-## 7. Lo que sigue en tu lista antes de cobrar (no de la beta)
+## 7. Con la dirección ya publicada
+- **Careerjet:** el formulario de su API pide la dirección del sitio. Su API pide además la IP y el navegador de cada visitante y da solo un extracto del anuncio
+  (no el texto), así que sirve para "ver más empleos", no para armar un CV a medida. Si te paga por clics, eso es ingreso: pasa antes a Vercel Pro.
+- **Adzuna:** la licencia pasados los 14 días de prueba, y la etiqueta "Jobs by Adzuna" en cada anuncio.
+
+## 8. Lo que sigue en tu lista antes de cobrar (no de la beta)
 Revisión de un abogado (términos, privacidad, uso de datos de Greenhouse, Lever, Ashby, SmartRecruiters y Adzuna), LLC, etiqueta
 "Jobs by Adzuna" que exigen sus términos, cuenta de Stripe, plan Pro de Vercel y facturación de Gemini.

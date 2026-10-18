@@ -71,8 +71,13 @@ BOARDS.push({ source: "getonboard", token: "all", name: "Get on Board" }, { sour
 // USAJOBS: the federal jobs of the United States, from its own API (public data; it needs a free key in USAJOBS_API_KEY and the email in USAJOBS_EMAIL).
 BOARDS.push({ source: "usajobs", token: "all", name: "USAJOBS" });
 
-/** One request per board: a full reading takes seconds. */
-export const FAST_BOARDS = BOARDS.filter((b) => b.source !== "smartrecruiters" && b.source !== "computrabajo");
+// The feeds of the boards of many companies (Get on Board reads about thirty requests, USAJOBS four...): about forty seconds together, read apart so that
+// neither this set nor the company boards go over the minute a function of the free host may run.
+const FEED_SOURCES: AtsSource[] = ["getonboard", "usajobs", "remoteok", "jobicy", "remotive", "arbeitnow"];
+/** One request per company board: a full reading takes about thirty seconds. */
+export const FAST_BOARDS = BOARDS.filter((b) => b.source !== "smartrecruiters" && b.source !== "computrabajo" && !FEED_SOURCES.includes(b.source));
+/** The feeds of the boards of many companies, read apart ("?only=feeds"). */
+export const FEED_BOARDS = BOARDS.filter((b) => FEED_SOURCES.includes(b.source));
 /** One request per new posting: read apart, with a limit of new postings per run, so it never fills a whole function call. */
 export const SLOW_BOARDS = BOARDS.filter((b) => b.source === "smartrecruiters");
 /** Computrabajo, read apart and slowly (see lib/ingest/computrabajo): one board is a country and a group of searches, and a run reads one board. */
