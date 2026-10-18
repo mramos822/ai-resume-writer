@@ -80,7 +80,7 @@ export default function AddJobLink({ open, onClose, onAdded }: { open: boolean; 
                   </button>
                 )}
               </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">{tr("Works with company pages and most job boards. Sites that ask you to log in cannot be read: paste the text instead.")}</p>
+              <p className="mt-1.5 text-xs text-muted-foreground">{tr("Works with company pages and most job boards (LinkedIn, Dice, Computrabajo, Get on Board, Reed...). Indeed, Glassdoor, ZipRecruiter, Monster and sites that ask you to log in do not let programs read them: paste the text instead.")}</p>
             </div>
           ) : (
             <div>

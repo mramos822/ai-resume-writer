@@ -82,6 +82,13 @@ function postingOf(html: string): string | null {
   return null;
 }
 
+/** The main block of a page (its <main>, or its biggest <article>), when it is there and has some body; null otherwise. */
+export function mainBlock(html: string): string | null {
+  const blocks = [...html.matchAll(/<(main|article)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((m) => m[2]);
+  const best = blocks.sort((a, b) => b.length - a.length)[0];
+  return best && htmlToText(best).length >= 400 ? best : null;
+}
+
 /** A page that is a check for people ("Just a moment...", a captcha), not the posting: the site does not let programs read its pages. */
 const HUMAN_CHECK = /just a moment|enable javascript and cookies|cf-chl|challenge-platform|captcha|verify you are (?:a )?human|are you a robot|access denied/i;
 
@@ -110,14 +117,17 @@ export async function fetchJobAdPage(url: string, keepLines = false, tries = 3):
           headers: { "User-Agent": "Mozilla/5.0 (compatible; ResumeWriter/1.0)" },
           signal: AbortSignal.timeout(8000),
         });
-        if (res.status === 403 || res.status === 429 || res.status === 503) {
+        // 401, 403 and 429 are the site saying no to a program (Indeed answers 401, OCC and Glassdoor 403): it is not insisted on. A 503 only when it is a check.
+        if (res.status === 401 || res.status === 403 || res.status === 429) return { text: null, blocked: true };
+        if (res.status === 503) {
           const body = await res.text().catch(() => "");
           if (res.headers.get("cf-mitigated") === "challenge" || HUMAN_CHECK.test(body.slice(0, 4000))) return { text: null, blocked: true };
         }
         if (res.ok) {
           const html = await res.text();
           const posting = keepLines ? postingOf(html) : null;
-          const text = posting && posting.length >= 200 ? posting : htmlToText(html, keepLines);
+          // without data of its own, the main block of the page (its <main> or <article>) is read, not the menus around it
+          const text = posting && posting.length >= 200 ? posting : htmlToText(mainBlock(html) ?? html, keepLines);
           if (HUMAN_CHECK.test(text.slice(0, 300))) return { text: null, blocked: true };
           // Login walls and empty pages carry no job description
           if (text.length >= 300 && !/sign in|join now|log in/i.test(text.slice(0, 400))) return { text, blocked: false };

@@ -310,6 +310,7 @@ export const PART3: Record<string, string> = {
   "We couldn't read that file: {message}. Try again, or paste the text in Write Biography.": "No pudimos leer ese archivo: {message}. Inténtalo de nuevo o pega el texto en Escribir biografía.",
   "We couldn't read that posting.": "No pudimos leer esa oferta.",
   "That site doesn't let programs read its pages (it asks for a check that only a person can pass). Open the job in your browser, copy its text and paste it in \"Paste the text\".": "Ese sitio no deja que un programa lea sus páginas (pide una verificación que solo una persona puede pasar). Abre el empleo en tu navegador, copia su texto y pégalo en \"Pega el texto\".",
+  "Works with company pages and most job boards (LinkedIn, Dice, Computrabajo, Get on Board, Reed...). Indeed, Glassdoor, ZipRecruiter, Monster and sites that ask you to log in do not let programs read them: paste the text instead.": "Funciona con páginas de empresas y la mayoría de portales (LinkedIn, Dice, Computrabajo, Get on Board, Reed...). Indeed, Glassdoor, ZipRecruiter, Monster y los sitios que piden iniciar sesión no dejan que un programa los lea: pega el texto.",
   "Clear the link": "Borrar el enlace",
   "Clear the text": "Borrar el texto",
   "Copy link": "Copiar enlace",

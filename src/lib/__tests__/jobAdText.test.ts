@@ -73,3 +73,38 @@ describe("a site that asks for a check that only a person can pass", () => {
     expect(await fetchJobAdPage("https://example.com/job", true, 1)).toEqual({ text: null, blocked: false });
   });
 });
+
+describe("a site that says no to a program", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("is told at once for a 401, a 403 or a 429 (Indeed, OCC, Glassdoor...), with one request and no retry", async () => {
+    for (const status of [401, 403, 429]) {
+      const spy = jest.spyOn(global, "fetch").mockImplementation(async () => new Response("", { status }));
+      expect(await fetchJobAdPage("https://www.indeed.com/viewjob?jk=abc", true)).toEqual({ text: null, blocked: true });
+      expect(spy).toHaveBeenCalledTimes(1);
+      spy.mockRestore();
+    }
+  });
+});
+
+describe("a page with no data of its own", () => {
+  afterEach(() => jest.restoreAllMocks());
+  const body = "We are looking for a developer to join the team and build the platform. ".repeat(12);
+
+  it("is read from its main block, not from the menus and the footer around it", async () => {
+    const html = `<html><body><nav>MENU home jobs login</nav><main><h1>Backend Developer</h1><p>${body}</p></main><footer>FOOTER cookies terms</footer></body></html>`;
+    jest.spyOn(global, "fetch").mockImplementation(async () => new Response(html, { status: 200 }));
+    const text = (await fetchJobAdText("https://example.com/job/1", true, 1)) ?? "";
+    expect(text).toContain("Backend Developer");
+    expect(text).toContain("build the platform");
+    expect(text).not.toContain("MENU");
+    expect(text).not.toContain("FOOTER");
+  });
+
+  it("is read whole when it has no main block", async () => {
+    const html = `<html><body><nav>MENU</nav><div><h1>Backend Developer</h1><p>${body}</p></div></body></html>`;
+    jest.spyOn(global, "fetch").mockImplementation(async () => new Response(html, { status: 200 }));
+    const text = (await fetchJobAdText("https://example.com/job/2", true, 1)) ?? "";
+    expect(text).toContain("Backend Developer");
+  });
+});
