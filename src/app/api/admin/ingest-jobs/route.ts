@@ -27,7 +27,18 @@ async function run(req: Request, only: string | undefined) {
     const slow = only === "smartrecruiters";
     await runMigrations(); // the indexes of the jobs index exist before anything is written
     const res = await ingestNow({ by: "scheduler", onlyIfDue: false, set: slow ? "slow" : "fast" });
-    return NextResponse.json(res.started ? { ...res.run } : { skipped: res.reason }, { status: res.started || res.reason === "running" ? 200 : 500 });
+    // The daily cleanup promised in the privacy policy (guest sessions unused for 30 days, old contact messages) rides on the slow call, so the
+    // host's free plan (two daily crons) is enough. It also runs by itself when somebody starts a guest session: this makes it exact.
+    let cleanup: { guestsRemoved: number; messagesRemoved: number } | undefined;
+    if (slow) {
+      try {
+        const { sweepInactiveGuests, sweepOldMessages } = await import("@/lib/retention");
+        cleanup = { guestsRemoved: await sweepInactiveGuests(200), messagesRemoved: await sweepOldMessages() };
+      } catch (e) {
+        console.error("Cleanup failed", e instanceof Error ? e.message : e);
+      }
+    }
+    return NextResponse.json(res.started ? { ...res.run, ...(cleanup ? { cleanup } : {}) } : { skipped: res.reason, ...(cleanup ? { cleanup } : {}) }, { status: res.started || res.reason === "running" ? 200 : 500 });
   } catch (e) {
     console.error("Ingestion failed", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "Ingestion failed." }, { status: 500 });

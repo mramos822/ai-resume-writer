@@ -5,6 +5,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false, // nobody needs to be told which framework this is
+  // a check of the production build can go to its own folder while the dev server keeps running (NEXT_DIST_DIR=.next-check npm run build)
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   turbopack: { root: path.resolve(__dirname) },
   // pdfkit loads its font metrics from disk, so it must not be bundled
   serverExternalPackages: ["pdfkit", "pdfjs-dist", "@napi-rs/canvas"],
