@@ -8,6 +8,7 @@ import { remoteCountryFit } from "@/lib/remotePlace";
 import { kmBetween, type Origin } from "@/lib/jobPlaces";
 import { nearestMajorCity } from "@/lib/jobMajorCities";
 import { REACH_ORDER, type Reach } from "@/lib/jobReach";
+import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 
 export interface JobListing {
   /** stable id: "source:id" */
@@ -30,6 +31,8 @@ export interface JobListing {
   logo?: string;
   /** the description in plain text (shortened), used to tailor an application */
   description?: string;
+  /** what the AI read from the whole posting (years, level, skills): the fit uses it when present */
+  facts?: JobFacts;
   /** in a search by place: how far the job is from it. Only search results have it. */
   reach?: Reach;
 }
@@ -356,5 +359,6 @@ export function cleanListing(j: Partial<JobListing> | null | undefined): JobList
     snippet: String(j.snippet ?? "").slice(0, 400),
     logo: typeof j.logo === "string" && /^https?:\/\//.test(j.logo) ? j.logo.slice(0, 500) : undefined,
     description: typeof j.description === "string" ? j.description.slice(0, 3500) : undefined,
+    facts: cleanFacts(j.facts),
   };
 }

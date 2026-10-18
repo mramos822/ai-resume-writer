@@ -9,7 +9,7 @@ import type { ProfileData } from "@/context/profileContext";
  * How much the level of the job lowers the fit: nothing when it asks for the experience the person has (or one year more),
  * then half for each extra year. A person without experience gets very low fits for senior jobs.
  */
-export function levelFactor(job: Pick<JobListing, "title" | "description" | "snippet">, myYears: number): number {
+export function levelFactor(job: Pick<JobListing, "title" | "description" | "snippet" | "facts">, myYears: number): number {
   const gap = levelOf(job).years - myYears;
   return gap <= 1 ? 1 : Math.max(0.1, 0.5 ** (gap - 1));
 }

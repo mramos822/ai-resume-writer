@@ -24,6 +24,7 @@ import { REACH_ORDER } from "@/lib/jobReach";
 import { aboveLevel, levelOf } from "@/lib/jobLevel";
 import { ago, fitOf, skillsForFit } from "@/lib/jobFit";
 import { isPartialPosting, jobScore, profileBasics } from "@/lib/jobScore";
+import type { JobFacts } from "@/lib/jobFacts";
 import { yearsFor } from "@/lib/experienceLevel";
 import { useT } from "@/i18n/provider";
 
@@ -145,7 +146,13 @@ export default function JobSearchPage() {
   const [detailJob, setDetailJob] = useState<JobListing | null>(null); // the page of one job
   // the number of a job once its whole posting was read in its page (the list showed an estimate until then); the order of the list does not move
   const [readScores, setReadScores] = useState<Record<string, number>>({});
-  const onReadScore = useCallback((key: string, pct: number) => setReadScores((r) => (r[key] === pct ? r : { ...r, [key]: pct })), []);
+  const onReadScore = useCallback((key: string, pct: number, facts?: JobFacts) => {
+    setReadScores((r) => (r[key] === pct ? r : { ...r, [key]: pct }));
+    if (facts) setReadFacts((f) => (f[key] ? f : { ...f, [key]: facts }));
+  }, []);
+  // what was read from a posting goes with the job into the application, so its screens show the same number as the page of the job
+  const [readFacts, setReadFacts] = useState<Record<string, JobFacts>>({});
+  const withRead = (j: JobListing): JobListing => (readFacts[j.key] && !j.facts ? { ...j, facts: readFacts[j.key] } : j);
   const [preparing, setPreparing] = useState<{ done: number; total: number } | null>(null);
   const template = (() => {
     try {
@@ -480,7 +487,7 @@ export default function JobSearchPage() {
                   {tab === "results" && job.reach && job.reach !== all[i - 1]?.job.reach && (
                     <li className="px-1 pb-1 pt-4 text-sm font-bold text-muted-foreground first:pt-0">{reachTitle(job.reach)}</li>
                   )}
-                  <JobCard job={job} fit={readScores[job.key] !== undefined ? { ...fit, pct: readScores[job.key], estimate: false } : fit} saved={savedKeys.has(job.key)} onToggle={() => toggleSave(job)} onPrepare={() => setKitJob(job)} onOpen={() => setDetailJob(job)} onDelete={tab === "applications" ? () => deleteApplication(job) : undefined} status={appByKey.get(job.key)?.status} />
+                  <JobCard job={job} fit={readScores[job.key] !== undefined ? { ...fit, pct: readScores[job.key], estimate: false } : fit} saved={savedKeys.has(job.key)} onToggle={() => toggleSave(job)} onPrepare={() => setKitJob(withRead(job))} onOpen={() => setDetailJob(job)} onDelete={tab === "applications" ? () => deleteApplication(job) : undefined} status={appByKey.get(job.key)?.status} />
                 </React.Fragment>
               ))}
             </AnimatePresence>
@@ -519,7 +526,7 @@ export default function JobSearchPage() {
         onScore={onReadScore}
         onPrepare={(j) => {
           setDetailJob(null);
-          setKitJob(j);
+          setKitJob(withRead(j));
         }}
         onSavedChange={(j, isSaved) => setSaved((list) => (isSaved ? [{ ...j, savedAt: new Date().toISOString() }, ...list.filter((x) => x.key !== j.key)] : list.filter((x) => x.key !== j.key)))}
       />

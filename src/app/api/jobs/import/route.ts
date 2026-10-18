@@ -4,7 +4,7 @@ import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { fetchJobAdText, JOB_AD_LINK_ERROR } from "@/lib/jobAdText";
 import { isSafePublicUrl } from "@/lib/safeUrl";
 import { limitedShared } from "@/lib/rateLimit";
-import { describe, readPosting, str } from "@/lib/jobDigest";
+import { describe, factsOf, readPosting, str } from "@/lib/jobDigest";
 import { cleanListing, type JobListing } from "@/lib/jobSearch";
 
 // "Add a job": for a posting the job search did not find. The person pastes a link (any site) or the text of the posting and
@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       tags: (Array.isArray(raw.tags) ? raw.tags : []).map((t) => str(t, 40)).filter(Boolean).slice(0, 6),
       snippet: (str(raw.summary, 380) || description.replace(/\s+/g, " ")).slice(0, 380),
       description,
+      facts: factsOf(raw),
     };
     const clean = cleanListing(job);
     if (!clean) throw new HttpError(422, "We couldn't read that posting.");

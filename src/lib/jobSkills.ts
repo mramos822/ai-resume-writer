@@ -71,10 +71,11 @@ const CURRENCY = /(\d[\d,.]*\s*(?:k|m)?\s*[-–]?\s*\$?[\d,.]*\s*\(?\s*CAD\b)|(\
 export function mentionedSkills(text: string): string[] {
   const out: string[] = [];
   const asked = text.replace(new RegExp(CURRENCY.source, "g"), " ");
+  const cased = text !== text.toLowerCase(); // an all lower case text cannot tell "Go" the language from "go"
   for (const s of ALL_SKILLS) {
     if (s.length < 2) continue;
     if (PLAIN_LANGUAGE.has(s.toLowerCase())) continue;
-    const re = new RegExp(`(^|[^A-Za-z0-9+#])${esc(s)}($|[^A-Za-z0-9+#])`, CASE_SENSITIVE.has(s) ? "" : "i");
+    const re = new RegExp(`(^|[^A-Za-z0-9+#])${esc(s)}($|[^A-Za-z0-9+#])`, CASE_SENSITIVE.has(s) && cased ? "" : "i");
     if (re.test(asked)) out.push(s);
   }
   return out;

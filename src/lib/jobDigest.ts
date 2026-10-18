@@ -2,6 +2,7 @@
 // a short summary and the sections of the job. The AI only reads out what the text says; it adds nothing.
 import { getOpenAIChatCompletion } from "@/lib/openaiClient";
 import { AI_MODEL } from "@/lib/aiConfig";
+import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 
 const SYSTEM = `You read a job posting and extract its facts. Reply with ONE JSON object and nothing else:
 {
@@ -17,7 +18,11 @@ const SYSTEM = `You read a job posting and extract its facts. Reply with ONE JSO
   "requirements": ["<up to 14 items: required skills, tools, experience (say the years if stated), education or languages, one short line each>"],
   "niceToHave": ["<up to 8 items: what is a plus, one short line each>"],
   "benefits": ["<up to 10 items: pay, perks, schedule, contract type, one short line each>"],
-  "aboutCompany": "<1 or 2 sentences about the employer, only if the posting says something real about it, else empty>"
+  "aboutCompany": "<1 or 2 sentences about the employer, only if the posting says something real about it, else empty>",
+  "yearsRequired": <number: the years of professional experience the job requires of the candidate IN TOTAL, which is the largest overall figure among the requirements (for example "8 years of software development" and "1 year of mobile" give 8). Ignore anything that is only a plus or preferred. 0 when the posting states none>,
+  "seniority": "<one of: intern, entry, mid, senior, staff, principal, lead, manager, director, unspecified: the level of the role, from its title and requirements>",
+  "skillsRequired": ["<up to 15 specific skills the job REQUIRES: languages, frameworks, tools, platforms, certifications, methods. Names only, written as the industry writes them (for example React, AWS, Kubernetes). No soft skills, no ordinary words (organization, initiative), no currencies>"],
+  "skillsPreferred": ["<up to 10 skills that are only a plus or preferred, same rules>"]
 }
 The text was copied from a web page, so it also holds menus, buttons, "similar jobs", cookie notices, reactions, applicant counts and the company's marketing or legal text. Ignore all of that, but keep EVERY detail that helps someone decide on this job and apply to it: do not leave out a requirement, a tool, a duty, a benefit, a schedule or a deadline.
 Write the items in the language of the posting. Never invent anything that is not in the text, and leave a list empty when the posting says nothing about it. If the text is not a job posting, use an empty title.`;
@@ -42,12 +47,17 @@ export function describe(raw: Record<string, unknown>): string {
   return parts.join("\n\n");
 }
 
+/** What the AI read about years, level and skills (undefined when it gave nothing usable). */
+export function factsOf(raw: Record<string, unknown>): JobFacts | undefined {
+  return cleanFacts(raw);
+}
+
 /** Asks the AI to read the text of a posting. Returns what it found (empty object if the answer was not usable). */
 export async function readPosting(text: string): Promise<Record<string, unknown>> {
   const completion = await getOpenAIChatCompletion({
     model: AI_MODEL,
     temperature: 0,
-    max_tokens: 1900,
+    max_tokens: 2400,
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: text.slice(0, 12000) },

@@ -8,7 +8,8 @@ import { isPartialPosting, type JobListing } from "@/lib/jobSearch";
 export { isPartialPosting };
 import { levelFactor, roleSimilarity } from "@/lib/jobFit";
 import { levelOf } from "@/lib/jobLevel";
-import { covers, mentionedSkills, skillGap } from "@/lib/jobSkills";
+import { covers, mentionedSkills, skillGap, type SkillGap } from "@/lib/jobSkills";
+import type { JobFacts } from "@/lib/jobFacts";
 import { resumeText } from "@/lib/roleProfile";
 import { evaluateAuto, scoreOf } from "@/lib/reviewRubric";
 import { yearsFor } from "@/lib/experienceLevel";
@@ -58,6 +59,15 @@ const NO_DEGREE = /\b(no degree|degree (is )?not required|degree or equivalent|o
  * `extra` are skills the person confirmed for this job: they count as covered. `targets` are the keywords the review of the resume asked
  * to work into it (checked by code to be in the posting and true for the person): the number rises when the resume says them.
  */
+/** What a job asks for compared with the person's skills, from the skills the AI read out of the posting. */
+function factsGap(facts: JobFacts, mine: string[], resume: string): SkillGap {
+  const text = resume.toLowerCase();
+  const shown = mentionedSkills(resume);
+  const has = (s: string) => mine.some((m) => covers(m, s)) || shown.some((t) => covers(t, s)) || saysTerm(text, s);
+  const asked = [...facts.required, ...facts.preferred];
+  return { matched: asked.filter(has), missing: asked.filter((s) => !has(s)) };
+}
+
 /** How well the resume is written, 0 to 100: it does not depend on the job, so a list of jobs works it out once and passes it to `jobScore`. */
 export function profileBasics(profile: ProfileData, template = "classic"): number {
   return scoreOf(evaluateAuto(profile, null, template, null));
@@ -72,25 +82,27 @@ export function jobScore(profile: ProfileData, job: JobListing, extra: string[] 
   const body = job.description || job.snippet || "";
   const posting = `${job.title}. ${job.tags.join(", ")}. ${body}`;
 
-  // the requirements: the skills the posting names
-  const gap = skillGap(posting, [...(profile.skills ?? []), ...extra], resumeText(profile));
+  // the requirements: the skills the posting names (what the AI read from the whole posting when there is, else the keyword list on its text)
+  const mine = [...(profile.skills ?? []), ...extra];
+  const gap = job.facts && job.facts.required.length + job.facts.preferred.length > 0 ? factsGap(job.facts, mine, resumeText(profile)) : skillGap(posting, mine, resumeText(profile));
+  const weight = (s: string) => (job.facts?.preferred.some((p) => p.toLowerCase() === s.toLowerCase()) ? 0.4 : 1); // a plus counts less than a requirement
   const total = gap.matched.length + gap.missing.length;
   const have = gap.matched.length;
   // a skill shown in the work (jobs, projects, studies) counts fully; one that is only in the list of skills counts less, and so does
   // one the person confirmed for this job (a recruiter reads the experience, not the list)
-  const evidence = mentionedSkills(
-    [
-      ...(profile.jobHistory ?? []).flatMap((j) => [j.title, j.description, ...(j.accomplishments ?? [])]),
-      ...(profile.internships ?? []).flatMap((j) => [j.title, j.description, ...(j.accomplishments ?? [])]),
-      ...(profile.projects ?? []).flatMap((x) => [x.name, x.description, ...(x.technologies ?? []), ...(x.accomplishments ?? [])]),
-      ...(profile.education ?? []).flatMap((e) => [e.degree, e.coursework]),
-      ...(profile.certifications ?? []).map((c) => c.name),
-    ]
-      .join(" \n ")
-      .toLowerCase()
-  );
-  const credit = gap.matched.reduce((n, s) => n + (evidence.some((t) => covers(t, s)) ? 1 : 0.6), 0);
-  const raw = total === 0 ? 0.5 : credit / total; // a posting that names nothing known says nothing either way
+  const evidenceRaw = [
+    ...(profile.jobHistory ?? []).flatMap((j) => [j.title, j.description, ...(j.accomplishments ?? [])]),
+    ...(profile.internships ?? []).flatMap((j) => [j.title, j.description, ...(j.accomplishments ?? [])]),
+    ...(profile.projects ?? []).flatMap((x) => [x.name, x.description, ...(x.technologies ?? []), ...(x.accomplishments ?? [])]),
+    ...(profile.education ?? []).flatMap((e) => [e.degree, e.coursework]),
+    ...(profile.certifications ?? []).map((c) => c.name),
+  ].join(" \n ");
+  const evidence = mentionedSkills(evidenceRaw);
+  const evidenceText = evidenceRaw.toLowerCase();
+  const shown = (s: string) => evidence.some((t) => covers(t, s)) || saysTerm(evidenceText, s);
+  const wTotal = [...gap.matched, ...gap.missing].reduce((n, s) => n + weight(s), 0);
+  const credit = gap.matched.reduce((n, s) => n + weight(s) * (shown(s) ? 1 : 0.6), 0);
+  const raw = wTotal === 0 ? 0.5 : credit / wTotal; // a posting that names nothing known says nothing either way
   // an entry level job expects to train people: the specific skills weigh less there
   const coverage = ["Entry level", "Internship"].includes(levelOf(job).label) ? 0.35 + 0.65 * raw : raw;
 
@@ -109,7 +121,7 @@ export function jobScore(profile: ProfileData, job: JobListing, extra: string[] 
   // what the resume says (not only lists): the job's keywords that the person has, plus the ones the review asked to work in
   const narrativeNow = narrativeText(profile);
   // (a skill the person just confirmed for this job is not held against the number for not being in a bullet yet: confirming can only raise it)
-  const keywords = Array.from(new Set([...gap.matched.filter((m) => !extra.some((e) => covers(e, m))), ...targets].map((t) => t.trim()).filter(Boolean)));
+  const keywords = Array.from(new Set([...gap.matched.filter((m) => weight(m) === 1 && !extra.some((e) => covers(e, m))), ...targets].map((t) => t.trim()).filter(Boolean)));
   const narrative = keywords.length === 0 ? 0.5 : keywords.filter((t) => saysTerm(narrativeNow, t)).length / keywords.length;
 
   // (the look the person chose is not part of how well they fit a job: the same number whatever the look)

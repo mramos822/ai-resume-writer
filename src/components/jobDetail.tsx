@@ -12,6 +12,7 @@ import { useToast } from "@/context/toastContext";
 import { authFetch } from "@/lib/authFetch";
 import { ago, fitOf, skillsForFit } from "@/lib/jobFit";
 import { jobScore } from "@/lib/jobScore";
+import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 import { yearsFor } from "@/lib/experienceLevel";
 import { levelOf } from "@/lib/jobLevel";
 import { covers, mentionedSkills } from "@/lib/jobSkills";
@@ -65,14 +66,14 @@ export default function JobDetail({
   onPrepare: (job: JobListing) => void;
   onSavedChange?: (job: JobListing, saved: boolean) => void;
   /** the number of the job once its whole posting has been read (the list shows it instead of its estimate) */
-  onScore?: (key: string, pct: number) => void;
+  onScore?: (key: string, pct: number, facts?: JobFacts) => void;
 }) {
   const { tr } = useT();
   const { activeProfile: profile } = useProfile();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   // job boards only share the first lines of a posting: we read the whole posting and show it as a summary and its sections
-  const [full, setFull] = useState<{ key: string; text: string | null } | null>(null);
+  const [full, setFull] = useState<{ key: string; text: string | null; facts?: JobFacts } | null>(null);
 
   useEffect(() => {
     setFull(null);
@@ -82,7 +83,7 @@ export default function JobDetail({
     let off = false;
     authFetch("/api/jobs/detail", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job }) })
       .then((r) => (r.ok ? r.json() : { text: null }))
-      .then((d) => !off && setFull({ key: job.key, text: typeof d.text === "string" ? d.text : null }))
+      .then((d) => !off && setFull({ key: job.key, text: typeof d.text === "string" ? d.text : null, facts: cleanFacts(d.facts) }))
       .catch(() => !off && setFull({ key: job.key, text: null }));
     return () => {
       off = true;
@@ -95,13 +96,15 @@ export default function JobDetail({
     const source = full?.key === job.key && full.text ? full.text : job.description || job.snippet || "";
     const text = `${job.title}. ${job.tags.join(", ")}. ${source}`;
     // the number is worked out from the whole posting when it has been read: the same number as when the job is added by its link
-    const whole = source !== (job.description || job.snippet || "") ? { ...job, description: source } : job;
+    const facts = full?.key === job.key ? full.facts : undefined;
+    const whole = source !== (job.description || job.snippet || "") || facts ? { ...job, description: source, facts: facts ?? job.facts } : job;
     const myYears = yearsFor(profile);
     // the percentage is the number of the job (see lib/jobScore); the skills it matches come from the quick reading of the posting
     const fit = { ...fitOf(job, skillsForFit(profile), role, myYears), pct: jobScore(profile, whole).score };
     const mine = profile.skills ?? [];
     const has = (s: string) => mine.some((m) => covers(m, s)); // "GitHub Actions" counts for a posting that asks for GitHub
-    const mentioned = mentionedSkills(text);
+    // the skills the AI read from the whole posting (requirements first) when there are; the keyword list on the text otherwise
+    const mentioned = facts && facts.required.length + facts.preferred.length > 0 ? [...facts.required, ...facts.preferred] : mentionedSkills(text);
     return {
       fit,
       level: levelOf(whole),
@@ -118,7 +121,7 @@ export default function JobDetail({
   const readKey = full?.text ? full.key : null;
   const readPct = analysis?.fit.pct;
   useEffect(() => {
-    if (job && readKey === job.key && readPct !== undefined) onScore?.(job.key, readPct);
+    if (job && readKey === job.key && readPct !== undefined) onScore?.(job.key, readPct, full?.facts);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.key, readKey, readPct]);
 
@@ -128,7 +131,7 @@ export default function JobDetail({
     try {
       const res = saved
         ? await authFetch(`/api/saved-jobs?key=${encodeURIComponent(job.key)}`, { method: "DELETE" })
-        : await authFetch("/api/saved-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(job) });
+        : await authFetch("/api/saved-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(full?.key === job.key && full.facts ? { ...job, facts: full.facts } : job) });
       if (!res.ok) throw new Error();
       onSavedChange?.(job, !saved);
       if (!saved) toast.success(tr("Job saved."));

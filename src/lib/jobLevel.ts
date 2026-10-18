@@ -1,5 +1,6 @@
 // How much experience a job asks for, so people are not shown roles they are far from qualifying for.
 import type { JobListing } from "@/lib/jobSearch";
+import type { Seniority } from "@/lib/jobFacts";
 
 export interface JobLevel {
   /** the label to show, when the level is clear: "Senior", "Lead", "Entry level"... */
@@ -39,7 +40,30 @@ function statedYears(text: string): number | null {
 }
 
 /** The level of a listing from its title, and the years it asks for. */
-export function levelOf(job: Pick<JobListing, "title" | "description" | "snippet">): JobLevel {
+const FROM_FACTS: Record<Exclude<Seniority, "unspecified">, { label: string; typical: number }> = {
+  intern: { label: "Internship", typical: 0 },
+  entry: { label: "Entry level", typical: 0 },
+  mid: { label: "Mid level", typical: 3 },
+  senior: { label: "Senior", typical: 5 },
+  staff: { label: "Principal", typical: 8 },
+  principal: { label: "Principal", typical: 8 },
+  lead: { label: "Lead", typical: 6 },
+  manager: { label: "Manager", typical: 6 },
+  director: { label: "Director", typical: 10 },
+};
+
+export function levelOf(job: Pick<JobListing, "title" | "description" | "snippet" | "facts">): JobLevel {
+  const rules = levelByRules(job);
+  const f = job.facts;
+  if (!f) return rules;
+  // what the AI read from the whole posting wins over the rules: its level, and the years it found (or the usual ones for that level)
+  const known = f.seniority === "unspecified" ? null : FROM_FACTS[f.seniority];
+  const label = known?.label ?? rules.label;
+  const years = label === "Entry level" || label === "Internship" ? Math.min(f.years ?? 0, 2) : f.years ?? (known ? known.typical : rules.years);
+  return { label, years };
+}
+
+function levelByRules(job: Pick<JobListing, "title" | "description" | "snippet">): JobLevel {
   const title = WORDS(job.title);
   const stated = statedYears(`${job.description ?? ""} ${job.snippet ?? ""}`);
   let label = "";
@@ -77,6 +101,6 @@ export function levelOf(job: Pick<JobListing, "title" | "description" | "snippet
 }
 
 /** True when the job asks for clearly more experience than the person has (more than a year of difference). */
-export function aboveLevel(job: Pick<JobListing, "title" | "description" | "snippet">, myYears: number): boolean {
+export function aboveLevel(job: Pick<JobListing, "title" | "description" | "snippet" | "facts">, myYears: number): boolean {
   return levelOf(job).years > myYears + 1;
 }
