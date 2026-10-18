@@ -48,7 +48,9 @@ export function fromGreenhouse(b: Board, j: GreenhouseJob): IndexedJob | null {
     title: clip(nice(j.title), 200),
     company: clip(nice(j.company_name ?? company(b)), 200),
     location: clip(location, 200),
-    remote: REMOTE.test(location) || REMOTE.test(j.title),
+    // Greenhouse has no field for it: the place says it ("Remote - US"), and a place that is only "United States" or "Canada" is a job open to the
+    // whole country, which is how companies publish their remote jobs there (a place that is only "Singapore" is an office, not a remote job)
+    remote: REMOTE.test(location) || REMOTE.test(j.title) || /^(united states|usa|u.s.a?.?|us|canada)$/i.test(location.trim()),
     url: clip(j.absolute_url, 1000),
     postedAt: iso(j.first_published) || iso(j.updated_at),
     salary: payFromText(full),
@@ -197,7 +199,7 @@ export const SR_NEW_PER_RUN = 120;
  * The newest postings of a company. A posting already in the index (`known`) is not read again: it only counts as still open. Of the new
  * ones, at most SR_NEW_PER_RUN are read in full (the rest wait for the next run).
  */
-export async function fetchSmartRecruiters(b: Board, known: Set<string>): Promise<{ jobs: IndexedJob[]; seen: string[] }> {
+export async function fetchSmartRecruiters(b: Board, known: Set<string>): Promise<{ jobs: IndexedJob[]; seen: string[]; remoteOf: Record<string, boolean> }> {
   const items: SrListItem[] = [];
   for (let offset = 0; offset < SR_WINDOW; offset += 100) {
     const res = await fetch(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(b.token)}/postings?limit=100&offset=${offset}`, { signal: AbortSignal.timeout(30_000) });
@@ -209,6 +211,9 @@ export async function fetchSmartRecruiters(b: Board, known: Set<string>): Promis
   const window = items.slice(0, SR_WINDOW).filter((i) => i.id && i.ref);
   const keyOf = (i: SrListItem) => `smartrecruiters:${b.token}:${i.id}`;
   const seen = window.filter((i) => known.has(keyOf(i))).map(keyOf);
+  // what the list says about the place of the postings already in the index (remote, not hybrid), so it is kept right without reading them again
+  const remoteOf: Record<string, boolean> = {};
+  for (const i of window) if (known.has(keyOf(i))) remoteOf[keyOf(i)] = i.location?.hybrid !== true && (i.location?.remote === true || REMOTE.test(i.name ?? ""));
   const fresh = window.filter((i) => !known.has(keyOf(i))).slice(0, SR_NEW_PER_RUN);
   const jobs: IndexedJob[] = [];
   const queue = [...fresh];
@@ -225,7 +230,7 @@ export async function fetchSmartRecruiters(b: Board, known: Set<string>): Promis
     }
   };
   await Promise.all(Array.from({ length: 6 }, worker));
-  return { jobs, seen };
+  return { jobs, seen, remoteOf };
 }
 
 interface RemotiveJob {
@@ -297,7 +302,8 @@ export function fromArbeitnow(b: Board, j: ArbeitnowJob): IndexedJob | null {
     snippet: clip(nice(full), 380),
     description: clip(full, 6000),
     board: `arbeitnow:${b.token}`,
-    country: countryOf(location),
+    // the feed is Germany and Europe: a place that does not say its country ("Nyon") is a European job, not one for a search in the US
+    country: countryOf(location) ?? "EU",
   };
 }
 

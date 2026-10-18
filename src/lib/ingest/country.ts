@@ -41,6 +41,16 @@ const CITIES: [RegExp, string][] = [
   [/\b(new york( city)?|nyc|san francisco|seattle|austin|boston|chicago|los angeles|denver|atlanta|miami|dallas|houston|portland|san diego|san jose|palo alto|mountain view|sunnyvale|menlo park|redwood city|philadelphia|pittsburgh|phoenix|salt lake city|raleigh|nashville|minneapolis|washington, d\.?c\.?|brooklyn|bay area)\b/i, "US"],
 ];
 
+/** True when the place is only a country ("United States", "Canada"), with no city: a posting placed like that is usually open to the whole country. */
+export function isCountryName(place: string): boolean {
+  const p = place.trim();
+  if (!p || /,/.test(p)) return false;
+  return NAMES.some(([re]) => {
+    const m = re.exec(p);
+    return !!m && m[0].length === p.length;
+  });
+}
+
 /**
  * `hint` is what the board says when it says it (a two letter code, or a country name): it wins. Otherwise the place is read:
  * a country name, then a city that says it, then a US state ("Newark, NJ").

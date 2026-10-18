@@ -13,14 +13,23 @@ const WORDS = (s: string) => s.toLowerCase();
 
 /** The text without its "preferred / a plus / nice to have" part: what is only a plus is not what the job asks for. */
 export function withoutPlus(text: string): string {
-  const mark = /(^|\n)[ \t#*-]*(a plus|preferred qualifications?|preferred|nice[- ]to[- ]have|bonus points?|desirable|pluses|good to have)\b[^\n]{0,40}(:|\n)/i;
-  const m = mark.exec(text);
-  if (!m) return text;
-  const start = m.index;
-  // the part of a plus ends where another section starts ("## ..." in a digest, or a known heading in a raw text)
-  const rest = text.slice(start + m[0].length);
-  const end = /\n(##\s|[ \t]*(about the (job|role|company|team)|responsibilities|what you('| wi)ll do|what they offer|benefits|minimum qualifications|requirements)\b)/i.exec(rest);
-  return text.slice(0, start) + (end ? "\n" + rest.slice(end.index + 1) : "");
+  const mark = /^[ \t#*-]*(a plus|preferred qualifications?|preferred|nice[- ]to[- ]have|bonus points?|desirable|pluses|good to have)\b[^\n]{0,40}:?\s*$/i;
+  const heading = /^(##\s|[ \t]*(about the (job|role|company|team)|responsibilities|what you('| wi)ll do|what they offer|benefits|minimum qualifications|requirements)\b)/i;
+  const bullet = /^\s*([-•*]|\d+[.)])\s/;
+  const lines = text.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; ) {
+    if (!mark.test(lines[i])) {
+      out.push(lines[i++]);
+      continue;
+    }
+    // only what sits right under the heading is "a plus": its block, then the bullet list that follows (and the blank lines between); a later
+    // paragraph or list ("Requirements: 10+ years...") belongs to the job and stays
+    i++;
+    while (i < lines.length && lines[i].trim() !== "" && !heading.test(lines[i])) i++;
+    while (i < lines.length && (lines[i].trim() === "" || bullet.test(lines[i])) && !heading.test(lines[i])) i++;
+  }
+  return out.join("\n");
 }
 
 /**
@@ -71,7 +80,7 @@ function levelByRules(job: Pick<JobListing, "title" | "description" | "snippet">
   if (/\b(intern|internship|trainee|apprentice|working student|werkstudent)\b/.test(title)) {
     label = "Internship";
     typical = 0;
-  } else if (/\b(entry[- ]level|early[- ]career|early[- ]talent|junior|jr\.?|graduate|new[- ]?grad|recent grad|university|campus|apprentice|associate)\b/.test(title) || /\b(engineer|developer|analyst|designer|scientist)\s+(i|1)\b/.test(title)) {
+  } else if (/\b(entry[- ]level|early[- ]career|early[- ]talent|junior|jr\.?|graduate|undergraduate|undergrad|new[- ]?grad|recent grad|university|campus|student|co-?op|placement|apprentice|associate)\b/.test(title) || /\b(engineer|developer|analyst|designer|scientist)\s+(i|1)\b/.test(title)) {
     label = "Entry level";
     typical = 0;
   } else if (/\b(chief|vp|vice president|head of|director)\b/.test(title)) {
@@ -80,6 +89,10 @@ function levelByRules(job: Pick<JobListing, "title" | "description" | "snippet">
   } else if (/\b(principal|staff|architect)\b/.test(title)) {
     label = "Principal";
     typical = 8;
+  } else if (/\b(senior|sr\.?)\s+(?:[\w&/,-]+\s+){1,3}manager\b/.test(title) && !/\b(engineering|software|technical|data|it|group|general|head)\b/.test(title)) {
+    // "Senior Product Manager" is a senior individual role; a "Senior Manager" (the two words together) is the step above a manager
+    label = "Senior";
+    typical = 5;
   } else if (/\b(lead|manager)\b/.test(title)) {
     label = /manager/.test(title) ? "Manager" : "Lead";
     // "Product Manager", "Account Manager", "Marketing Manager" are mid level roles; the manager of engineers, data, IT or a group is a senior one

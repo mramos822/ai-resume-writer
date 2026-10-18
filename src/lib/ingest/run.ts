@@ -31,12 +31,14 @@ export async function ingestBoard(b: Board, now = new Date()): Promise<BoardResu
   const board = `${b.source}:${b.token}`;
   let jobs: IndexedJob[];
   let alsoOpen: string[] = []; // postings the index already has that the company still publishes (not read again)
+  let remoteOf: Record<string, boolean> = {};
   try {
     if (b.source === "smartrecruiters") {
       const had = await index().find({ board }).project({ key: 1, _id: 0 }).toArray();
       const read = await fetchSmartRecruiters(b, new Set(had.map((d) => String(d.key))));
       jobs = read.jobs;
       alsoOpen = read.seen;
+      remoteOf = read.remoteOf;
     } else {
       jobs = await fetchBoard(b);
     }
@@ -66,7 +68,13 @@ export async function ingestBoard(b: Board, now = new Date()): Promise<BoardResu
     // what the board published before and no longer publishes is closed. A board that came back EMPTY closes nothing: more likely a
     // problem than a company that closed every opening at once.
     if (alsoOpen.length > 0) {
-      await index().updateMany({ key: { $in: alsoOpen } }, { $set: { active: true, lastSeenAt: now }, $unset: { closedAt: "", expiresAt: "" } });
+      // still open, and with the place as the list says it today
+      await index().bulkWrite(
+        alsoOpen.map((key) => ({
+          updateOne: { filter: { key }, update: { $set: { active: true, lastSeenAt: now, ...(key in remoteOf ? { remote: remoteOf[key] } : {}) }, $unset: { closedAt: "", expiresAt: "" } } },
+        })) as never,
+        { ordered: false }
+      );
     }
     let closed = 0;
     if (jobs.length > 0 || alsoOpen.length > 0) {
