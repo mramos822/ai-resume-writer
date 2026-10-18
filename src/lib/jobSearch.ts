@@ -13,7 +13,7 @@ import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 export interface JobListing {
   /** stable id: "source:id" */
   key: string;
-  source: "remotive" | "arbeitnow" | "adzuna" | "link";
+  source: "remotive" | "arbeitnow" | "adzuna" | "greenhouse" | "lever" | "link";
   title: string;
   company: string;
   location: string;
@@ -228,7 +228,10 @@ const cache = new Map<string, { at: number; jobs: JobListing[]; sources: string[
 const TTL = 5 * 60 * 1000;
 
 /** Searches every source, merges, removes repeats and puts the best matches and the newest first. */
-export async function searchJobs(q: JobQuery): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
+/** A source added by the caller (the server adds our own index): its name and how it searches. */
+export type ExtraSource = [name: string, search: (q: JobQuery) => Promise<JobListing[]>];
+
+export async function searchJobs(q: JobQuery, extra: ExtraSource[] = []): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
   const cacheKey = JSON.stringify([q.q.toLowerCase().trim(), q.location.toLowerCase().trim(), q.remoteOnly, q.country.toLowerCase()]);
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < TTL) return hit;
@@ -236,7 +239,7 @@ export async function searchJobs(q: JobQuery): Promise<{ jobs: JobListing[]; sou
   const sources: string[] = [];
   const jobs: JobListing[] = [];
   const info: { city?: string } = {};
-  const tasks: [string, Promise<JobListing[]>][] = [["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()]];
+  const tasks: [string, Promise<JobListing[]>][] = [["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()], ...extra.map(([name, run]): [string, Promise<JobListing[]>] => [name, run(q)])];
   if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY && adzunaCountry(q.country)) tasks.push(["Adzuna", adzunaAround(q, info)]);
   const settled = await Promise.allSettled(tasks.map(([, p]) => p));
   settled.forEach((r, i) => {
@@ -309,9 +312,9 @@ export function relatedQueries(role: string, skills: string[] = []): string[] {
 }
 
 /** A wider search: several related searches at once, joined and without repeats. */
-export async function searchJobsWide(q: JobQuery, skills: string[] = []): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
+export async function searchJobsWide(q: JobQuery, skills: string[] = [], extra: ExtraSource[] = []): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
   const queries = q.q.trim() ? relatedQueries(q.q, skills) : [q.q];
-  const results = await Promise.allSettled(queries.map((one) => searchJobs({ ...q, q: one })));
+  const results = await Promise.allSettled(queries.map((one) => searchJobs({ ...q, q: one }, extra)));
   const jobs: JobListing[] = [];
   const sources = new Set<string>();
   let bigCity: string | undefined;
@@ -347,7 +350,7 @@ export function cleanListing(j: Partial<JobListing> | null | undefined): JobList
   if (!/^https?:\/\//.test(j.url) && !(j.source === "link" && j.url === "")) return null;
   return {
     key: j.key.slice(0, 120),
-    source: (["remotive", "arbeitnow", "adzuna", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
+    source: (["remotive", "arbeitnow", "adzuna", "greenhouse", "lever", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
     title: j.title.slice(0, 200),
     company: String(j.company ?? "").slice(0, 200),
     location: String(j.location ?? "").slice(0, 200),
@@ -358,7 +361,7 @@ export function cleanListing(j: Partial<JobListing> | null | undefined): JobList
     tags: (Array.isArray(j.tags) ? j.tags : []).map((t) => String(t).slice(0, 40)).slice(0, 8),
     snippet: String(j.snippet ?? "").slice(0, 400),
     logo: typeof j.logo === "string" && /^https?:\/\//.test(j.logo) ? j.logo.slice(0, 500) : undefined,
-    description: typeof j.description === "string" ? j.description.slice(0, 3500) : undefined,
+    description: typeof j.description === "string" ? j.description.slice(0, 6000) : undefined,
     facts: cleanFacts(j.facts),
   };
 }

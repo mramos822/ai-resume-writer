@@ -9,7 +9,7 @@ import { isPartialPosting, type JobListing } from "@/lib/jobSearch";
 
 const HOUR = 60 * 60 * 1000;
 /** how long a job of each source stays in the catalog */
-export const KEEP: Record<JobListing["source"], number> = { adzuna: 24 * HOUR, remotive: 72 * HOUR, arbeitnow: 72 * HOUR, link: 24 * HOUR };
+export const KEEP: Record<JobListing["source"], number> = { adzuna: 24 * HOUR, remotive: 72 * HOUR, arbeitnow: 72 * HOUR, greenhouse: 72 * HOUR, lever: 72 * HOUR, link: 24 * HOUR };
 /** how long the answer to one search is served as it is */
 export const QUERY_TTL = 30 * 60 * 1000;
 

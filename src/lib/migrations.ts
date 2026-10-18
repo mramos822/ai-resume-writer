@@ -39,6 +39,20 @@ const MIGRATIONS: Migration[] = [
       ]);
     },
   },
+  {
+    id: 3,
+    name: "jobs_index: the openings the automatic ingestion keeps (search by title, company and area; closed ones are removed after two weeks)",
+    up: async () => {
+      const c = db.collection("jobs_index");
+      await Promise.all([
+        c.createIndex({ key: 1 }, { unique: true }),
+        c.createIndex({ title: "text", company: "text", tags: "text" }, { weights: { title: 10, company: 5, tags: 2 }, name: "jobs_text" }),
+        c.createIndex({ board: 1, active: 1, lastSeenAt: 1 }),
+        c.createIndex({ active: 1, remote: 1, postedAt: -1 }),
+        c.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      ]);
+    },
+  },
 ];
 
 let started: Promise<void> | null = null;

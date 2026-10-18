@@ -23,7 +23,7 @@ function candidateUrls(url: string): string[] {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const ENTITIES: Record<string, string> = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", rsquo: "'", lsquo: "'", ndash: "-", mdash: "-", bull: "•" };
-const decode = (s: string) =>
+export const decode = (s: string) =>
   s.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, e: string) => {
     if (e[0] === "#") {
       const n = e[1].toLowerCase() === "x" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
@@ -33,7 +33,7 @@ const decode = (s: string) =>
   });
 
 /** The page as text. `keepLines` keeps paragraphs and list items on their own lines, so the AI can tell what is a list. */
-function htmlToText(html: string, keepLines = false): string {
+export function htmlToText(html: string, keepLines = false): string {
   let h = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->|<(nav|header|footer|aside|form|svg|noscript)\b[\s\S]*?<\/\1>/gi, " ");
   if (keepLines) h = h.replace(/<li\b[^>]*>/gi, "\n- ").replace(/<\/(p|div|li|ul|ol|h[1-6]|tr|section)>|<br\s*\/?>/gi, "\n");
   h = decode(h.replace(/<[^>]+>/g, " "));

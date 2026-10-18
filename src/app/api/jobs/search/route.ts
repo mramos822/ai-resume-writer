@@ -4,6 +4,11 @@ import { searchJobs, searchJobsWide } from "@/lib/jobSearch";
 import { readPlace } from "@/lib/jobPlaces";
 import { enrichListings } from "@/lib/jobEnrich";
 import { cachedSearch, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
+import { searchIndex } from "@/lib/ingest/searchIndex";
+import type { ExtraSource } from "@/lib/jobSearch";
+
+// our own index (what the automatic ingestion keeps): complete postings, found at once
+const OWN: ExtraSource[] = [["Company career pages", (q) => searchIndex(q)]];
 import { isPartialPosting } from "@/lib/jobSearch";
 
 /** Jobs whose posting could not be read whole are left out (a resume for them would be written from half of it); if that leaves nothing, they stay. */
@@ -42,7 +47,7 @@ export async function GET(req: Request) {
     const qkey = searchKey([wide, query.q, query.location, query.remoteOnly, query.country, skills.join(",")]);
     const again = await cachedSearch(qkey);
     if (again) return NextResponse.json({ ...again, place: place?.label ?? null });
-    const result = wide ? await searchJobsWide(query, skills) : await searchJobs(query);
+    const result = wide ? await searchJobsWide(query, skills, OWN) : await searchJobs(query, OWN);
     // the boards share only the start of some postings: what was already read is reused, the rest is read now, so the fit shown is the real one
     const jobs = withoutCut(await enrichListings(await withKnownText(result.jobs)));
     const found = { jobs, sources: result.sources, bigCity: result.bigCity };
