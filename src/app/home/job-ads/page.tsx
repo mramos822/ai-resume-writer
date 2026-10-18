@@ -233,9 +233,9 @@ export default function JobSearchPage() {
           // an empty list is not shown as "nothing found" while the other boards are still looking
           if ((own.jobs ?? []).length > 0) setLoading(false);
           setLoadingMore(true);
-          // the quick boards and Adzuna (slower: its postings have to be read) are asked together; each is added when it arrives
+          // Remotive and Arbeitnow are in our own index; Adzuna (its postings have to be read: slower) is added when it arrives
           await Promise.all(
-            (["live", "adzuna"] as const).map(async (phase) => {
+            (["adzuna"] as const).map(async (phase) => {
               try {
                 const more = await ask(phase);
                 if (id !== searchId.current) return;

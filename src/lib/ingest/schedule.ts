@@ -69,7 +69,8 @@ export async function ingestNow({ by, onlyIfDue, set = "fast", boards, now = new
       await runs().deleteOne({ startedAt, by });
       return { started: false, reason: "running" };
     }
-    const result = await runIngestion(boards);
+    // the fast boards are many different servers (8 at a time keeps the whole reading well under a minute); the slow ones are one company each
+    const result = await runIngestion(boards, set === "slow" ? 4 : 8);
     const errors = result.results.filter((r) => r.error).map((r) => `${r.board}: ${r.error}`).slice(0, 30);
     await runs().updateOne({ startedAt, by }, { $set: { finishedAt: new Date(+startedAt + result.ms), jobs: result.jobs, closed: result.closed, failed: result.failed, errors } });
     return { started: true, run: { boards: boards.length, jobs: result.jobs, closed: result.closed, failed: result.failed, errors, seconds: Math.round(result.ms / 1000) } };

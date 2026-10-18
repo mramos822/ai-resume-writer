@@ -228,6 +228,79 @@ export async function fetchSmartRecruiters(b: Board, known: Set<string>): Promis
   return { jobs, seen };
 }
 
+interface RemotiveJob {
+  id?: number;
+  url?: string;
+  title?: string;
+  company_name?: string;
+  company_logo?: string;
+  category?: string;
+  tags?: string[];
+  job_type?: string;
+  publication_date?: string;
+  candidate_required_location?: string;
+  salary?: string;
+  description?: string;
+}
+
+export function fromRemotive(b: Board, j: RemotiveJob): IndexedJob | null {
+  if (!j.id || !j.title || !j.url || !/^https?:\/\//.test(j.url)) return null;
+  const full = htmlToText(String(j.description ?? ""), true);
+  const location = nice(j.candidate_required_location || "Remote");
+  return {
+    key: `remotive:${j.id}`,
+    source: "remotive",
+    title: clip(nice(j.title), 200),
+    company: clip(nice(j.company_name ?? ""), 200),
+    location: clip(location, 200),
+    remote: true,
+    url: clip(j.url, 1000),
+    postedAt: iso(j.publication_date),
+    salary: j.salary ? clip(nice(j.salary), 80) : payFromText(full),
+    tags: [nice(j.category ?? ""), nice(String(j.job_type ?? "").replace(/_/g, " ")), ...(j.tags ?? []).map(nice)].filter(Boolean).slice(0, 8),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    logo: typeof j.company_logo === "string" && /^https?:\/\//.test(j.company_logo) ? clip(j.company_logo, 500) : undefined,
+    board: `remotive:${b.token}`,
+    country: countryOf(location),
+  };
+}
+
+interface ArbeitnowJob {
+  slug?: string;
+  company_name?: string;
+  title?: string;
+  description?: string;
+  remote?: boolean;
+  url?: string;
+  tags?: string[];
+  job_types?: string[];
+  location?: string;
+  created_at?: number;
+}
+
+export function fromArbeitnow(b: Board, j: ArbeitnowJob): IndexedJob | null {
+  if (!j.slug || !j.title || !j.url || !/^https?:\/\//.test(j.url)) return null;
+  const full = htmlToText(String(j.description ?? ""), true);
+  const location = nice(j.location || (j.remote ? "Remote" : ""));
+  return {
+    key: `arbeitnow:${j.slug}`,
+    source: "arbeitnow",
+    title: clip(nice(j.title), 200),
+    company: clip(nice(j.company_name ?? ""), 200),
+    location: clip(location, 200),
+    remote: j.remote === true,
+    url: clip(j.url, 1000),
+    postedAt: iso(typeof j.created_at === "number" ? j.created_at * 1000 : undefined),
+    salary: payFromText(full),
+    tags: [...(j.job_types ?? []), ...(j.tags ?? [])].map(nice).filter(Boolean).slice(0, 8),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    board: `arbeitnow:${b.token}`,
+    country: countryOf(location),
+  };
+}
+
 /** Every opening of one board. Throws when the board does not exist or the site is down: the ingestion reports it and moves on. */
 export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
   if (b.source === "smartrecruiters") throw new Error("smartrecruiters is read with fetchSmartRecruiters (it needs to know what the index already has)");
@@ -236,6 +309,25 @@ export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
     if (!res.ok) throw new Error(`greenhouse ${b.token}: ${res.status}`);
     const data = (await res.json()) as { jobs?: GreenhouseJob[] };
     return (data.jobs ?? []).map((j) => fromGreenhouse(b, j)).filter((j): j is IndexedJob => !!j);
+  }
+  if (b.source === "remotive") {
+    // the feed of Remotive is read once a day (they ask for few requests): every current remote job in one request
+    const res = await fetch("https://remotive.com/api/remote-jobs?limit=500", { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`remotive: ${res.status}`);
+    const data = (await res.json()) as { jobs?: RemotiveJob[] };
+    return (data.jobs ?? []).map((j) => fromRemotive(b, j)).filter((j): j is IndexedJob => !!j);
+  }
+  if (b.source === "arbeitnow") {
+    const out: IndexedJob[] = [];
+    for (let page = 1; page <= 5; page++) {
+      const res = await fetch(`https://www.arbeitnow.com/api/job-board-api?page=${page}`, { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
+      if (!res.ok) throw new Error(`arbeitnow: ${res.status}`);
+      const data = (await res.json()) as { data?: ArbeitnowJob[] };
+      const rows = data.data ?? [];
+      out.push(...rows.map((j) => fromArbeitnow(b, j)).filter((j): j is IndexedJob => !!j));
+      if (rows.length === 0) break;
+    }
+    return out;
   }
   if (b.source === "ashby") {
     const res = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(b.token)}?includeCompensation=true`, { signal: AbortSignal.timeout(30_000) });

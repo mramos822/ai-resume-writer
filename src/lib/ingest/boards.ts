@@ -3,7 +3,7 @@
 // To add a company, add its board name here (it is the last part of its jobs page: boards.greenhouse.io/<name>, jobs.lever.co/<name>).
 // A name that does not exist is skipped by the ingestion and reported in its summary (hubspot, doordash, etsy, unity... answered 404: they
 // use another system or another name, so they are not here; check a name at boards-api.greenhouse.io/v1/boards/<name>/jobs).
-export type AtsSource = "greenhouse" | "lever" | "ashby" | "smartrecruiters";
+export type AtsSource = "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "remotive" | "arbeitnow";
 export interface Board {
   source: AtsSource;
   token: string;
@@ -39,6 +39,11 @@ export const BOARDS: Board[] = [
   // SmartRecruiters: large employers of other fields (hotels, food service, gyms, industry). Its list has no description: each new posting is one more request
   ...sr(`Accor Sodexo Equinox Experian BoschGroup ServiceNow Dominos Freshworks Wise Canva`),
 ].map((b) => ({ ...b, name: b.name ?? NAMES[b.token] }));
+
+// Job boards that are not one company's page but a list of many companies' jobs: Remotive (remote jobs) and Arbeitnow (Europe and remote).
+// Each is one request (or a few pages) a day, within what they ask of the people who use their feeds; every job keeps its own link to apply
+// and the person is told which board it came from.
+BOARDS.push({ source: "remotive", token: "all", name: "Remotive" }, { source: "arbeitnow", token: "all", name: "Arbeitnow" });
 
 /** One request per board: a full reading takes seconds. */
 export const FAST_BOARDS = BOARDS.filter((b) => b.source !== "smartrecruiters");

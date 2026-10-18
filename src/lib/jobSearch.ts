@@ -265,7 +265,9 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: S
   const ownMatches = jobs.filter((j) => (!q.q.trim() || matchesQuery(j, q.q)) && (!q.remoteOnly || j.remote)).length;
   if (opts.live === "only" || (opts.live !== "never" && (q.location.trim() || ownMatches < ENOUGH_OWN))) {
     const tasks: [string, Promise<JobListing[]>][] = [];
-    if (opts.boards !== "adzuna") tasks.push(["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()]);
+    // Remotive and Arbeitnow are read into our own index every day: they are asked live only when the index did not answer
+    const indexAnswered = own.some((r) => r.status === "fulfilled");
+    if (opts.boards !== "adzuna" && !indexAnswered) tasks.push(["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()]);
     if (opts.boards !== "fast" && process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY && adzunaCountry(q.country)) tasks.push(["Adzuna", adzunaAround(q, info)]);
     const settled = await Promise.allSettled(tasks.map(([, p]) => p));
     settled.forEach((r, i) => {
