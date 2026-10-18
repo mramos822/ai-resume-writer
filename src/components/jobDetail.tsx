@@ -34,6 +34,24 @@ function paragraphs(text: string): string[] {
     }
   }
   if (cur) out.push(cur);
+  // a block with no full stops at all (a list written in one line) is cut at a comma, a semicolon or a dash, and in the end at a space: a wall of
+  // text is never shown
+  return out.flatMap(shorten);
+}
+
+/** Cuts a piece longer than about 380 characters into pieces of 200 to 380, at the best place near the middle of what is left. */
+function shorten(piece: string): string[] {
+  if (piece.length <= 380) return [piece];
+  const out: string[] = [];
+  let rest = piece;
+  while (rest.length > 380) {
+    const window = rest.slice(180, 380);
+    const at = Math.max(window.lastIndexOf("; "), window.lastIndexOf(" - "), window.lastIndexOf(", "), window.lastIndexOf(" "));
+    const cut = at > -1 ? 180 + at + 1 : 380;
+    out.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) out.push(rest);
   return out;
 }
 
@@ -45,7 +63,8 @@ function sections(text: string): Block[] | null {
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
-    .map((l): Block => (l.startsWith("## ") ? { kind: "h", text: l.slice(3) } : l.startsWith("- ") ? { kind: "li", text: l.slice(2) } : { kind: "p", text: l }));
+    // (a long paragraph, like the summary the AI writes, is cut into short ones at the end of a sentence)
+    .flatMap((l): Block[] => (l.startsWith("## ") ? [{ kind: "h", text: l.slice(3) }] : l.startsWith("- ") ? [{ kind: "li", text: l.slice(2) }] : paragraphs(l).map((part): Block => ({ kind: "p", text: part }))));
 }
 
 /**
@@ -61,13 +80,12 @@ function structure(text: string): Block[] {
     if (/^[-•*]\s/.test(l)) return void out.push({ kind: "li", text: l.replace(/^[-•*]\s+/, "") });
     const next = lines.slice(i + 1).find(Boolean);
     const heading = l.length <= 70 && !/[.!?]$/.test(l) && !!next && (/:$/.test(l) || l.split(/\s+/).length <= 8);
-    out.push({ kind: heading ? "h" : "p", text: heading ? l.replace(/:$/, "") : l });
+    if (heading) return void out.push({ kind: "h", text: l.replace(/:$/, "") });
+    // a long paragraph is cut into short ones at the end of a sentence
+    for (const part of paragraphs(l)) out.push({ kind: "p", text: part });
   });
   return out;
 }
-
-/** The short summary that opens a rewritten posting (what comes before its first "## " section). */
-const summaryOf = (digest: string) => (digest.startsWith("## ") ? "" : digest.split(/\n\n## /)[0].trim());
 
 const CUT = /(\.\.\.|…)\s*$/;
 
@@ -120,7 +138,8 @@ export default function JobDetail({
     const original = job.description || job.snippet || "";
     const complete = !isPartialPosting(job);
     const digest = full?.key === job.key && full.text ? full.text : null;
-    const source = complete ? original : digest || original;
+    const source = digest || original;
+    const fromDigest = !!digest && !!sections(digest);
     const text = `${job.title}. ${job.tags.join(", ")}. ${source}`;
     // the number is worked out from the whole posting when it has been read: the same number as when the job is added by its link
     const facts = full?.key === job.key ? full.facts : undefined;
@@ -139,11 +158,11 @@ export default function JobDetail({
       matched: mentioned.filter(has).slice(0, 12),
       missing: mentioned.filter((s) => !has(s)).slice(0, 8),
       complete,
-      blocks: complete ? structure(source) : sections(source),
-      // the AI's short summary, when it has been written (only shown above a posting that was already on screen)
-      summary: complete && digest ? summaryOf(digest) : "",
+      fromDigest,
+      // the rewriting by the AI (short summary, then sections and bullets) when it has been written; until then the original text, in short paragraphs
+      blocks: fromDigest ? sections(source) : complete ? structure(source) : sections(source),
       // the text still stops in the middle: the rest is only on the posting (a whole posting is kept up to 6000 characters)
-      cut: complete ? source.length >= 5990 : CUT.test(source.trim()),
+      cut: digest ? false : complete ? source.length >= 5990 : CUT.test(source.trim()),
       body: paragraphs(source.replace(CUT, "").trim()),
     };
   }, [job, full, profile]);
@@ -282,15 +301,8 @@ export default function JobDetail({
                 )}
 
                 <section>
-                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}{analysis.blocks && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{analysis.complete ? tr("From the original posting") : tr("Written with AI")}</span>}</h3>
-                  {analysis.blocks && !analysis.complete && <p className="-mt-1.5 mb-3 text-xs text-muted-foreground">{tr("Summary made with AI from the posting. It can leave out details: check the original posting before you apply.")}</p>}
-                  {analysis.summary && (
-                    <div className="mb-4 rounded-xl border bg-blue-500/5 p-4 text-sm leading-relaxed">
-                      <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-blue-500">{tr("Summary made with AI")}</p>
-                      <p>{analysis.summary}</p>
-                      <p className="mt-1.5 text-xs text-muted-foreground">{tr("It can leave out details: check the original posting before you apply.")}</p>
-                    </div>
-                  )}
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}{analysis.blocks && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{analysis.fromDigest || !analysis.complete ? tr("Written with AI") : tr("From the original posting")}</span>}</h3>
+                  {analysis.blocks && (analysis.fromDigest || !analysis.complete) && <p className="-mt-1.5 mb-3 text-xs text-muted-foreground">{tr("Summary made with AI from the posting. It can leave out details: check the original posting before you apply.")}</p>}
                   {aiReading && (
                     <p role="status" className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-blue-500" />{" "}{tr("Reading it with AI to get your exact fit…")}</p>
@@ -302,7 +314,7 @@ export default function JobDetail({
                       : analysis.blocks
                       ? analysis.blocks.map((b, i) =>
                           b.kind === "h" ? (
-                            <h4 key={i} className="pt-2 text-sm font-bold">{analysis.complete ? b.text : tr(b.text)}</h4>
+                            <h4 key={i} className="pt-2 text-sm font-bold">{analysis.fromDigest || !analysis.complete ? tr(b.text) : b.text}</h4>
                           ) : b.kind === "li" ? (
                             <p key={i} className="flex gap-2.5 pl-1"><span aria-hidden className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />{b.text}</p>
                           ) : (
