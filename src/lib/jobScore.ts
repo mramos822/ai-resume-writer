@@ -4,7 +4,8 @@
 // the education it requires. The general quality of the resume (ATS, recruiters) is a small part (15%), so a well written resume cannot
 // look ready for a job it does not fit.
 import type { ProfileData } from "@/context/profileContext";
-import type { JobListing } from "@/lib/jobSearch";
+import { isPartialPosting, type JobListing } from "@/lib/jobSearch";
+export { isPartialPosting };
 import { levelFactor, roleSimilarity } from "@/lib/jobFit";
 import { levelOf } from "@/lib/jobLevel";
 import { covers, mentionedSkills, skillGap } from "@/lib/jobSkills";
@@ -115,7 +116,10 @@ export function jobScore(profile: ProfileData, job: JobListing, extra: string[] 
   const basics = basicsKnown ?? profileBasics(profile);
   // the job decides 90% (position, requirements, experience, education and the keywords the resume says); how well the resume is
   // written (what "Fix all" improves) is 10%
-  const score = Math.round(100 * (0.25 * role + 0.25 * coverage + 0.15 * level + 0.1 * education + 0.15 * narrative + 0.1 * (basics / 100)));
+  // the experience the job asks for scales the whole number (like in the list's first estimate): a Staff job for someone with two years
+  // is not "78% ready" because the title looks alike
+  const base = 0.3 * role + 0.35 * coverage + 0.1 * education + 0.15 * narrative + 0.1 * (basics / 100);
+  const score = Math.round(100 * base * (0.35 + 0.65 * level));
   return {
     score: Math.max(0, Math.min(100, score)),
     skills: { have, total },

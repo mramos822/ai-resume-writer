@@ -7,6 +7,9 @@ import { isSafePublicUrl } from "@/lib/safeUrl";
  * Works for search links (?currentJobId=...) and direct /jobs/view/... links.
  */
 function candidateUrls(url: string): string[] {
+  // Adzuna's link goes through a page that only forwards to the employer; the same posting is complete (and readable) at /details/<id>
+  const adz = /^https?:\/\/(?:www\.)?adzuna\.[a-z.]+\/land\/ad\/(\d+)/i.exec(url);
+  if (adz) return [`${new URL(url).origin}/details/${adz[1]}`, url];
   if (!/(^|\.)linkedin\.com$/i.test(new URL(url).hostname)) return [url];
   const id =
     /[?&]currentJobId=(\d+)/.exec(url)?.[1] ?? /\/jobs\/view\/(?:[^/?]*-)?(\d+)/.exec(url)?.[1];
@@ -55,6 +58,12 @@ function postingOf(html: string): string | null {
     } catch {
       /* not valid JSON: next block */
     }
+  }
+  // Adzuna's own page of a posting (when it has no structured data): the description is the block "adp-body"
+  const adzunaBody = /<section[^>]+class="[^"]*\badp-body\b[^"]*"[^>]*>([\s\S]*?)<\/section>/i.exec(html)?.[1];
+  if (adzunaBody) {
+    const title = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1];
+    if (title) return `Title: ${htmlToText(title)}\n\n${htmlToText(adzunaBody, true)}`;
   }
   // LinkedIn's public posting: title, company and place on top, then the block with the description
   const body = /<div[^>]+class="[^"]*show-more-less-html__markup[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html)?.[1];

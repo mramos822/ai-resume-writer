@@ -12,6 +12,7 @@ import { AI_MODEL_STRONG } from "@/lib/aiConfig";
 import { renderResumeDetailed, maxPagesFor } from "@/lib/pdfResume";
 import { trimToFit } from "@/lib/pageTrim";
 import { cleanListing } from "@/lib/jobSearch";
+import { wholeJob } from "@/lib/jobEnrich";
 import { profileForReview } from "@/lib/resumeReview";
 import { cleanAnswers, withDraft } from "@/lib/applicationCoach";
 import { evaluateAuto, newestFirst } from "@/lib/reviewRubric";
@@ -66,8 +67,9 @@ export async function POST(req: Request) {
   try {
     const uid = await authUid(req);
     const body = (await req.json().catch(() => ({}))) as { profileId?: string; template?: string; job?: unknown; skillMode?: string; extraSkills?: unknown; lang?: unknown; answers?: unknown; focus?: unknown; truthful?: unknown; draft?: unknown; level?: unknown; mentionLevel?: unknown };
-    const job = cleanListing(body.job as never);
-    if (!job) throw new HttpError(400, "That job could not be read.");
+    const listed = cleanListing(body.job as never);
+    if (!listed) throw new HttpError(400, "That job could not be read.");
+    const job = await wholeJob(listed); // the resume is never written from half a posting
     const template = asTemplateId(body.template);
     const profile = await ownedProfile(uid, String(body.profileId ?? ""));
     // the resume starts from the profile plus the edits the person made for this job (the saved profile is not changed)

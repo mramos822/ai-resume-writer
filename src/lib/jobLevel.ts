@@ -10,14 +10,30 @@ export interface JobLevel {
 
 const WORDS = (s: string) => s.toLowerCase();
 
-/** Years of experience the posting states ("5+ years of experience", "3-5 years"): the smallest number it asks for. */
+/** The text without its "preferred / a plus / nice to have" part: what is only a plus is not what the job asks for. */
+export function withoutPlus(text: string): string {
+  const mark = /(^|\n)[ \t#*-]*(a plus|preferred qualifications?|preferred|nice[- ]to[- ]have|bonus points?|desirable|pluses|good to have)\b[^\n]{0,40}(:|\n)/i;
+  const m = mark.exec(text);
+  if (!m) return text;
+  const start = m.index;
+  // the part of a plus ends where another section starts ("## ..." in a digest, or a known heading in a raw text)
+  const rest = text.slice(start + m[0].length);
+  const end = /\n(##\s|[ \t]*(about the (job|role|company|team)|responsibilities|what you('| wi)ll do|what they offer|benefits|minimum qualifications|requirements)\b)/i.exec(rest);
+  return text.slice(0, start) + (end ? "\n" + rest.slice(end.index + 1) : "");
+}
+
+/**
+ * Years of experience the posting states ("5+ years of experience", "3-5 years", "3+ years of professional full-stack development
+ * experience", "at least 4 years' hands-on Python experience"): the largest number it asks for as a requirement (a posting that wants "8 years of software development" and "1 year of mobile" asks for 8; what is only a plus does not count). Up to six plain words may sit between
+ * "years" and "experience" (no punctuation: a full stop ends the sentence, so "10 years of growth. Experience..." is not a requirement).
+ */
 function statedYears(text: string): number | null {
-  const t = WORDS(text);
+  const t = WORDS(withoutPlus(text));
   let best: number | null = null;
-  const re = /(\d{1,2})\s*(?:\+|plus)?\s*(?:-|–|to)?\s*(?:\d{1,2})?\s*(?:\+)?\s*years?(?:['’]s)?\s*(?:of\s+)?(?:relevant\s+|professional\s+|related\s+|hands-on\s+|work\s+|industry\s+|proven\s+)*(?:experience|exp)/g;
+  const re = /(\d{1,2})\s*(?:\+|plus)?\s*(?:-|–|to)?\s*(?:\d{1,2})?\s*(?:\+)?\s*years?(?:['’]s)?\s*(?:of\s+|in\s+)?(?:[\w+#/'’-]+\s+){0,6}?(?:experience|exp)\b/g;
   for (const m of t.matchAll(re)) {
     const n = Number(m[1]);
-    if (n > 0 && n <= 20) best = best === null ? n : Math.min(best, n);
+    if (n > 0 && n <= 20) best = best === null ? n : Math.max(best, n);
   }
   return best;
 }

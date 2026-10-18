@@ -59,13 +59,23 @@ export function simplifyForPosting(skills: string[], postingText: string): strin
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// Words of the list that a posting also uses as plain language ("matrixed organization", "the CSE initiative", "research accelerator"):
+// they are not counted as skills from free text, because they say nothing about what the job asks of the person.
+const PLAIN_LANGUAGE = new Set(["organization", "initiative", "research", "sales", "insurance", "banking", "compliance", "driving", "cleaning", "packing", "painting", "filing", "typing", "editing", "reliability", "flexibility", "coaching", "scheduling", "forecasting", "logistics", "diagnostics", "translation", "interpretation", "bilingual"]);
+// Names that are also ordinary words or other abbreviations: they count only when written like the name (Go, Swift, Rust, Oracle, Epic...).
+const CASE_SENSITIVE = new Set(["Go", "Swift", "Rust", "Ruby", "Dart", "Julia", "Unity", "Sketch", "Canvas", "Oracle", "Epic", "Buffer", "Notion", "Bash", "Spring", "Flask", "Lua", "Scala", "CAD", "SAP", "GIS", "PCR", "SEM", "SEO", "CRM", "SIEM", "ETL", "DNS", "VPN", "ITIL", "HRIS", "CPR", "ACLS", "GAAP", "SPSS", "Assembly", "Slack", "Zoom", "Cisco", "Looker", "Airflow", "Blender", "Jenkins", "Cypress", "Express.js"]);
+/** "(CAD)" after a salary is the Canadian dollar, not computer-aided design; the same for the other currency codes that are also skills. */
+const CURRENCY = /(\d[\d,.]*\s*(?:k|m)?\s*[-–]?\s*\$?[\d,.]*\s*\(?\s*CAD\b)|(\(CAD\))|(\bCAD\s*\$)|(\$\s*[\d,.]+\s*CAD\b)/;
+
 /** Skills of the big list that the text mentions (whole words only). */
 export function mentionedSkills(text: string): string[] {
   const out: string[] = [];
+  const asked = text.replace(new RegExp(CURRENCY.source, "g"), " ");
   for (const s of ALL_SKILLS) {
     if (s.length < 2) continue;
-    const re = new RegExp(`(^|[^A-Za-z0-9+#])${esc(s)}($|[^A-Za-z0-9+#])`, "i");
-    if (re.test(text)) out.push(s);
+    if (PLAIN_LANGUAGE.has(s.toLowerCase())) continue;
+    const re = new RegExp(`(^|[^A-Za-z0-9+#])${esc(s)}($|[^A-Za-z0-9+#])`, CASE_SENSITIVE.has(s) ? "" : "i");
+    if (re.test(asked)) out.push(s);
   }
   return out;
 }

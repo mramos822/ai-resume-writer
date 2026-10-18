@@ -55,6 +55,7 @@ export default function JobDetail({
   onClose,
   onPrepare,
   onSavedChange,
+  onScore,
 }: {
   job: JobListing | null;
   saved: boolean;
@@ -63,6 +64,8 @@ export default function JobDetail({
   onClose: () => void;
   onPrepare: (job: JobListing) => void;
   onSavedChange?: (job: JobListing, saved: boolean) => void;
+  /** the number of the job once its whole posting has been read (the list shows it instead of its estimate) */
+  onScore?: (key: string, pct: number) => void;
 }) {
   const { tr } = useT();
   const { activeProfile: profile } = useProfile();
@@ -91,15 +94,17 @@ export default function JobDetail({
     const role = profile.jobTitle?.trim() || "";
     const source = full?.key === job.key && full.text ? full.text : job.description || job.snippet || "";
     const text = `${job.title}. ${job.tags.join(", ")}. ${source}`;
+    // the number is worked out from the whole posting when it has been read: the same number as when the job is added by its link
+    const whole = source !== (job.description || job.snippet || "") ? { ...job, description: source } : job;
     const myYears = yearsFor(profile);
     // the percentage is the number of the job (see lib/jobScore); the skills it matches come from the quick reading of the posting
-    const fit = { ...fitOf(job, skillsForFit(profile), role, myYears), pct: jobScore(profile, job).score };
+    const fit = { ...fitOf(job, skillsForFit(profile), role, myYears), pct: jobScore(profile, whole).score };
     const mine = profile.skills ?? [];
     const has = (s: string) => mine.some((m) => covers(m, s)); // "GitHub Actions" counts for a posting that asks for GitHub
     const mentioned = mentionedSkills(text);
     return {
       fit,
-      level: levelOf(job),
+      level: levelOf(whole),
       myYears,
       matched: mentioned.filter(has).slice(0, 12),
       missing: mentioned.filter((s) => !has(s)).slice(0, 8),
@@ -109,6 +114,13 @@ export default function JobDetail({
       cut: CUT.test(source.trim()),
     };
   }, [job, full, profile]);
+
+  const readKey = full?.text ? full.key : null;
+  const readPct = analysis?.fit.pct;
+  useEffect(() => {
+    if (job && readKey === job.key && readPct !== undefined) onScore?.(job.key, readPct);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.key, readKey, readPct]);
 
   const toggleSave = async () => {
     if (!job || busy) return;

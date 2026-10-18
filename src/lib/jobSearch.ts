@@ -330,6 +330,14 @@ export async function searchJobsWide(q: JobQuery, skills: string[] = []): Promis
 }
 
 /** Checks a listing that comes from the browser (to save it or to prepare an application) and keeps only known fields. */
+/**
+ * True when the text of the job is only the start of the posting (some boards, Adzuna above all, share about 500 characters): the skills and
+ * the experience it asks for are not all in it, so a number worked out from it is an estimate until the whole posting is read.
+ */
+export function isPartialPosting(job: Pick<JobListing, "source" | "description" | "snippet">): boolean {
+  return job.source !== "link" && (job.description || job.snippet || "").trim().length < 600;
+}
+
 export function cleanListing(j: Partial<JobListing> | null | undefined): JobListing | null {
   if (!j || typeof j.key !== "string" || typeof j.title !== "string" || typeof j.url !== "string") return null;
   // a job the person added by pasting its text has no link; every other job needs one

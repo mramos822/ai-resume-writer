@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { searchJobs, searchJobsWide } from "@/lib/jobSearch";
 import { readPlace } from "@/lib/jobPlaces";
+import { enrichListings } from "@/lib/jobEnrich";
+import { isPartialPosting } from "@/lib/jobSearch";
+
+/** Jobs whose posting could not be read whole are left out (a resume for them would be written from half of it); if that leaves nothing, they stay. */
+const withoutCut = <T extends Parameters<typeof isPartialPosting>[0]>(jobs: T[]): T[] => {
+  const whole = jobs.filter((j) => !isPartialPosting(j));
+  return whole.length > 0 ? whole : jobs;
+};
 
 // Job search for signed-in people: real listings from public job boards (see lib/jobSearch).
 const hits = new Map<string, { count: number; since: number }>();
@@ -29,7 +37,8 @@ export async function GET(req: Request) {
     // wide = also search similar titles and the person's main skills, so the pool is bigger and closer to their profile
     const skills = (sp.get("skills") ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 3);
     const result = sp.get("wide") === "1" ? await searchJobsWide(query, skills) : await searchJobs(query);
-    return NextResponse.json({ ...result, place: place?.label ?? null });
+    // the boards share only the start of some postings: their whole text is read so the fit shown is the real one
+    return NextResponse.json({ ...result, jobs: withoutCut(await enrichListings(result.jobs)), place: place?.label ?? null });
   } catch (err) {
     return errorResponse(err, "We couldn't search for jobs right now.");
   }

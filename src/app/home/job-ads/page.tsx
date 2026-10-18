@@ -23,7 +23,7 @@ import type { JobListing } from "@/lib/jobSearch";
 import { REACH_ORDER } from "@/lib/jobReach";
 import { aboveLevel, levelOf } from "@/lib/jobLevel";
 import { ago, fitOf, skillsForFit } from "@/lib/jobFit";
-import { jobScore, profileBasics } from "@/lib/jobScore";
+import { isPartialPosting, jobScore, profileBasics } from "@/lib/jobScore";
 import { yearsFor } from "@/lib/experienceLevel";
 import { useT } from "@/i18n/provider";
 
@@ -32,13 +32,13 @@ const PAGE = 15;
 
 const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", link: "a link you added" };
 
-function Fit({ pct }: { pct: number }) {
+function Fit({ pct, estimate }: { pct: number; estimate?: boolean }) {
   const { tr } = useT();
   const color = pct >= 70 ? "#22c55e" : pct >= 40 ? "#3b82f6" : "#94a3b8";
   return (
-    <div className="w-24 shrink-0 text-right" title={tr("How many of your skills this job mentions")}>
+    <div className="w-24 shrink-0 text-right" title={estimate ? tr("An estimate: the job board only shares the start of this posting. Open the job to see the exact number.") : tr("How many of your skills this job mentions")}>
       <p className="text-2xl font-black leading-none tabular-nums" style={{ color }}>
-        {pct}
+        {estimate ? "~" : ""}{pct}
         <span className="text-xs font-bold text-muted-foreground">%</span>
       </p>
       <p className="mb-1.5 mt-0.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">{tr("Fit with you")}</p>
@@ -49,7 +49,7 @@ function Fit({ pct }: { pct: number }) {
   );
 }
 
-function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, onDelete, status }: { job: Saved; fit: { pct: number; matched: string[] }; saved: boolean; onToggle: () => void; onPrepare: () => void; onOpen: () => void; onDelete?: () => void; status?: Application["status"] }) {
+function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, onDelete, status }: { job: Saved; fit: { pct: number; matched: string[]; estimate?: boolean }; saved: boolean; onToggle: () => void; onPrepare: () => void; onOpen: () => void; onDelete?: () => void; status?: Application["status"] }) {
   const { tr } = useT();
   return (
     <motion.li layout="position" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-xl border bg-card p-5 transition-shadow hover:shadow-md">
@@ -90,7 +90,7 @@ function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, onDelete, statu
             </p>
           )}
         </div>
-        <Fit pct={fit.pct} />
+        <Fit pct={fit.pct} estimate={fit.estimate} />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <p className="text-xs text-muted-foreground">{tr("via")}{" "}{SOURCE_NAME[job.source]}</p>
@@ -143,6 +143,9 @@ export default function JobSearchPage() {
   const [apps, setApps] = useState<Application[]>([]);
   const [kitJob, setKitJob] = useState<JobListing | null>(null);
   const [detailJob, setDetailJob] = useState<JobListing | null>(null); // the page of one job
+  // the number of a job once its whole posting was read in its page (the list showed an estimate until then); the order of the list does not move
+  const [readScores, setReadScores] = useState<Record<string, number>>({});
+  const onReadScore = useCallback((key: string, pct: number) => setReadScores((r) => (r[key] === pct ? r : { ...r, [key]: pct })), []);
   const [preparing, setPreparing] = useState<{ done: number; total: number } | null>(null);
   const template = (() => {
     try {
@@ -315,7 +318,7 @@ export default function JobSearchPage() {
   const ranked = useMemo(() => {
     const visible = tab === "results" ? list.filter((j) => (showSent || !isSent(j)) && (showAbove || !aboveLevel(j, myYears))) : list;
     // the percentage is the number of the job (see lib/jobScore); the skills it matches come from the quick reading of the posting
-    const withFit = visible.map((j) => ({ job: j, fit: { ...fitOf(j, skills, defaultRole || q, myYears), pct: jobScore(profile, j, [], template, [], basics).score } }));
+    const withFit = visible.map((j) => ({ job: j, fit: { ...fitOf(j, skills, defaultRole || q, myYears), pct: jobScore(profile, j, [], template, [], basics).score, estimate: isPartialPosting(j) } }));
     // best fit first, newest among equals (the saved tab keeps the order they were saved in)
     // (a search by place keeps its groups: in the place, near it, remote, the rest)
     const group = (j: JobListing) => (j.reach ? REACH_ORDER.indexOf(j.reach) : 0);
@@ -477,7 +480,7 @@ export default function JobSearchPage() {
                   {tab === "results" && job.reach && job.reach !== all[i - 1]?.job.reach && (
                     <li className="px-1 pb-1 pt-4 text-sm font-bold text-muted-foreground first:pt-0">{reachTitle(job.reach)}</li>
                   )}
-                  <JobCard job={job} fit={fit} saved={savedKeys.has(job.key)} onToggle={() => toggleSave(job)} onPrepare={() => setKitJob(job)} onOpen={() => setDetailJob(job)} onDelete={tab === "applications" ? () => deleteApplication(job) : undefined} status={appByKey.get(job.key)?.status} />
+                  <JobCard job={job} fit={readScores[job.key] !== undefined ? { ...fit, pct: readScores[job.key], estimate: false } : fit} saved={savedKeys.has(job.key)} onToggle={() => toggleSave(job)} onPrepare={() => setKitJob(job)} onOpen={() => setDetailJob(job)} onDelete={tab === "applications" ? () => deleteApplication(job) : undefined} status={appByKey.get(job.key)?.status} />
                 </React.Fragment>
               ))}
             </AnimatePresence>
@@ -513,6 +516,7 @@ export default function JobSearchPage() {
         saved={detailJob ? savedKeys.has(detailJob.key) : false}
         prepared={detailJob ? appByKey.has(detailJob.key) : false}
         onClose={() => setDetailJob(null)}
+        onScore={onReadScore}
         onPrepare={(j) => {
           setDetailJob(null);
           setKitJob(j);

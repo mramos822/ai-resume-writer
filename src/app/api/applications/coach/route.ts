@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authUid, ownedProfile, errorResponse, HttpError } from "@/lib/apiAuth";
 import { limitedShared } from "@/lib/rateLimit";
 import { cleanListing } from "@/lib/jobSearch";
+import { wholeJob } from "@/lib/jobEnrich";
 import { asResumeLang } from "@/lib/resumeLang";
 import { AiAnswerError, cleanAnswers, cleanMemory, clip, EVALUATE_VERSION, evaluateDraft, fixesFor, groupsForNewSkills, OBJECTIVE_VERSION, objectiveWithLevelAi, pageNote, QUESTIONS_VERSION, questionsFor, SHOWN_VERSION, skillsAlreadyShown, withDraft } from "@/lib/applicationCoach";
 import { cachedAi, jobSignature } from "@/lib/aiCache";
@@ -24,8 +25,9 @@ export async function POST(req: Request) {
   try {
     const uid = await authUid(req);
     const body = (await req.json().catch(() => ({}))) as { action?: string; profileId?: string; job?: unknown; missingSkills?: unknown; extraSkills?: unknown; answers?: unknown; draft?: unknown; newSkills?: unknown; improvements?: unknown; level?: unknown; lang?: unknown; targets?: unknown; previous?: unknown; refresh?: unknown };
-    const job = cleanListing(body.job as never);
-    if (!job) throw new HttpError(400, "That job could not be read.");
+    const listed = cleanListing(body.job as never);
+    if (!listed) throw new HttpError(400, "That job could not be read.");
+    const job = await wholeJob(listed); // the questions and the review are about the whole posting, never half of it
     const profile = await ownedProfile(uid, String(body.profileId ?? ""));
     const data = withDraft(profile.data as ProfileData, body.draft); // what the person is editing for this job, if anything
     const lang = asResumeLang(body.lang);
