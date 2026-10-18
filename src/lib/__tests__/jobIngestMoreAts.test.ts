@@ -116,3 +116,29 @@ describe("reading a Teamtailor posting", () => {
     expect(fromTeamtailor(B, item({ url: "" }))).toBeNull();
   });
 });
+
+describe("reading the whole Teamtailor feed", () => {
+  const B: Board = { source: "teamtailor", token: "acme" };
+  const posting = (n: number) => ({ id: `id-${n}`, url: `https://acme.teamtailor.com/jobs/${n}`, _jobposting: { title: `Job ${n}`, description: "<p>Work.</p>" } });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("follows the next page of the company's own feed, and stops when there is none", async () => {
+    const seen: string[] = [];
+    jest.spyOn(global, "fetch").mockImplementation(async (u) => {
+      seen.push(String(u));
+      const page2 = String(u).includes("page=2");
+      return new Response(JSON.stringify({ items: page2 ? [posting(3)] : [posting(1), posting(2)], next_url: page2 ? undefined : "https://acme.teamtailor.com/jobs.json?page=2&per_page=100" }), { status: 200 });
+    });
+    const { fetchBoard } = await import("@/lib/ingest/ats");
+    const jobs = await fetchBoard(B);
+    expect(jobs.map((j) => j.title)).toEqual(["Job 1", "Job 2", "Job 3"]);
+    expect(seen).toHaveLength(2);
+  });
+
+  it("does not follow a next page that points to another site", async () => {
+    const spy = jest.spyOn(global, "fetch").mockImplementation(async () => new Response(JSON.stringify({ items: [posting(1)], next_url: "https://evil.example/jobs.json?page=2" }), { status: 200 }));
+    const { fetchBoard } = await import("@/lib/ingest/ats");
+    expect(await fetchBoard(B)).toHaveLength(1);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+});

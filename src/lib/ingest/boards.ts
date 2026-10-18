@@ -46,6 +46,15 @@ export const BOARDS: Board[] = [
   ...wk(`huggingface convergent-careers jeffreym-consulting energysciences nalamoney workmotion moongate-studios-inc biosked-inc ecp-123 mlabs workstate capital-economics visit`),
   ...rc(`emergentsoftware aikidosecurity hostaway careersdeltacapita tether greatminds aidigital holepunch huaweicanada bunq gsbsolutions1 constructivedialogue dillinggroup scioteq mainstream erstedigital`),
   ...tt(`spokeo.na career tradingview unleash-amby wakapi incluso iloq xci nrd upstart13 utorg sqdm.na crhtalentoenit.na bancociudad.na covalto trabajaconnosotros-olitel.na talenthub.na puelchehc.na maxusacorp.na iteriaus.na bearingpointusa.na avionsolutions.na sellersdorsey.na abceducation-1719511743.na`),
+  // second round (healthcare, finance, retail, education, customer service, and the Spanish-speaking countries). Left out: nogigiddy (the same ad
+  // repeated 1,822 times), hirehawk and the staffing firms.
+  ...wk(`usa-vein-clinics ems-group braven assogroup hextrust marcura apogee-global-rms trivium procoffee-gear redpointglobal matador-solutions eqltech usemate sumble-inc justpark sedona-digital tecsys integrant`),
+  ...rc(`iliabeauty kravet lomography sidelineswap epcvipinc bfrltd nucsai zensai`),
+  ...tt(`carestar.na policyreporter.na softwarefinder.na enaexperu ocaglobal qualacompany tinet saluddigna.na ahorra.na connectassistance.na cusezar.na inhaus`),
+  // third round (engineering, data and entry level in the United States; Mexico, Colombia, Argentina, Chile)
+  ...wk(`alten-mexico-1 waldemar-s-nelson dacodes-mx syntiant iav-automotive-engineering globaldevgroup lucidya tarte-inc chaingpt healthcorpsorg`),
+  ...rc(`heim companiongroupltd`),
+  ...tt(`crunchbase.na swishanalytics.na ioet.na thestudio.na heinsohn.na global66 niryu bradescardmexico.na utec cdainformatica.na irsa.na aliancers.na vincicompass.na rooftop.na azgroup.na voolkia.na therobertemorris`),
   // SmartRecruiters: large employers of other fields (hotels, food service, gyms, industry). Its list has no description: each new posting is one more request
   ...sr(`Accor Sodexo Equinox Experian BoschGroup ServiceNow Dominos Freshworks Wise Canva`),
 ].map((b) => ({ ...b, name: b.name ?? NAMES[b.token] }));

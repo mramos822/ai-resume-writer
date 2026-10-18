@@ -485,10 +485,18 @@ export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
     return (data.offers ?? []).map((o) => fromRecruitee(b, o)).filter((j): j is IndexedJob => !!j);
   }
   if (b.source === "teamtailor") {
-    const res = await fetch(`https://${encodeURIComponent(b.token)}.teamtailor.com/jobs.json`, { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
-    if (!res.ok) throw new Error(`teamtailor ${b.token}: ${res.status}`);
-    const data = (await res.json()) as { items?: TeamtailorItem[] };
-    return (data.items ?? []).map((it) => fromTeamtailor(b, it)).filter((j): j is IndexedJob => !!j);
+    // the feed comes 100 at a time and says where the next page is; only that company's own address is followed, up to a thousand jobs
+    const host = `${b.token}.teamtailor.com`;
+    const out: IndexedJob[] = [];
+    let next: string | undefined = `https://${host}/jobs.json`;
+    for (let page = 0; next && page < 10; page++) {
+      const res = await fetch(next, { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
+      if (!res.ok) throw new Error(`teamtailor ${b.token}: ${res.status}`);
+      const data = (await res.json()) as { items?: TeamtailorItem[]; next_url?: string };
+      out.push(...(data.items ?? []).map((it) => fromTeamtailor(b, it)).filter((j): j is IndexedJob => !!j));
+      next = data.next_url && (data.items ?? []).length > 0 && new URL(data.next_url).hostname === host ? data.next_url : undefined;
+    }
+    return out;
   }
   if (b.source === "ashby") {
     const res = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(b.token)}?includeCompensation=true`, { signal: AbortSignal.timeout(30_000) });
