@@ -22,6 +22,9 @@ import JobDetail from "@/components/jobDetail";
 import type { JobListing } from "@/lib/jobSearch";
 import { REACH_ORDER } from "@/lib/jobReach";
 import { aboveLevel, levelOf } from "@/lib/jobLevel";
+import { matchesFilters, NO_FILTERS, type JobFilters } from "@/lib/jobFilters";
+import { byFreshnessThenFit } from "@/lib/jobRank";
+import JobFilterBar from "@/components/jobFilterBar";
 import { ago, fitOf, skillsForFit } from "@/lib/jobFit";
 import { isPartialPosting, jobScore, profileBasics } from "@/lib/jobScore";
 import type { JobFacts } from "@/lib/jobFacts";
@@ -174,6 +177,8 @@ export default function JobSearchPage() {
   const [bigCity, setBigCity] = useState(""); // the nearest big city, when the results also have its jobs
   const [loadingMore, setLoadingMore] = useState(false); // our own jobs are on screen and the other boards are still answering
   const searchId = useRef(0); // only the answers of the last search are used
+  const [filters, setFilters] = useState<JobFilters>(NO_FILTERS); // what the person chose to see
+  const langMode = useRef<JobFilters["lang"]>("auto"); // read by the search: "all" asks for every language
   const [searchedPlace, setSearchedPlace] = useState(""); // the place the results are about, as the search understood it
   const [searchedRemote, setSearchedRemote] = useState(false); // the search was for remote work
   const [loading, setLoading] = useState(false);
@@ -206,10 +211,10 @@ export default function JobSearchPage() {
         if (remote) params.set("remote", "1");
         // a wider search: similar titles and the main skills of the profile, so there are more jobs that fit
         params.set("wide", "1");
-        params.set("lang", locale);
+        params.set("lang", langMode.current === "all" ? "all" : locale);
         if (profile.skills?.length) params.set("skills", profile.skills.slice(0, 3).join(","));
         // two parts: our own jobs (instant) are shown at once, and what the other boards find is added when it arrives
-        const ask = async (phase: "own" | "live") => {
+        const ask = async (phase: "own" | "live" | "adzuna") => {
           const res = await authFetch(`/api/jobs/search?${new URLSearchParams({ ...Object.fromEntries(params), phase })}`);
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(trd(data.error) || tr("We couldn't search for jobs right now."));
@@ -228,18 +233,21 @@ export default function JobSearchPage() {
           // an empty list is not shown as "nothing found" while the other boards are still looking
           if ((own.jobs ?? []).length > 0) setLoading(false);
           setLoadingMore(true);
-          try {
-            const more = await ask("live");
-            if (id === searchId.current) {
-              setJobs((prev) => addJobs(prev, more.jobs ?? []));
-              setSources((prev) => Array.from(new Set([...prev, ...(more.sources ?? [])])));
-              if (typeof more.bigCity === "string" && more.bigCity) setBigCity(more.bigCity);
-            }
-          } catch {
-            /* what is already on screen stays */
-          } finally {
-            if (id === searchId.current) setLoadingMore(false);
-          }
+          // the quick boards and Adzuna (slower: its postings have to be read) are asked together; each is added when it arrives
+          await Promise.all(
+            (["live", "adzuna"] as const).map(async (phase) => {
+              try {
+                const more = await ask(phase);
+                if (id !== searchId.current) return;
+                setJobs((prev) => addJobs(prev, more.jobs ?? []));
+                setSources((prev) => Array.from(new Set([...prev, ...(more.sources ?? [])])));
+                if (typeof more.bigCity === "string" && more.bigCity) setBigCity(more.bigCity);
+              } catch {
+                /* what is already on screen stays */
+              }
+            })
+          );
+          if (id === searchId.current) setLoadingMore(false);
         }
       } catch (err) {
         if (id === searchId.current) setError((err as Error).message);
@@ -357,15 +365,26 @@ export default function JobSearchPage() {
   const list = tab === "saved" ? saved : tab === "applications" ? apps.map((a) => a.job) : jobs;
   const hiddenAbove = useMemo(() => (tab === "results" ? list.filter((j) => !isSent(j) && aboveLevel(j, myYears)).length : 0), [list, myYears, tab, apps]); // eslint-disable-line react-hooks/exhaustive-deps
   const hiddenSent = useMemo(() => (tab === "results" ? list.filter(isSent).length : 0), [list, tab, apps]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the jobs the page shows before the filters: the ones already applied to and the ones far above the person's level are out unless asked for
+  const pool = useMemo(() => (tab === "results" ? list.filter((j) => (showSent || !isSent(j)) && (showAbove || !aboveLevel(j, myYears))) : list), [list, tab, myYears, showAbove, showSent, apps]); // eslint-disable-line react-hooks/exhaustive-deps
   const ranked = useMemo(() => {
-    const visible = tab === "results" ? list.filter((j) => (showSent || !isSent(j)) && (showAbove || !aboveLevel(j, myYears))) : list;
+    const visible = tab === "results" ? pool.filter((j) => matchesFilters(j, filters)) : pool;
     // the percentage is the number of the job (see lib/jobScore); the skills it matches come from the quick reading of the posting
     const withFit = visible.map((j) => ({ job: j, fit: { ...fitOf(j, skills, defaultRole || q, myYears), pct: jobScore(profile, j, [], template, [], basics).score, estimate: isPartialPosting(j) } }));
     // best fit first, newest among equals (the saved tab keeps the order they were saved in)
     // (a search by place keeps its groups: in the place, near it, remote, the rest)
     const group = (j: JobListing) => (j.reach ? REACH_ORDER.indexOf(j.reach) : 0);
-    return tab !== "results" ? withFit : withFit.sort((a, b) => group(a.job) - group(b.job) || (a.job.countryFit ?? 0) - (b.job.countryFit ?? 0) || b.fit.pct - a.fit.pct || +new Date(b.job.postedAt || 0) - +new Date(a.job.postedAt || 0));
-  }, [list, skills, q, defaultRole, tab, myYears, showAbove, showSent, apps, profile, basics, template]); // eslint-disable-line react-hooks/exhaustive-deps
+    // the person's order: the most recent first and, among the ones of the same age, the best fit; or the best fit first
+    const now = Date.now();
+    const order = (a: (typeof withFit)[number], b: (typeof withFit)[number]) =>
+      filters.sort === "fit"
+        ? b.fit.pct - a.fit.pct || +new Date(b.job.postedAt || 0) - +new Date(a.job.postedAt || 0)
+        : byFreshnessThenFit({ postedAt: a.job.postedAt, fit: a.fit.pct }, { postedAt: b.job.postedAt, fit: b.fit.pct }, now);
+    // a remote job for another country goes after the others; one that names the person's country and one open to anywhere are equals,
+    // so the most recent of them goes first
+    const restricted = (j: JobListing) => ((j.countryFit ?? 0) >= 2 ? 1 : 0);
+    return tab !== "results" ? withFit : withFit.sort((a, b) => group(a.job) - group(b.job) || restricted(a.job) - restricted(b.job) || order(a, b));
+  }, [pool, filters, skills, q, defaultRole, tab, myYears, profile, basics, template]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The jobs on screen (the first ten) are read in the background by the server, slowly, so their number becomes the exact one without
   // opening them. What comes back is shown in place: the order of the list does not move while somebody looks at it.
@@ -477,6 +496,23 @@ export default function JobSearchPage() {
             <Link2 className="h-4 w-4" />{" "}{tr("Add a job")}</Button>
         </div>
       </div>
+
+      {tab === "results" && jobs.length > 0 && (
+        <JobFilterBar
+          value={filters}
+          shown={ranked.length}
+          total={pool.length}
+          onChange={(next) => {
+            const languageChanged = next.lang !== filters.lang;
+            setFilters(next);
+            if (languageChanged) {
+              // the language is asked of the server: the search runs again with it
+              langMode.current = next.lang;
+              void search();
+            }
+          }}
+        />
+      )}
 
       {noneHere && (
         <p className="mb-4 rounded-xl border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground">

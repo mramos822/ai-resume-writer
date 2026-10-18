@@ -230,14 +230,23 @@ const cache = new Map<string, { at: number; jobs: JobListing[]; sources: string[
 const TTL = 5 * 60 * 1000;
 
 /** Searches every source, merges, removes repeats and puts the best matches and the newest first. */
+/**
+ * live: "auto" asks our own sources and, when they are not enough, the other boards; "never" only our own; "only" only the other boards.
+ * boards (with "only"): "fast" = Remotive and Arbeitnow (whole postings, quick), "adzuna" = Adzuna (cut postings: the slow ones, they have to be read).
+ */
+export interface SearchOpts {
+  live?: "auto" | "never" | "only";
+  boards?: "all" | "fast" | "adzuna";
+}
+
 /** how many jobs of our own index make the other boards unnecessary for a search without a place */
 export const ENOUGH_OWN = 30;
 
 /** A source added by the caller (the server adds our own index): its name and how it searches. */
 export type ExtraSource = [name: string, search: (q: JobQuery) => Promise<JobListing[]>];
 
-export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: { live?: "auto" | "never" | "only" } = {}): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
-  const cacheKey = JSON.stringify([q.q.toLowerCase().trim(), q.location.toLowerCase().trim(), q.remoteOnly, q.country.toLowerCase(), opts.live ?? "auto"]);
+export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: SearchOpts = {}): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
+  const cacheKey = JSON.stringify([q.q.toLowerCase().trim(), q.location.toLowerCase().trim(), q.remoteOnly, q.country.toLowerCase(), opts.live ?? "auto", opts.boards ?? "all"]);
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < TTL) return hit;
 
@@ -255,8 +264,9 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: {
   });
   const ownMatches = jobs.filter((j) => (!q.q.trim() || matchesQuery(j, q.q)) && (!q.remoteOnly || j.remote)).length;
   if (opts.live === "only" || (opts.live !== "never" && (q.location.trim() || ownMatches < ENOUGH_OWN))) {
-    const tasks: [string, Promise<JobListing[]>][] = [["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()]];
-    if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY && adzunaCountry(q.country)) tasks.push(["Adzuna", adzunaAround(q, info)]);
+    const tasks: [string, Promise<JobListing[]>][] = [];
+    if (opts.boards !== "adzuna") tasks.push(["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()]);
+    if (opts.boards !== "fast" && process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY && adzunaCountry(q.country)) tasks.push(["Adzuna", adzunaAround(q, info)]);
     const settled = await Promise.allSettled(tasks.map(([, p]) => p));
     settled.forEach((r, i) => {
       if (r.status === "fulfilled") {
@@ -329,13 +339,13 @@ export function relatedQueries(role: string, skills: string[] = []): string[] {
 }
 
 /** A wider search: several related searches at once, joined and without repeats. */
-export async function searchJobsWide(q: JobQuery, skills: string[] = [], extra: ExtraSource[] = [], opts: { live?: "auto" | "never" | "only" } = {}): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
+export async function searchJobsWide(q: JobQuery, skills: string[] = [], extra: ExtraSource[] = [], opts: SearchOpts = {}): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
   const queries = q.q.trim() ? relatedQueries(q.q, skills) : [q.q];
   // A wide search asks for several titles. Our own index answers all of them first; when together they already give plenty (and no place
   // was asked for), the other boards are not asked for ANY of them: one short title must not make the whole search wait for them.
   if (opts.live && opts.live !== "auto") {
     // the page asked for our own sources or for the other boards, apart
-    return mergeWide(await Promise.allSettled(queries.map((one) => searchJobs({ ...q, q: one }, extra, { live: opts.live }))));
+    return mergeWide(await Promise.allSettled(queries.map((one) => searchJobs({ ...q, q: one }, extra, opts))));
   }
   if (extra.length && !q.location.trim()) {
     const own = await Promise.allSettled(queries.map((one) => searchJobs({ ...q, q: one }, extra, { live: "never" })));

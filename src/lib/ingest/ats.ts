@@ -3,11 +3,15 @@
 import { decode, htmlToText } from "@/lib/jobAdText";
 import type { JobListing } from "@/lib/jobSearch";
 import type { Board } from "@/lib/ingest/boards";
+import { countryOf } from "@/lib/ingest/country";
+import { payFromText } from "@/lib/ingest/pay";
 
 /** A job of the index: the listing plus what only the index needs (the description keeps the first 6000 characters: the database is small). */
 export interface IndexedJob extends JobListing {
   /** the board it came from, to know which jobs of it are gone */
   board: string;
+  /** the country the job is in (ISO code), when the place says it; undefined when it does not (Remote, Multiple locations...) */
+  country?: string;
 }
 
 const REMOTE = /\b(remote|anywhere|work from home|distributed)\b/i;
@@ -47,10 +51,12 @@ export function fromGreenhouse(b: Board, j: GreenhouseJob): IndexedJob | null {
     remote: REMOTE.test(location) || REMOTE.test(j.title),
     url: clip(j.absolute_url, 1000),
     postedAt: iso(j.first_published) || iso(j.updated_at),
+    salary: payFromText(full),
     tags: [dept].filter(Boolean),
     snippet: clip(nice(full), 380),
     description: clip(full, 6000),
     board: `greenhouse:${b.token}`,
+    country: countryOf(location),
   };
 }
 
@@ -86,11 +92,12 @@ export function fromLever(b: Board, p: LeverPosting): IndexedJob | null {
     remote: p.workplaceType === "remote" || REMOTE.test(location) || REMOTE.test(p.text),
     url: clip(p.hostedUrl, 1000),
     postedAt: iso(p.createdAt),
-    salary: range?.min && range?.max ? `${range.currency ?? ""} ${money(range.min)} – ${money(range.max)}${range.interval ? " " + range.interval.replace(/^per-/, "per ") : ""}`.trim().slice(0, 80) : undefined,
+    salary: (range?.min && range?.max ? `${range.currency ?? ""} ${money(range.min)} – ${money(range.max)}${range.interval ? " " + range.interval.replace(/^per-/, "per ") : ""}`.trim().slice(0, 80) : undefined) ?? payFromText(full),
     tags: [nice(p.categories?.team ?? p.categories?.department ?? ""), nice(p.categories?.commitment ?? "")].filter(Boolean),
     snippet: clip(nice(full), 380),
     description: clip(full, 6000),
     board: `lever:${b.token}`,
+    country: countryOf(location, p.country),
   };
 }
 
@@ -109,6 +116,7 @@ interface AshbyJob {
   descriptionHtml?: string;
   descriptionPlain?: string;
   compensation?: { scrapeableCompensationSalarySummary?: string; compensationTierSummary?: string };
+  address?: { postalAddress?: { addressCountry?: string } };
 }
 
 export function fromAshby(b: Board, j: AshbyJob): IndexedJob | null {
@@ -123,14 +131,17 @@ export function fromAshby(b: Board, j: AshbyJob): IndexedJob | null {
     title: clip(nice(j.title), 200),
     company: clip(company(b), 200),
     location: clip(location, 200),
-    remote: j.isRemote === true || /remote/i.test(j.workplaceType ?? "") || REMOTE.test(location) || REMOTE.test(j.title),
+    // "isRemote" is true for hybrid jobs too (a hybrid job in New York is not a remote one): the workplace type decides, and only when it
+    // says nothing is the place or the title read
+    remote: /remote/i.test(j.workplaceType ?? "") || (!/hybrid|on-?site/i.test(j.workplaceType ?? "") && (REMOTE.test(location) || REMOTE.test(j.title))),
     url: clip(j.jobUrl, 1000),
     postedAt: iso(j.publishedAt),
-    salary: pay ? clip(pay, 80) : undefined,
+    salary: pay ? clip(pay, 80) : payFromText(full),
     tags: [nice(j.team ?? j.department ?? ""), nice(j.employmentType ?? "")].filter(Boolean),
     snippet: clip(nice(full), 380),
     description: clip(full, 6000),
     board: `ashby:${b.token}`,
+    country: countryOf(location, j.address?.postalAddress?.addressCountry),
   };
 }
 
@@ -139,7 +150,7 @@ interface SrListItem {
   name?: string;
   releasedDate?: string;
   ref?: string;
-  location?: { fullLocation?: string; city?: string; country?: string; remote?: boolean };
+  location?: { fullLocation?: string; city?: string; country?: string; remote?: boolean; hybrid?: boolean };
   department?: { label?: string };
   typeOfEmployment?: { label?: string };
   experienceLevel?: { label?: string };
@@ -166,13 +177,15 @@ export function fromSmartRecruiters(b: Board, item: SrListItem, d: SrDetail): In
     title: clip(nice(item.name), 200),
     company: clip(nice(d.company?.name ?? company(b)), 200),
     location: clip(location, 200),
-    remote: item.location?.remote === true || REMOTE.test(item.name),
+    remote: item.location?.hybrid !== true && (item.location?.remote === true || REMOTE.test(item.name)),
     url: clip(d.postingUrl, 1000),
     postedAt: iso(item.releasedDate),
     tags: [nice(item.department?.label ?? ""), nice(item.typeOfEmployment?.label ?? "")].filter(Boolean),
+    salary: payFromText(full),
     snippet: clip(nice(full), 380),
     description: clip(full, 6000),
     board: `smartrecruiters:${b.token}`,
+    country: countryOf(location, item.location?.country),
   };
 }
 

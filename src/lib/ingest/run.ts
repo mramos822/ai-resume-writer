@@ -47,17 +47,19 @@ export async function ingestBoard(b: Board, now = new Date()): Promise<BoardResu
   try {
     if (jobs.length > 0) {
       await index().bulkWrite(
-        jobs.map((j) => ({
-          updateOne: {
-            filter: { key: j.key },
-            update: {
-              $set: { ...j, lang: detectLanguage(`${j.title} ${j.description ?? ""}`), active: true, lastSeenAt: now },
-              $setOnInsert: { firstSeenAt: now },
-              $unset: { closedAt: "", expiresAt: "" },
+        jobs.map((j) => {
+          const doc: Record<string, unknown> = { ...j, lang: detectLanguage(`${j.title} ${j.description ?? ""}`), active: true, lastSeenAt: now };
+          // a field with no value (the pay or the country, when the posting says none) is taken out, not saved as null
+          const empty = Object.keys(doc).filter((k) => doc[k] === undefined);
+          empty.forEach((k) => delete doc[k]);
+          return {
+            updateOne: {
+              filter: { key: j.key },
+              update: { $set: doc, $setOnInsert: { firstSeenAt: now }, $unset: { closedAt: "", expiresAt: "", ...Object.fromEntries(empty.map((k) => [k, ""])) } },
+              upsert: true,
             },
-            upsert: true,
-          },
-        })) as never,
+          };
+        }) as never,
         { ordered: false }
       );
     }

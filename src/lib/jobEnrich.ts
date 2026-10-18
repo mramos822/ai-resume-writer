@@ -30,7 +30,7 @@ async function readWhole(job: JobListing): Promise<string | null> {
  * Gives the listings that came cut their whole text. At most `max` are read, a few at a time, and whatever is not read within `budgetMs`
  * stays as it was (the list then shows its number as an estimate, and the page of the job reads it when opened).
  */
-export async function enrichListings(jobs: JobListing[], max = 40, budgetMs = 6000): Promise<JobListing[]> {
+export async function enrichListings(jobs: JobListing[], max = 40, budgetMs = 4500): Promise<JobListing[]> {
   const todo = jobs.filter(isPartialPosting).slice(0, max);
   if (todo.length === 0) return jobs;
   const whole = new Map<string, string>();
@@ -43,7 +43,7 @@ export async function enrichListings(jobs: JobListing[], max = 40, budgetMs = 60
       if (text && text.length > (j.description ?? "").length) whole.set(j.key, text.slice(0, 3500));
     }
   };
-  await Promise.race([Promise.all(Array.from({ length: 8 }, worker)), new Promise((r) => setTimeout(r, budgetMs + 500))]);
+  await Promise.race([Promise.all(Array.from({ length: 20 }, worker)), new Promise((r) => setTimeout(r, budgetMs + 500))]);
   return jobs.map((j) => (whole.has(j.key) ? { ...j, description: whole.get(j.key) } : j));
 }
 

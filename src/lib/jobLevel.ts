@@ -82,7 +82,8 @@ function levelByRules(job: Pick<JobListing, "title" | "description" | "snippet">
     typical = 8;
   } else if (/\b(lead|manager)\b/.test(title)) {
     label = /manager/.test(title) ? "Manager" : "Lead";
-    typical = 6;
+    // "Product Manager", "Account Manager", "Marketing Manager" are mid level roles; the manager of engineers, data, IT or a group is a senior one
+    typical = /manager/.test(title) && !/\b(engineering|software|technical|data|it|group|general|senior|sr\.?|lead|head)\b/.test(title) ? 3 : 6;
   } else if (/\b(senior|sr\.?)\b/.test(title)) {
     label = "Senior";
     typical = 5;
@@ -96,7 +97,9 @@ function levelByRules(job: Pick<JobListing, "title" | "description" | "snippet">
   }
   // when the posting states the years, that is what counts; the title gives the usual number otherwise.
   // An entry level job never asks for more than a couple of years (a number elsewhere in the text is about other roles or "nice to have")
-  const years = label === "Entry level" || label === "Internship" ? Math.min(stated ?? 0, 2) : stated ?? typical;
+  // A years figure in the text can be about one tool ("2 years of Python"): a Senior, Staff or Director title never asks for less than two years
+  // below its usual number.
+  const years = label === "Entry level" || label === "Internship" ? Math.min(stated ?? 0, 2) : stated === null ? typical : Math.max(stated, Math.max(typical - 2, 0));
   return { label, years };
 }
 
