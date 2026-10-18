@@ -103,7 +103,7 @@ function levelByRules(job: Pick<JobListing, "title" | "description" | "snippet">
   if (/\b(intern|internship|trainee|apprentice|working student|werkstudent)\b/.test(title)) {
     label = "Internship";
     typical = 0;
-  } else if (/\b(entry[- ]level|early[- ]career|early[- ]talent|junior|jr\.?|graduate|undergraduate|undergrad|new[- ]?grad|recent grad|university|campus|student|co-?op|placement|apprentice|associate)\b/.test(title) || /\b(engineer|developer|analyst|designer|scientist)\s+(i|1)\b/.test(title)) {
+  } else if (/\b(entry[- ]level|early[- ]career|early[- ]talent|junior|jr\.?|graduate|undergraduate|undergrad|new[- ]?grad|recent grad|university|campus|student|co-?op|placement|apprentice|associate)\b/.test(title) || (/\b(engineer|developer|analyst|designer|scientist)\s+(i|1)\b/.test(title) && !/\b(principal|staff|senior|sr\.?|lead|architect|manager|director|head)\b/.test(title))) {
     label = "Entry level";
     typical = 0;
   } else if (/\b(chief|vp|vice president|head of|director)\b/.test(title)) {

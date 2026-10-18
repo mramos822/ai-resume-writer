@@ -35,7 +35,7 @@ import { useT } from "@/i18n/provider";
 type Saved = JobListing & { savedAt?: string };
 const PAGE = 15;
 
-const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", greenhouse: "the company's careers page", lever: "the company's careers page", ashby: "the company's careers page", smartrecruiters: "the company's careers page", link: "a link you added" };
+const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", greenhouse: "the company's careers page", lever: "the company's careers page", ashby: "the company's careers page", smartrecruiters: "the company's careers page", workable: "the company's careers page", recruitee: "the company's careers page", teamtailor: "the company's careers page", link: "a link you added" };
 
 function Fit({ pct, estimate, partial }: { pct: number; estimate?: boolean; partial?: boolean }) {
   const { tr } = useT();
@@ -430,6 +430,38 @@ export default function JobSearchPage() {
       again.forEach(clearTimeout);
     };
   }, [topKey, tab, loading]);
+
+  // The pay of the jobs on screen. Boards often leave it out of their data while the text of the posting says it ("$29 / hr - $53.50 / hr"), so
+  // the server reads it from the posting (no AI) and it is shown in the card. Only what is on screen is asked, once per job (once more if the
+  // posting could not be read the first time).
+  const payTries = useRef(new Map<string, number>());
+  const [payTick, setPayTick] = useState(0);
+  const payKey = ranked
+    .slice(0, tab === "results" ? shown : ranked.length)
+    .filter((r) => !r.job.salary && (r.job.source === "adzuna" || r.job.source === "link") && (payTries.current.get(r.job.key) ?? 0) < 2)
+    .slice(0, 30)
+    .map((r) => r.job.key)
+    .join("|");
+  useEffect(() => {
+    if (tab !== "results" || loading || !payKey) return;
+    const keys = new Set(payKey.split("|"));
+    const ask = rankedRef.current.map((r) => r.job).filter((j) => keys.has(j.key));
+    if (ask.length === 0) return;
+    ask.forEach((j) => payTries.current.set(j.key, (payTries.current.get(j.key) ?? 0) + 2)); // in flight: not asked again meanwhile
+    void (async () => {
+      let got: Record<string, string | null> = {};
+      try {
+        const res = await authFetch("/api/jobs/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: ask }) });
+        if (res.ok) got = ((await res.json()) as { pays?: Record<string, string | null> }).pays ?? {};
+      } catch {
+        /* the cards stay as they are */
+      }
+      const unread = ask.filter((j) => !(j.key in got));
+      unread.forEach((j) => payTries.current.set(j.key, 1)); // one more try later
+      if (Object.values(got).some(Boolean)) setJobs((js) => js.map((j) => (!j.salary && got[j.key] ? { ...j, salary: got[j.key] as string } : j)));
+      if (unread.length > 0) setTimeout(() => setPayTick((n) => n + 1), 20_000);
+    })();
+  }, [payKey, tab, loading, payTick]);
 
   // the headings of a search by place
   const reachTitle = (r: NonNullable<JobListing["reach"]>) =>

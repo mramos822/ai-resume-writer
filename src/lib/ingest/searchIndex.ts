@@ -1,6 +1,7 @@
 // The search of OUR index: the jobs the ingestion keeps in the database. It is one more source of the job search, and the fastest.
 import type { JobListing, JobQuery } from "@/lib/jobSearch";
 import { index } from "@/lib/ingest/run";
+import { payFromText } from "@/lib/ingest/pay";
 
 const STOP = new Set(["the", "and", "for", "with", "a", "an", "of", "in", "at", "to", "job", "jobs"]);
 
@@ -27,6 +28,7 @@ export async function searchIndex(q: JobQuery, limit = 150): Promise<JobListing[
   return rows.map((r) => {
     const { score: _score, ...job } = r as unknown as JobListing & { score?: number };
     void _score;
-    return job;
+    // the pay the system did not give is read from the text, so a job indexed before the reader learned a format shows it too
+    return job.salary ? job : { ...job, salary: payFromText(job.description ?? "") };
   });
 }

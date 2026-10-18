@@ -3,7 +3,7 @@
 // To add a company, add its board name here (it is the last part of its jobs page: boards.greenhouse.io/<name>, jobs.lever.co/<name>).
 // A name that does not exist is skipped by the ingestion and reported in its summary (hubspot, doordash, etsy, unity... answered 404: they
 // use another system or another name, so they are not here; check a name at boards-api.greenhouse.io/v1/boards/<name>/jobs).
-export type AtsSource = "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "remotive" | "arbeitnow";
+export type AtsSource = "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "remotive" | "arbeitnow";
 export interface Board {
   source: AtsSource;
   token: string;
@@ -14,6 +14,9 @@ export interface Board {
 const gh = (names: string): Board[] => names.split(/\s+/).filter(Boolean).map((token) => ({ source: "greenhouse" as const, token }));
 const lv = (names: string): Board[] => names.split(/\s+/).filter(Boolean).map((token) => ({ source: "lever" as const, token }));
 const sr = (names: string): Board[] => names.split(/\s+/).filter(Boolean).map((token) => ({ source: "smartrecruiters" as const, token }));
+const wk = (names: string): Board[] => names.split(/\s+/).filter(Boolean).map((token) => ({ source: "workable" as const, token }));
+const rc = (names: string): Board[] => names.split(/\s+/).filter(Boolean).map((token) => ({ source: "recruitee" as const, token }));
+const tt = (names: string): Board[] => names.split(/\s+/).filter(Boolean).map((token) => ({ source: "teamtailor" as const, token }));
 const ab = (names: string): Board[] => names.split(/\s+/).filter(Boolean).map((token) => ({ source: "ashby" as const, token }));
 
 // names that are not the board name with a capital letter
@@ -36,6 +39,13 @@ export const BOARDS: Board[] = [
   ...lv(`ro veeva lyrahealth includedhealth dlocal kavak`),
   // Ashby: the system many newer companies use
   ...ab(`supabase linear cursor vanta notion ramp cohere perplexity openai zapier replit webflow plaid harvey hex clickup ashby decagon handshake sierra runway pika writer modal lambda elevenlabs cerebras`),
+  // Workable, Recruitee and Teamtailor: the same kind of public list, one request per company, found by searching each system for companies that
+  // hire in the United States, Mexico, Colombia, Peru and remote. Left out on purpose: accounts that are recruiting agencies publishing for
+  // clients they do not name (raydar: "Our client is a healthcare technology company"; workana-premium; jobgether), which would fill the search
+  // with jobs nobody can tell the employer of. "<name>.na" is Teamtailor's North America address (the ones in the Americas are there).
+  ...wk(`huggingface convergent-careers jeffreym-consulting energysciences nalamoney workmotion moongate-studios-inc biosked-inc ecp-123 mlabs workstate capital-economics visit`),
+  ...rc(`emergentsoftware aikidosecurity hostaway careersdeltacapita tether greatminds aidigital holepunch huaweicanada bunq gsbsolutions1 constructivedialogue dillinggroup scioteq mainstream erstedigital`),
+  ...tt(`spokeo.na career tradingview unleash-amby wakapi incluso iloq xci nrd upstart13 utorg sqdm.na crhtalentoenit.na bancociudad.na covalto trabajaconnosotros-olitel.na talenthub.na puelchehc.na maxusacorp.na iteriaus.na bearingpointusa.na avionsolutions.na sellersdorsey.na abceducation-1719511743.na`),
   // SmartRecruiters: large employers of other fields (hotels, food service, gyms, industry). Its list has no description: each new posting is one more request
   ...sr(`Accor Sodexo Equinox Experian BoschGroup ServiceNow Dominos Freshworks Wise Canva`),
 ].map((b) => ({ ...b, name: b.name ?? NAMES[b.token] }));

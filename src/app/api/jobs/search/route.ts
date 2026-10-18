@@ -3,7 +3,7 @@ import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { ENOUGH_OWN, isPartialPosting, searchJobs, searchJobsWide, type ExtraSource } from "@/lib/jobSearch";
 import { readPlace } from "@/lib/jobPlaces";
 import { enrichListings } from "@/lib/jobEnrich";
-import { ADZUNA_TTL, cachedSearch, QUERY_TTL, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
+import { ADZUNA_TTL, cachedSearch, QUERY_TTL, rememberSearch, searchKey, withKnownPay, withKnownText } from "@/lib/jobCatalog";
 import { searchIndex } from "@/lib/ingest/searchIndex";
 import { ingestNow } from "@/lib/ingest/schedule";
 import { withStoredFacts } from "@/lib/jobFactsStore";
@@ -81,7 +81,7 @@ export async function GET(req: Request) {
     const again = await cachedSearch(qkey, ttl);
     t.mark("cache");
     if (again) {
-      const jobs = await withStoredFacts(again.jobs);
+      const jobs = await withStoredFacts(await withKnownPay(again.jobs));
       t.mark("facts");
       return NextResponse.json({ ...again, jobs, place: place?.label ?? null, more: moreToCome(again.jobs.length) }, { headers: t.header() });
     }
@@ -93,7 +93,7 @@ export async function GET(req: Request) {
     const found = { jobs, sources: result.sources, bigCity: result.bigCity };
     // remembered after the answer has gone: nobody waits for the database to write it down
     after(() => rememberSearch(qkey, found, ttl));
-    const withFacts = await withStoredFacts(found.jobs);
+    const withFacts = await withStoredFacts(await withKnownPay(found.jobs));
     t.mark("facts");
     return NextResponse.json({ ...found, jobs: withFacts, place: place?.label ?? null, more: moreToCome(found.jobs.length) }, { headers: t.header() });
   } catch (err) {

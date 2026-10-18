@@ -20,7 +20,7 @@ import { isPartialPosting } from "@/lib/jobSearch";
 import type { JobListing } from "@/lib/jobSearch";
 import { useT } from "@/i18n/provider";
 
-const SOURCE: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", greenhouse: "The company", lever: "The company", ashby: "The company", smartrecruiters: "The company", link: "You" };
+const SOURCE: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", greenhouse: "The company", lever: "The company", ashby: "The company", smartrecruiters: "The company", workable: "The company", recruitee: "The company", teamtailor: "The company", link: "You" };
 /** The plain description in short paragraphs (the sources give it as one block of text). */
 function paragraphs(text: string): string[] {
   const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9•\-])/);
@@ -113,7 +113,7 @@ export default function JobDetail({
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   // job boards only share the first lines of a posting: we read the whole posting and show it as a summary and its sections
-  const [full, setFull] = useState<{ key: string; text: string | null; facts?: JobFacts } | null>(null);
+  const [full, setFull] = useState<{ key: string; text: string | null; facts?: JobFacts; pay?: string | null } | null>(null);
   // The text of the posting is shown ONCE, already final: a short loading state first, then either the AI's ordered version (when it is ready,
   // or was kept from an earlier reading) or, if the AI takes too long, the original in short paragraphs. What is on screen is never swapped for
   // another text afterwards; only the numbers (the fit, the skills) keep updating.
@@ -127,7 +127,7 @@ export default function JobDetail({
     let off = false;
     authFetch("/api/jobs/detail", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job }) })
       .then((r) => (r.ok ? r.json() : { text: null }))
-      .then((d) => !off && setFull({ key: job.key, text: typeof d.text === "string" ? d.text : null, facts: cleanFacts(d.facts) }))
+      .then((d) => !off && setFull({ key: job.key, text: typeof d.text === "string" ? d.text : null, facts: cleanFacts(d.facts), pay: typeof d.pay === "string" ? d.pay : null }))
       .catch(() => !off && setFull({ key: job.key, text: null }));
     return () => {
       off = true;
@@ -243,9 +243,9 @@ export default function JobDetail({
                       <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-500">
                         <Globe2 className="h-4 w-4" />{" "}{tr("Remote")}</span>
                     )}
-                    {job.salary && (
+                    {(job.salary || (full?.key === job.key && full.pay)) && (
                       <span className="inline-flex items-center gap-1.5">
-                        <Wallet className="h-4 w-4" /> {job.salary}
+                        <Wallet className="h-4 w-4" /> {job.salary || (full?.key === job.key ? full.pay : "")}
                       </span>
                     )}
                     {job.postedAt && (

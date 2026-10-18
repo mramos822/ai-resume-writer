@@ -5,6 +5,7 @@ import { HttpError } from "@/lib/apiAuth";
 import { fetchJobAdText } from "@/lib/jobAdText";
 import { isPartialPosting, type JobListing } from "@/lib/jobSearch";
 import { isSafePublicUrl } from "@/lib/safeUrl";
+import { payFromText } from "@/lib/ingest/pay";
 
 const cache = new Map<string, { at: number; text: string | null }>();
 const TTL = 6 * 60 * 60 * 1000;
@@ -22,8 +23,15 @@ async function readWhole(job: JobListing): Promise<string | null> {
     text = null;
   }
   if (cache.size > 800) cache.delete(cache.keys().next().value as string);
-  cache.set(job.key, { at: Date.now(), text });
+  // a page that could not be read (the board was busy, or turned the request away) is tried again in five minutes, not in six hours
+  cache.set(job.key, { at: text ? Date.now() : Date.now() - TTL + 5 * 60 * 1000, text });
   return text;
+}
+
+/** The pay a posting names, read from its whole page: a text when it names one, null when it was read and names none, undefined when it could not be read. */
+export async function readPay(job: JobListing): Promise<string | null | undefined> {
+  const text = await readWhole(job);
+  return text === null ? undefined : payFromText(text) ?? null;
 }
 
 /**
@@ -34,17 +42,22 @@ export async function enrichListings(jobs: JobListing[], max = 40, budgetMs = 45
   const todo = jobs.filter(isPartialPosting).slice(0, max);
   if (todo.length === 0) return jobs;
   const whole = new Map<string, string>();
+  const pays = new Map<string, string>();
   const stop = Date.now() + budgetMs;
   const queue = [...todo];
   const worker = async () => {
     for (let j = queue.shift(); j; j = queue.shift()) {
       if (Date.now() > stop) return;
       const text = await readWhole(j);
-      if (text && text.length > (j.description ?? "").length) whole.set(j.key, text.slice(0, 3500));
+      if (text && text.length > (j.description ?? "").length) {
+        whole.set(j.key, text.slice(0, 3500));
+        const pay = payFromText(text); // read from all of it: the pay is often near the end, past what is kept
+        if (pay) pays.set(j.key, pay);
+      }
     }
   };
   await Promise.race([Promise.all(Array.from({ length: 20 }, worker)), new Promise((r) => setTimeout(r, budgetMs + 500))]);
-  return jobs.map((j) => (whole.has(j.key) ? { ...j, description: whole.get(j.key) } : j));
+  return jobs.map((j) => (whole.has(j.key) ? { ...j, description: whole.get(j.key), salary: j.salary ?? pays.get(j.key) } : j));
 }
 
 export const CUT_POSTING_ERROR = "We couldn't read the whole job posting, and a resume made from half of it would miss what the job asks for. Use Add a job and paste the text of the posting.";

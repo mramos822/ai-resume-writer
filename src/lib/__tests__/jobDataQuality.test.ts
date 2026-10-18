@@ -48,6 +48,31 @@ describe("the pay a posting names", () => {
 
   it("knows an hourly range, and leaves out what is not a range of pay", () => {
     expect(payFromText("Pay is $45 - $60 per hour")).toBe("$45 – $60 per hour");
+    expect(payFromText("The pay range for this role in New Jersey is $29 / hr - $53.50 / hr.This is not a guarantee")).toBe("$29 – $53.50 per hour");
+    expect(payFromText("Pay: $29/hr to $53.50/hr")).toBe("$29 – $53.50 per hour");
+  });
+
+  it("reads the other ways postings write their pay (seen in real postings)", () => {
+    expect(payFromText("Compensation for this role is $30/hour. This is a contract")).toBe("$30 per hour");
+    expect(payFromText("Orlando, FL: $15.25 per hour - The salary range")).toBe("$15.25 per hour");
+    expect(payFromText("Salary Range: USD $18.80/hr - The salary range")).toBe("$18.80 per hour");
+    expect(payFromText("The base pay range in the Toronto area is CAD $45 - CAD $48 per hour, not inclusive")).toBe("CAD $45 – $48 per hour");
+    expect(payFromText("The expected salary range for this role is $240,000 CAD - $300,000 CAD. However")).toBe("CAD $240,000 – $300,000");
+    expect(payFromText("The typical starting salary range for this role is: €80.400 - €127.200 EUR Additional")).toBe("€80,400 – €127,200");
+    expect(payFromText("The estimated salary for this position is estimated to be $10,000/month. Further note")).toBe("$10,000 per month");
+    expect(payFromText("Lithuania Gross Monthly Pay Range €6.083 - €7.083 EUR Click here")).toBe("€6,083 – €7,083 per month");
+    expect(payFromText("Hourly Rate: $50 - $50 USD - Application Limit")).toBe("$50 per hour");
+    expect(payFromText("The expected base pay range for this position in San Francisco is $200-240K. In addition")).toBe("$200,000 – $240,000");
+    expect(payFromText("The expected range of pay for this position in the U.S. is $17.84 - $22.30. Salary ranges")).toBe("$17.84 – $22.30 per hour");
+    expect(payFromText("Annual base salary range (excluding equity and bonus): R$347.900 - R$359.200 BRL - Application")).toBe("R$347,900 – R$359,200");
+  });
+
+  it("does not take the figures of the company for the pay of the job", () => {
+    expect(payFromText("Carta: a $5.8B valuation, more than $1 billion in annualized bookings, $250B+ in assets")).toBeUndefined();
+    expect(payFromText("Stripe processes over $1.9T in payments volume per year")).toBeUndefined();
+    expect(payFromText("generating $5M+ ARR and an average deal size of $100k+")).toBeUndefined();
+    expect(payFromText("Annual Salary: $1 - $2 USD")).toBeUndefined();
+    expect(payFromText("Monthly contribution up to $200 to help you pay off your student loans")).toBeUndefined();
     expect(payFromText("We raised $50 - $200 million")).toBeUndefined(); // not a salary
     expect(payFromText("Between $1,000 and $90,000 of equipment")).toBeUndefined(); // too wide to be one range
     expect(payFromText("No pay is listed here.")).toBeUndefined();

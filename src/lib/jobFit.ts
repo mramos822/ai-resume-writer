@@ -3,6 +3,7 @@ import { EN, type Tr } from "@/i18n/translate";
 import { levelOf } from "@/lib/jobLevel";
 import { askedSkills, baseSkills, covers, mentionedSkills } from "@/lib/jobSkills";
 import { resumeText } from "@/lib/roleProfile";
+import { ALL_SKILLS } from "@/lib/skills";
 import type { ProfileData } from "@/context/profileContext";
 
 /**
@@ -13,6 +14,8 @@ export function levelFactor(job: Pick<JobListing, "title" | "description" | "sni
   const gap = levelOf(job).years - myYears;
   return gap <= 1 ? 1 : Math.max(0.1, 0.5 ** (gap - 1));
 }
+
+const KNOWN_SKILLS = new Set(ALL_SKILLS.map((s) => s.toLowerCase()));
 
 // Words of a job title that say the level or the place, not the kind of work, and the words that mean the same kind of work.
 const LEVEL_WORDS = new Set(["senior", "sr", "junior", "jr", "lead", "principal", "staff", "intern", "internship", "associate", "early", "career", "entry", "level", "new", "grad", "graduate", "university", "campus", "remote", "hybrid", "full", "time", "part", "contract", "i", "ii", "iii", "iv", "1", "2", "3", "the", "and", "of", "for", "a", "an", "in", "at", "to", "with"]);
@@ -61,7 +64,10 @@ export function fitOf(job: JobListing, skills: string[], role: string, myYears?:
   const hay = text.toLowerCase();
   // a skill counts when the job names it or the skill it is built on ("GitHub Actions" counts for a job that asks for GitHub)
   const clean = (s: string) => s.toLowerCase().replace(/[()]/g, "").trim();
-  const matched = skills.filter((s) => s.trim() && [s, ...baseSkills(s)].some((t) => hay.includes(clean(t))));
+  // whole words only: "C" is not in every text that has a letter c, "Go" is not in "good". Names of the big list are read as the posting reads them (case, aliases)
+  const inText = mentionedSkills(text);
+  const wordIn = (t: string) => new RegExp(`(^|[^a-z0-9+#])${clean(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z0-9+#])`).test(hay);
+  const matched = skills.filter((s) => clean(s).length >= 2 && (inText.some((m) => covers(s, m)) || ([s, ...baseSkills(s)].some((t) => !KNOWN_SKILLS.has(clean(t)) && clean(t).length >= 2 && wordIn(t)))));
   const named = askedSkills(text);
   const covered = named.filter((n) => skills.some((s) => covers(s, n))).length;
   // what the posting names and the person has; when the posting names nothing known, the skills of the person it mentions

@@ -27,3 +27,11 @@ describe("years of experience a posting asks for", () => {
     expect(levelOf(job("3+ years of professional full-stack development experience", "Junior Full Stack Developer")).years).toBe(2);
   });
 });
+
+describe("a numeral after the role", () => {
+  it("is entry level for a plain 'Engineer I', but not when the title is Principal, Staff or Senior", () => {
+    expect(levelOf(job("", "Software Engineer I")).label).toBe("Entry level");
+    expect(levelOf(job("", "Principal Software Engineer I")).label).toBe("Principal");
+    expect(levelOf(job("", "Staff Software Engineer 1")).label).toBe("Principal");
+  });
+});

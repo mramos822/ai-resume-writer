@@ -49,3 +49,12 @@ describe("fit with a job", () => {
     expect(fitOf(senior, SKILLS, "Software Engineer", 0).pct).toBeLessThan(fitOf(EARLY, SKILLS, "Software Engineer", 0).pct);
   });
 });
+
+describe("the skills a job is said to match", () => {
+  it("counts whole words, so 'C' is not found in every text and 'Go' is not 'good'", () => {
+    const nurse = posting("RN (Registered Nurse)", "Come for the flexibility. Good pay, a sign-on bonus, a caring culture and great patients to care for.");
+    expect(fitOf(nurse, ["C", "Go", "Java"], "Software Engineer", 0).matched).toEqual([]);
+    const dev = posting("Backend Engineer", "We write C and Go, and some JavaScript.");
+    expect(fitOf(dev, ["Go", "Java", "JavaScript"], "Software Engineer", 0).matched).toEqual(["Go", "JavaScript"]);
+  });
+});

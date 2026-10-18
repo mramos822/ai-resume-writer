@@ -4,6 +4,7 @@
 //  - Adzuna: jobs by city in many countries, when ADZUNA_APP_ID and ADZUNA_APP_KEY are set  https://developer.adzuna.com
 // Every listing keeps its own link, so people apply on the original site.
 import { ADZUNA_COUNTRIES } from "@/lib/jobCountries";
+import { payFromText } from "@/lib/ingest/pay";
 import { remoteCountryFit } from "@/lib/remotePlace";
 import { kmBetween, type Origin } from "@/lib/jobPlaces";
 import { nearestMajorCity } from "@/lib/jobMajorCities";
@@ -13,7 +14,7 @@ import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 export interface JobListing {
   /** stable id: "source:id" */
   key: string;
-  source: "remotive" | "arbeitnow" | "adzuna" | "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "link";
+  source: "remotive" | "arbeitnow" | "adzuna" | "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "link";
   title: string;
   company: string;
   location: string;
@@ -147,6 +148,9 @@ const adzunaCountry = (code: string) => {
   return c === "uk" ? "gb" : ADZUNA_COUNTRIES.includes(c) ? c : null;
 };
 
+/** The symbol of the money each Adzuna country pays in; the figure is shown with it so it is not a bare number. */
+const ADZUNA_CURRENCY: Record<string, string> = { us: "$", ca: "$", au: "$", nz: "$", sg: "$", mx: "$", gb: "£", in: "₹", br: "R$", za: "R", pl: "zł ", de: "€", fr: "€", it: "€", nl: "€", at: "€", es: "€", be: "€" };
+
 interface AdzunaRow {
   id?: string | number;
   title?: string;
@@ -155,6 +159,8 @@ interface AdzunaRow {
   created?: string;
   salary_min?: number;
   salary_max?: number;
+  /** "1" when Adzuna estimated the pay itself: the posting does not say it */
+  salary_is_predicted?: string | number;
   contract_time?: string;
   company?: { display_name?: string };
   location?: { display_name?: string };
@@ -178,9 +184,11 @@ async function adzuna(q: JobQuery, km = 0): Promise<JobListing[]> {
   if (q.remoteOnly) params.set("what_or", "remote");
   const data = (await getJson(`https://api.adzuna.com/v1/api/jobs/${country}/search/1?${params}`)) as { results?: AdzunaRow[] };
   return (data.results ?? []).map((j) => {
-    const min = j.salary_min ? Math.round(Number(j.salary_min)) : 0;
-    const max = j.salary_max ? Math.round(Number(j.salary_max)) : 0;
-    const fmt = (n: number) => n.toLocaleString("en-US");
+    const estimated = String(j.salary_is_predicted ?? "0") === "1"; // Adzuna's own guess, not pay the posting names: not shown as pay
+    const min = !estimated && j.salary_min ? Math.round(Number(j.salary_min)) : 0;
+    const max = !estimated && j.salary_max ? Math.round(Number(j.salary_max)) : 0;
+    const fmt = (n: number) => `${ADZUNA_CURRENCY[country] ?? ""}${n.toLocaleString("en-US")}`;
+    const hourly = !estimated && (min || max) ? /[$£€]\s?(\d[\d,.]*)\s*\/\s*(?:hr|hour)\b/i.exec(String(j.title ?? ""))?.[1] : undefined;
     // how far from the place it is, when both positions are known; otherwise it counts as in the place
     const away = q.origin && km && j.latitude != null && j.longitude != null ? kmBetween(q.origin, { lat: Number(j.latitude), lon: Number(j.longitude) }) : 0;
     return {
@@ -193,7 +201,8 @@ async function adzuna(q: JobQuery, km = 0): Promise<JobListing[]> {
       remote: /remote/i.test(`${j.title} ${j.description}`),
       url: String(j.redirect_url ?? ""),
       postedAt: String(j.created ?? ""),
-      salary: min || max ? (min && max && min !== max ? `${fmt(min)} – ${fmt(max)}` : fmt(min || max)) : undefined,
+      // a title that names the hourly pay ("Remote Software Engineer ($300/hr)") says it better than Adzuna's yearly figure made from it ($624,000)
+      salary: hourly ? `${ADZUNA_CURRENCY[country] ?? ""}${hourly}/hr` : min || max ? (min && max && min !== max ? `${fmt(min)} – ${fmt(max)}` : fmt(min || max)) : payFromText(String(j.description ?? "")),
       tags: [String(j.category?.label ?? ""), String(j.contract_time ?? "").replace("_", " ")].filter(Boolean),
       snippet: snippetOf(String(j.description ?? "")),
       description: descriptionOf(String(j.description ?? "")),
@@ -445,7 +454,7 @@ export function cleanListing(j: Partial<JobListing> | null | undefined): JobList
   if (!/^https?:\/\//.test(j.url) && !(j.source === "link" && j.url === "")) return null;
   return {
     key: j.key.slice(0, 120),
-    source: (["remotive", "arbeitnow", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
+    source: (["remotive", "arbeitnow", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee", "teamtailor", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
     title: j.title.slice(0, 200),
     company: String(j.company ?? "").slice(0, 200),
     location: String(j.location ?? "").slice(0, 200),

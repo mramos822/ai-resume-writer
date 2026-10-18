@@ -307,6 +307,143 @@ export function fromArbeitnow(b: Board, j: ArbeitnowJob): IndexedJob | null {
   };
 }
 
+const SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", CAD: "CA$", AUD: "A$" };
+/** A pay the system gives as numbers ("min 90000, max 120000, per year, USD") as text: "$90,000 – $120,000", "$30 per hour". */
+function structuredPay(currency: unknown, min: unknown, max: unknown, unit: unknown): string | undefined {
+  const lo = Number(min);
+  const hi = Number(max);
+  const a = lo > 0 ? lo : hi;
+  const b = hi > 0 ? hi : lo;
+  if (!(a > 0)) return undefined;
+  const code = String(currency ?? "").toUpperCase();
+  const sym = SYMBOL[code] ?? (code ? `${code} ` : "");
+  const per = /hour/i.test(String(unit ?? "")) ? " per hour" : /month/i.test(String(unit ?? "")) ? " per month" : "";
+  const n = (v: number) => `${sym}${Number.isInteger(v) ? v.toLocaleString("en-US") : v.toFixed(2)}`;
+  return `${a === b ? n(a) : `${n(a)} – ${n(b)}`}${per}`;
+}
+
+interface WorkableJob {
+  title?: string;
+  shortcode?: string;
+  employment_type?: string;
+  telecommuting?: boolean;
+  department?: string;
+  function?: string;
+  url?: string;
+  published_on?: string;
+  created_at?: string;
+  country?: string;
+  city?: string;
+  state?: string;
+  locations?: { countryCode?: string }[];
+  description?: string;
+}
+
+/** A Workable opening (the account's public list: www.workable.com/api/accounts/<name>?details=true). */
+export function fromWorkable(b: Board, j: WorkableJob, companyName?: string): IndexedJob | null {
+  if (!j.shortcode || !j.title || !j.url || !/^https?:\/\//.test(j.url)) return null;
+  const full = text(String(j.description ?? ""));
+  const location = nice([j.city, j.state, j.country].filter(Boolean).join(", "));
+  return {
+    key: `workable:${b.token}:${j.shortcode}`,
+    source: "workable",
+    title: clip(nice(j.title), 200),
+    company: clip(nice(companyName || company(b)), 200),
+    location: clip(location, 200),
+    remote: j.telecommuting === true || REMOTE.test(j.title),
+    url: clip(j.url, 1000),
+    postedAt: iso(j.published_on) || iso(j.created_at),
+    salary: payFromText(full),
+    tags: [nice(j.department ?? ""), nice(j.function ?? ""), nice(j.employment_type ?? "")].filter(Boolean),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    board: `workable:${b.token}`,
+    country: countryOf(location, j.locations?.[0]?.countryCode),
+  };
+}
+
+interface RecruiteeOffer {
+  id?: number;
+  title?: string;
+  status?: string;
+  description?: string;
+  requirements?: string;
+  location?: string;
+  city?: string;
+  country_code?: string;
+  company_name?: string;
+  department?: string;
+  remote?: boolean;
+  careers_url?: string;
+  published_at?: string;
+  employment_type_code?: string;
+  tags?: string[];
+  salary?: { min?: number | null; max?: number | null; period?: string | null; currency?: string | null };
+}
+
+/** A Recruitee opening (the company's public list: <name>.recruitee.com/api/offers/). */
+export function fromRecruitee(b: Board, o: RecruiteeOffer): IndexedJob | null {
+  if (!o.id || !o.title || !o.careers_url || !/^https?:\/\//.test(o.careers_url) || (o.status && o.status !== "published")) return null;
+  const full = text(`${o.description ?? ""}${o.requirements ? `<h3>Requirements</h3>${o.requirements}` : ""}`);
+  const location = nice(o.location ?? o.city ?? "");
+  return {
+    key: `recruitee:${b.token}:${o.id}`,
+    source: "recruitee",
+    title: clip(nice(o.title), 200),
+    company: clip(nice(o.company_name || company(b)), 200),
+    location: clip(location, 200),
+    remote: o.remote === true || REMOTE.test(o.title),
+    url: clip(o.careers_url, 1000),
+    postedAt: iso(String(o.published_at ?? "").replace(" UTC", "Z").replace(" ", "T")),
+    salary: structuredPay(o.salary?.currency, o.salary?.min, o.salary?.max, o.salary?.period) ?? payFromText(full),
+    tags: [nice(o.department ?? ""), nice(String(o.employment_type_code ?? "").replace(/_/g, " ")), ...(o.tags ?? []).map(nice)].filter(Boolean).slice(0, 8),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    board: `recruitee:${b.token}`,
+    country: countryOf(location, o.country_code),
+  };
+}
+
+interface TeamtailorItem {
+  id?: string;
+  url?: string;
+  _jobposting?: {
+    title?: string;
+    description?: string;
+    datePosted?: string;
+    jobLocationType?: string;
+    hiringOrganization?: { name?: string };
+    jobLocation?: { address?: { addressLocality?: string; addressCountry?: string } }[];
+    baseSalary?: { currency?: string; value?: { unitText?: string; value?: string | number; minValue?: string | number; maxValue?: string | number } };
+  };
+}
+
+/** A Teamtailor opening (the career site's own feed: <name>.teamtailor.com/jobs.json, a JSON Feed with the schema.org JobPosting of each job). */
+export function fromTeamtailor(b: Board, it: TeamtailorItem): IndexedJob | null {
+  const p = it._jobposting;
+  if (!it.id || !p?.title || !it.url || !/^https?:\/\//.test(it.url)) return null;
+  const full = text(String(p.description ?? ""));
+  const where = p.jobLocation?.[0]?.address;
+  const location = nice([where?.addressLocality, where?.addressCountry].filter(Boolean).join(", "));
+  const sal = p.baseSalary?.value;
+  return {
+    key: `teamtailor:${b.token}:${it.id}`,
+    source: "teamtailor",
+    title: clip(nice(p.title), 200),
+    company: clip(nice(p.hiringOrganization?.name || company(b)), 200),
+    location: clip(location, 200),
+    remote: /telecommute/i.test(p.jobLocationType ?? "") || REMOTE.test(p.title),
+    url: clip(it.url, 1000),
+    postedAt: iso(p.datePosted),
+    salary: structuredPay(p.baseSalary?.currency, sal?.minValue ?? sal?.value, sal?.maxValue ?? sal?.value, sal?.unitText) ?? payFromText(full),
+    tags: [],
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    board: `teamtailor:${b.token}`,
+    country: countryOf(location, where?.addressCountry),
+  };
+}
+
 /** Every opening of one board. Throws when the board does not exist or the site is down: the ingestion reports it and moves on. */
 export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
   if (b.source === "smartrecruiters") throw new Error("smartrecruiters is read with fetchSmartRecruiters (it needs to know what the index already has)");
@@ -334,6 +471,24 @@ export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
       if (rows.length === 0) break;
     }
     return out;
+  }
+  if (b.source === "workable") {
+    const res = await fetch(`https://www.workable.com/api/accounts/${encodeURIComponent(b.token)}?details=true`, { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`workable ${b.token}: ${res.status}`);
+    const data = (await res.json()) as { name?: string; jobs?: WorkableJob[] };
+    return (data.jobs ?? []).map((j) => fromWorkable(b, j, data.name)).filter((j): j is IndexedJob => !!j);
+  }
+  if (b.source === "recruitee") {
+    const res = await fetch(`https://${encodeURIComponent(b.token)}.recruitee.com/api/offers/`, { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`recruitee ${b.token}: ${res.status}`);
+    const data = (await res.json()) as { offers?: RecruiteeOffer[] };
+    return (data.offers ?? []).map((o) => fromRecruitee(b, o)).filter((j): j is IndexedJob => !!j);
+  }
+  if (b.source === "teamtailor") {
+    const res = await fetch(`https://${encodeURIComponent(b.token)}.teamtailor.com/jobs.json`, { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`teamtailor ${b.token}: ${res.status}`);
+    const data = (await res.json()) as { items?: TeamtailorItem[] };
+    return (data.items ?? []).map((it) => fromTeamtailor(b, it)).filter((j): j is IndexedJob => !!j);
   }
   if (b.source === "ashby") {
     const res = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(b.token)}?includeCompensation=true`, { signal: AbortSignal.timeout(30_000) });

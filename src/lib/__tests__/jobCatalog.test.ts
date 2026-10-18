@@ -9,7 +9,10 @@ const collection = (name: string) => {
   const rows = (store[name] ??= []);
   return {
     findOne: async (f: Record<string, unknown>) => rows.find((d) => matches(d, f)) ?? null,
-    find: (f: Record<string, unknown>) => ({ toArray: async () => rows.filter((d) => matches(d, f)) }),
+    find: (f: Record<string, unknown>) => {
+      const cursor = { project: () => cursor, toArray: async () => rows.filter((d) => matches(d, f)) };
+      return cursor;
+    },
     updateOne: async (f: Record<string, unknown>, u: { $set: Record<string, unknown> }) => {
       const hit = rows.find((d) => matches(d, f));
       if (hit) Object.assign(hit, u.$set);
@@ -26,7 +29,7 @@ const collection = (name: string) => {
 };
 jest.mock("@/lib/mongodb", () => ({ db: { collection: (n: string) => collection(n) } }));
 
-import { ADZUNA_TTL, cachedSearch, KEEP, QUERY_TTL, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
+import { ADZUNA_TTL, cachedSearch, KEEP, knownPays, QUERY_TTL, rememberPays, rememberSearch, searchKey, withKnownPay, withKnownText } from "@/lib/jobCatalog";
 
 const job = (key: string, source: JobListing["source"], description: string): JobListing => ({ key, source, title: "Dev", company: "A", location: "NY", remote: false, url: "https://x.test/" + key, postedAt: "", tags: [], snippet: "", description });
 
@@ -82,5 +85,27 @@ describe("job catalog", () => {
     await rememberSearch("q", { jobs: [job("adzuna:1", "adzuna", "w".repeat(2000))], sources: [] });
     (store.job_catalog[0] as { expiresAt: Date }).expiresAt = new Date(Date.now() - 1000);
     expect((await withKnownText([job("adzuna:1", "adzuna", "cut")]))[0].description).toBe("cut");
+  });
+});
+
+describe("the pay read from a posting", () => {
+  it("is remembered for the job, and a job read that names none is remembered too", async () => {
+    await rememberPays([
+      { key: "adzuna:1", source: "adzuna", pay: "$29 – $53.50 per hour" },
+      { key: "adzuna:2", source: "adzuna", pay: null },
+    ]);
+    expect(await knownPays(["adzuna:1", "adzuna:2", "adzuna:3"])).toEqual({ "adzuna:1": "$29 – $53.50 per hour", "adzuna:2": null }); // :3 was never read
+  });
+
+  it("fills the jobs that came without pay, and leaves the ones that have it", async () => {
+    await rememberPays([{ key: "adzuna:1", source: "adzuna", pay: "$30 per hour" }]);
+    const jobs = await withKnownPay([job("adzuna:1", "adzuna", "x"), { ...job("adzuna:4", "adzuna", "x"), salary: "$90,000" }, job("adzuna:5", "adzuna", "x")]);
+    expect(jobs.map((j) => j.salary)).toEqual(["$30 per hour", "$90,000", undefined]);
+  });
+
+  it("is not erased when the same job comes in a later search without a pay", async () => {
+    await rememberPays([{ key: "adzuna:1", source: "adzuna", pay: "$30 per hour" }]);
+    await rememberSearch("later", { jobs: [job("adzuna:1", "adzuna", "x".repeat(900))], sources: ["Adzuna"] });
+    expect((await knownPays(["adzuna:1"]))["adzuna:1"]).toBe("$30 per hour");
   });
 });
