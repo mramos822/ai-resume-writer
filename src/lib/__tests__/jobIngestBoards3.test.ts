@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { fetchBoard, fromGetOnBoard, fromJobicy, fromRemoteOk, GETONBOARD_COUNTRIES } from "@/lib/ingest/ats";
+import { fetchBoard, fromGetOnBoard, fromJobicy, fromRemoteOk, fromUsaJobs, GETONBOARD_COUNTRIES } from "@/lib/ingest/ats";
 import type { Board } from "@/lib/ingest/boards";
 
 // the shapes below are the ones these three boards really answer (public, no key)
@@ -131,5 +131,79 @@ describe("reading the whole board of Get on Board", () => {
     expect(await fetchBoard(GOB)).toEqual([]);
     jest.spyOn(global, "fetch").mockImplementation(async () => new Response("", { status: 500 }));
     await expect(fetchBoard(GOB)).rejects.toThrow(/getonboard: 500/);
+  });
+});
+
+describe("reading a USAJOBS job", () => {
+  const B: Board = { source: "usajobs", token: "all", name: "USAJOBS" };
+  const item = (over: Record<string, unknown> = {}) => ({
+    MatchedObjectId: "883691200",
+    MatchedObjectDescriptor: {
+      PositionTitle: "AI Software Engineer ",
+      PositionURI: "https://www.usajobs.gov:443/job/883691200",
+      PositionLocationDisplay: "2 Locations",
+      PositionLocation: [{ LocationName: "San Francisco, California" }, { LocationName: "Lakewood, Colorado" }, { LocationName: "Austin, Texas" }],
+      OrganizationName: "Technology Transformation Service",
+      DepartmentName: "General Services Administration",
+      JobCategory: [{ Name: "Information Technology Management" }],
+      QualificationSummary: "You must have one year of specialized experience at the GS-12 level.",
+      PositionRemuneration: [{ MinimumRange: "117284", MaximumRange: "172980", RateIntervalCode: "PA", Description: "Per Year" }],
+      PublicationStartDate: "2026-09-04T00:00:00.0000",
+      ApplicationCloseDate: "2099-12-31T23:59:59.9970",
+      UserArea: { Details: { JobSummary: "You will set the technical strategy for AI-enabled systems.", MajorDuties: ["Directs engineering strategy", "Leads a team of engineers"], Requirements: "You must be a U.S. citizen.", TeleworkEligible: true, RemoteIndicator: false, LowGrade: "13", HighGrade: "13" } },
+      ...over,
+    },
+  });
+
+  it("turns it into a job: the agency, the places, the pay a year, the grade, the sections, the clean address", () => {
+    const j = fromUsaJobs(B, item() as never)!;
+    expect(j).toMatchObject({
+      key: "usajobs:883691200",
+      source: "usajobs",
+      title: "AI Software Engineer",
+      company: "Technology Transformation Service",
+      location: "San Francisco, California; Lakewood, Colorado and 1 more",
+      remote: false,
+      country: "US",
+      salary: "$117,284 – $172,980",
+      board: "usajobs:all",
+      url: "https://www.usajobs.gov/job/883691200",
+      tags: ["General Services Administration", "Information Technology Management", "GS-13", "Telework eligible"],
+    });
+    expect(j.postedAt).toBe("2026-09-04T00:00:00.000Z");
+    expect(j.description).toContain("Directs engineering strategy");
+    expect(j.description).toContain("Qualifications");
+  });
+
+  it("is left out when its closing date has passed, or it has no title or an address that is not USAJOBS's", () => {
+    expect(fromUsaJobs(B, item({ ApplicationCloseDate: "2020-01-01T00:00:00.0000" }) as never)).toBeNull();
+    expect(fromUsaJobs(B, item({ PositionTitle: "" }) as never)).toBeNull();
+    expect(fromUsaJobs(B, item({ PositionURI: "https://evil.example/job/1" }) as never)).toBeNull();
+  });
+
+  it("is read with the key and the email in the headers only, and nothing without them", async () => {
+    const seen: { url: string; headers: Record<string, string> }[] = [];
+    process.env.USAJOBS_API_KEY = "secret-key";
+    process.env.USAJOBS_EMAIL = "me@example.com";
+    jest.spyOn(global, "fetch").mockImplementation(async (u, init) => {
+      seen.push({ url: String(u), headers: (init?.headers ?? {}) as Record<string, string> });
+      return new Response(JSON.stringify({ SearchResult: { SearchResultItems: [item()], SearchResultCountAll: 1 } }), { status: 200 });
+    });
+    const jobs = await fetchBoard(B);
+    expect(jobs).toHaveLength(1);
+    expect(seen[0].headers).toMatchObject({ "Authorization-Key": "secret-key", "User-Agent": "me@example.com" });
+    expect(seen[0].url).not.toContain("secret-key"); // the key is never in an address
+    delete process.env.USAJOBS_API_KEY;
+    await expect(fetchBoard(B)).rejects.toThrow(/not set/);
+    jest.restoreAllMocks();
+  });
+});
+
+describe("the dates of USAJOBS", () => {
+  const B: Board = { source: "usajobs", token: "all", name: "USAJOBS" };
+  const base = { MatchedObjectId: "1", MatchedObjectDescriptor: { PositionTitle: "Analyst", PositionURI: "https://www.usajobs.gov/job/1", OrganizationName: "Agency", ApplicationCloseDate: "2099-01-01T00:00:00.0000" } };
+  it("are read as UTC when they carry no zone, and as written when they do", () => {
+    expect(fromUsaJobs(B, { ...base, MatchedObjectDescriptor: { ...base.MatchedObjectDescriptor, PublicationStartDate: "2026-09-04T00:00:00.0000" } } as never)!.postedAt).toBe("2026-09-04T00:00:00.000Z");
+    expect(fromUsaJobs(B, { ...base, MatchedObjectDescriptor: { ...base.MatchedObjectDescriptor, PublicationStartDate: "2026-09-04T00:00:00+05:00" } } as never)!.postedAt).toBe("2026-09-03T19:00:00.000Z");
   });
 });

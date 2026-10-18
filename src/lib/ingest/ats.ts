@@ -582,6 +582,66 @@ export function fromJobicy(b: Board, j: JobicyJob): IndexedJob | null {
   };
 }
 
+interface UsaJobsItem {
+  MatchedObjectId?: string;
+  MatchedObjectDescriptor?: {
+    PositionTitle?: string;
+    PositionURI?: string;
+    PositionLocationDisplay?: string;
+    PositionLocation?: { LocationName?: string; CountryCode?: string }[];
+    OrganizationName?: string;
+    DepartmentName?: string;
+    JobCategory?: { Name?: string }[];
+    JobGrade?: { Code?: string }[];
+    QualificationSummary?: string;
+    PositionRemuneration?: { MinimumRange?: string; MaximumRange?: string; Description?: string }[];
+    PublicationStartDate?: string;
+    ApplicationCloseDate?: string;
+    UserArea?: { Details?: { JobSummary?: string; MajorDuties?: string[] | string; Requirements?: string; TeleworkEligible?: boolean; RemoteIndicator?: boolean; LowGrade?: string; HighGrade?: string } };
+  };
+}
+
+/** A federal job of USAJOBS (the United States government's own board: public data). Gone from the board when its closing date has passed. */
+export function fromUsaJobs(b: Board, item: UsaJobsItem, now = Date.now()): IndexedJob | null {
+  const d = item.MatchedObjectDescriptor;
+  const id = item.MatchedObjectId;
+  const url = String(d?.PositionURI ?? "").replace(":443", "");
+  if (!id || !d?.PositionTitle || !/^https:\/\/www\.usajobs\.gov\//.test(url)) return null;
+  // its dates have no time zone: read as UTC, the same on every machine
+  const utc = (v?: string) => (v && !/z$/i.test(v) && !/[+-]\d\d:?\d\d$/.test(v) ? `${v.slice(0, 19)}Z` : v);
+  if (d.ApplicationCloseDate && Date.parse(utc(d.ApplicationCloseDate) as string) < now) return null;
+  const u = d.UserArea?.Details;
+  const duties = (Array.isArray(u?.MajorDuties) ? u?.MajorDuties : u?.MajorDuties ? [u.MajorDuties] : []).map((x) => nice(decode(String(x)))).filter(Boolean);
+  const full = [
+    u?.JobSummary ? nice(decode(u.JobSummary)) : "",
+    duties.length ? `Duties\n${duties.map((x) => `- ${x}`).join("\n")}` : "",
+    d.QualificationSummary ? `Qualifications\n${nice(decode(d.QualificationSummary))}` : "",
+    u?.Requirements ? `Requirements\n${nice(decode(u.Requirements))}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const places = (d.PositionLocation ?? []).map((p) => nice(p.LocationName ?? "")).filter(Boolean);
+  const location = places.length > 2 ? `${places.slice(0, 2).join("; ")} and ${places.length - 2} more` : places.join("; ") || nice(d.PositionLocationDisplay ?? "");
+  const pay = d.PositionRemuneration?.[0];
+  const grade = u?.LowGrade ? (u.HighGrade && u.HighGrade !== u.LowGrade ? `GS-${u.LowGrade} to GS-${u.HighGrade}` : `GS-${u.LowGrade}`) : "";
+  return {
+    key: `usajobs:${id}`,
+    source: "usajobs",
+    title: clip(nice(decode(d.PositionTitle)), 200),
+    company: clip(nice(decode(d.OrganizationName || d.DepartmentName || "U.S. Government")), 200),
+    location: clip(location, 200),
+    remote: u?.RemoteIndicator === true || /anywhere in the u\.?s/i.test(d.PositionLocationDisplay ?? ""),
+    url: clip(url, 1000),
+    postedAt: iso(utc(d.PublicationStartDate)),
+    salary: structuredPay("USD", pay?.MinimumRange, pay?.MaximumRange, pay?.Description),
+    tags: [nice(d.DepartmentName ?? ""), ...(d.JobCategory ?? []).map((c) => nice(c.Name ?? "")), grade, u?.TeleworkEligible ? "Telework eligible" : ""].filter(Boolean).slice(0, 6),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    board: `usajobs:${b.token}`,
+    country: "US",
+  };
+}
+
 /** Every opening of one board. Throws when the board does not exist or the site is down: the ingestion reports it and moves on. */
 export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
   if (b.source === "smartrecruiters") throw new Error("smartrecruiters is read with fetchSmartRecruiters (it needs to know what the index already has)");
@@ -632,6 +692,27 @@ export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
       await sleep(400);
     }
     return [...byKey.values()];
+  }
+  if (b.source === "usajobs") {
+    // Its API wants a key and the email it was requested with in the headers (both from the environment, never in an address or a log). The newest
+    // jobs open to the public, up to 2,000 (the board has many thousands: the index is small).
+    const key = process.env.USAJOBS_API_KEY;
+    const email = process.env.USAJOBS_EMAIL;
+    if (!key || !email) throw new Error("usajobs: USAJOBS_API_KEY and USAJOBS_EMAIL are not set");
+    const out: IndexedJob[] = [];
+    for (let page = 1; page <= 4; page++) {
+      const res = await fetch(`https://data.usajobs.gov/api/search?ResultsPerPage=500&Page=${page}&WhoMayApply=public&SortField=opendate&SortDirection=Desc`, {
+        headers: { Host: "data.usajobs.gov", "User-Agent": email, "Authorization-Key": key, Accept: "application/json" },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) throw new Error(`usajobs: ${res.status}`);
+      const data = (await res.json()) as { SearchResult?: { SearchResultItems?: UsaJobsItem[]; SearchResultCountAll?: number } };
+      const items = data.SearchResult?.SearchResultItems ?? [];
+      out.push(...items.map((i) => fromUsaJobs(b, i)).filter((j): j is IndexedJob => !!j));
+      if (items.length < 500) break;
+      await sleep(500);
+    }
+    return out;
   }
   if (b.source === "remoteok") {
     const res = await fetch("https://remoteok.com/api", { headers: { Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" }, signal: AbortSignal.timeout(30_000) });

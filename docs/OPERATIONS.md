@@ -80,3 +80,8 @@ robots.txt leaves the postings and the searches by title open, so only those are
   job (the "via ..." label and the job's link do it); do not use Remote OK's logo. Do not add Himalayas: its terms forbid giving its jobs to other aggregators.
 - Not read, and why: Indeed, Glassdoor, ZipRecruiter, Monster, OCC (they refuse programs); Jooble, Careerjet, The Muse (keys or terms that do not let us keep the text);
   Arbeitsagentur (answered 403 from here); USAJOBS (needs a free key: a good next one for the United States).
+
+## USAJOBS (federal jobs of the United States)
+`USAJOBS_API_KEY` (free, requested at developer.usajobs.gov) and `USAJOBS_EMAIL` (the email it was requested with: the API wants it as the User-Agent) go in `.env.local`
+and in the host's environment variables (Vercel). They are only sent in headers, never in an address or a log. The newest 2,000 jobs open to the public are read
+each run (4 requests); a job leaves the index when its closing date has passed. Without the variables that board reports "not set" and nothing else changes.
