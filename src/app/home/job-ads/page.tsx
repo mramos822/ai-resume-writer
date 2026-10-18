@@ -35,7 +35,7 @@ import { useT } from "@/i18n/provider";
 type Saved = JobListing & { savedAt?: string };
 const PAGE = 15;
 
-const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", greenhouse: "the company's careers page", lever: "the company's careers page", ashby: "the company's careers page", smartrecruiters: "the company's careers page", workable: "the company's careers page", recruitee: "the company's careers page", teamtailor: "the company's careers page", link: "a link you added" };
+const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", greenhouse: "the company's careers page", lever: "the company's careers page", ashby: "the company's careers page", smartrecruiters: "the company's careers page", workable: "the company's careers page", recruitee: "the company's careers page", teamtailor: "the company's careers page", computrabajo: "Computrabajo", link: "a link you added" };
 
 function Fit({ pct, estimate, partial }: { pct: number; estimate?: boolean; partial?: boolean }) {
   const { tr } = useT();

@@ -1,0 +1,39 @@
+# Reads Computrabajo (Peru and Chile) into the jobs index, slowly and in small pieces (see src/lib/ingest/computrabajo.ts): one call of the app reads one
+# board (a country and a group of searches) for about fifty seconds, with more than a second between requests, and only postings not seen before.
+# This goes round every board, with a pause between calls. Every few hours is enough: a posting is read once.
+#
+# Same two secrets as the other workflows (GitHub, Settings > Secrets and variables > Actions):
+#   SITE_URL     https://your-domain.example   (no slash at the end)
+#   CRON_SECRET  the same value as the CRON_SECRET of the host
+# Until both exist the job does nothing. If a board is added or removed in src/lib/ingest/computrabajo.ts (CT_SITES, CT_GROUPS), change PARTS below:
+# it is the number of countries times the number of groups (2 x 7 = 14 now).
+name: Read Computrabajo
+
+on:
+  schedule:
+    - cron: "17 */8 * * *"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Go round the boards, one call each
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PARTS: "14"
+        run: |
+          if [ -z "$SITE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SITE_URL and CRON_SECRET are not set: nothing to do."
+            exit 0
+          fi
+          for part in $(seq 0 $((PARTS - 1))); do
+            echo "board $part"
+            curl --silent --show-error --max-time 100 -X POST "$SITE_URL/api/admin/ingest-jobs" \
+              -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
+              -d "{\"only\":\"computrabajo\",\"part\":$part}" || echo "(this board failed; the next run tries again)"
+            echo
+            sleep 5
+          done

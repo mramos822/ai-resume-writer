@@ -20,7 +20,7 @@ import { isPartialPosting } from "@/lib/jobSearch";
 import type { JobListing } from "@/lib/jobSearch";
 import { useT } from "@/i18n/provider";
 
-const SOURCE: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", greenhouse: "The company", lever: "The company", ashby: "The company", smartrecruiters: "The company", workable: "The company", recruitee: "The company", teamtailor: "The company", link: "You" };
+const SOURCE: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", greenhouse: "The company", lever: "The company", ashby: "The company", smartrecruiters: "The company", workable: "The company", recruitee: "The company", teamtailor: "The company", computrabajo: "Computrabajo", link: "You" };
 /** The plain description in short paragraphs (the sources give it as one block of text). */
 function paragraphs(text: string): string[] {
   const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9•\-])/);

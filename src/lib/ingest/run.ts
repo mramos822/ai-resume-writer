@@ -2,6 +2,7 @@
 // then reads. A job that a board stops publishing is marked closed and removed two weeks later (TTL index), so the index follows the boards.
 import { db } from "@/lib/mongodb";
 import { fetchBoard, fetchSmartRecruiters, type IndexedJob } from "@/lib/ingest/ats";
+import { fetchComputrabajo } from "@/lib/ingest/computrabajo";
 import type { Board } from "@/lib/ingest/boards";
 import { detectLanguage, type PostingLang } from "@/lib/ingest/language";
 
@@ -36,6 +37,13 @@ export async function ingestBoard(b: Board, now = new Date()): Promise<BoardResu
     if (b.source === "smartrecruiters") {
       const had = await index().find({ board }).project({ key: 1, _id: 0 }).toArray();
       const read = await fetchSmartRecruiters(b, new Set(had.map((d) => String(d.key))));
+      jobs = read.jobs;
+      alsoOpen = read.seen;
+      remoteOf = read.remoteOf;
+    } else if (b.source === "computrabajo") {
+      // what the portal's country already has in the index, whatever group of searches found it: it is not read again
+      const had = await index().find({ source: "computrabajo", key: { $regex: `^computrabajo:${b.token.split(":")[0]}:` } }).project({ key: 1, _id: 0 }).toArray();
+      const read = await fetchComputrabajo(b, new Set(had.map((d) => String(d.key))));
       jobs = read.jobs;
       alsoOpen = read.seen;
       remoteOf = read.remoteOf;
@@ -78,7 +86,10 @@ export async function ingestBoard(b: Board, now = new Date()): Promise<BoardResu
     }
     let closed = 0;
     if (jobs.length > 0 || alsoOpen.length > 0) {
-      const res = await index().updateMany({ board, active: true, lastSeenAt: { $lt: now } }, { $set: { active: false, closedAt: now, expiresAt: new Date(now.getTime() + CLOSED_KEPT_MS) } });
+      // a portal read through searches (Computrabajo) lists only the newest postings of each: one that is not on the list today may still be open, so it
+      // is closed only when it has not been seen for ten days
+      const unseenSince = b.source === "computrabajo" ? new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000) : now;
+      const res = await index().updateMany({ board, active: true, lastSeenAt: { $lt: unseenSince } }, { $set: { active: false, closedAt: now, expiresAt: new Date(now.getTime() + CLOSED_KEPT_MS) } });
       closed = res.modifiedCount ?? 0;
     }
     return { board, jobs: jobs.length, closed };

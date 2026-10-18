@@ -433,6 +433,7 @@ export function fromTeamtailor(b: Board, it: TeamtailorItem): IndexedJob | null 
 /** Every opening of one board. Throws when the board does not exist or the site is down: the ingestion reports it and moves on. */
 export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
   if (b.source === "smartrecruiters") throw new Error("smartrecruiters is read with fetchSmartRecruiters (it needs to know what the index already has)");
+  if (b.source === "computrabajo") throw new Error("computrabajo is read with fetchComputrabajo (slowly, and it needs to know what the index already has)");
   if (b.source === "greenhouse") {
     const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(b.token)}/jobs?content=true`, { signal: AbortSignal.timeout(30_000) });
     if (!res.ok) throw new Error(`greenhouse ${b.token}: ${res.status}`);

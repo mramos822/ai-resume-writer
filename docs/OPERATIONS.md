@@ -59,3 +59,16 @@ days, red is older than 45. Use the **appeal** topic for people who disagree wit
 3. Notify the affected people and the authorities as the law requires: New Jersey requires notice to affected residents "in the most
    expedient time possible" and to the State Police before notifying customers; the GDPR requires 72 hours to the authority.
 4. Write down what happened and what changed so it does not repeat.
+
+## Computrabajo (Peru and Chile)
+Read into the jobs index by `src/lib/ingest/computrabajo.ts`. It has no public API; its terms allow reading the postings (checked by the owner) and its
+robots.txt leaves the postings and the searches by title open, so only those are read. It is slow on purpose:
+- One request at a time, more than a second between any two; a run reads one board (a country and a group of searches, 14 in all) for about 50 seconds
+  and at most 40 new postings; a posting already in the index is never read again.
+- When the site answers 403 or 429 the run stops at once and the next one tries again. If it keeps happening, wait a day and lower `CT_NEW_PER_RUN`
+  or raise `CT_PACE_MS`; do not retry in a loop (that is what got the IP blocked by Adzuna).
+- Run it with `POST /api/admin/ingest-jobs` `{"only":"computrabajo","part":0..13}` and `Authorization: Bearer <CRON_SECRET>`. Without `part` the day of the
+  year picks the board. `.github/workflows/ingest-computrabajo.yml` goes round all of them every eight hours (it needs `SITE_URL` and `CRON_SECRET`).
+- A posting is closed when it has not been seen for ten days (the lists only show the newest postings of each search).
+- To add a country: a line in `CT_SITES` (and the same number of parts in the workflow). To add searches: `CT_GROUPS`.
+- What is kept: the text, the place, the pay, the date and the link to apply on Computrabajo; no person's data. Every job shows "Computrabajo" as its source.

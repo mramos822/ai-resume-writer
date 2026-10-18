@@ -3,7 +3,9 @@
 // To add a company, add its board name here (it is the last part of its jobs page: boards.greenhouse.io/<name>, jobs.lever.co/<name>).
 // A name that does not exist is skipped by the ingestion and reported in its summary (hubspot, doordash, etsy, unity... answered 404: they
 // use another system or another name, so they are not here; check a name at boards-api.greenhouse.io/v1/boards/<name>/jobs).
-export type AtsSource = "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "remotive" | "arbeitnow";
+import { CT_GROUPS, CT_SITES } from "@/lib/ingest/computrabajo";
+
+export type AtsSource = "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "computrabajo" | "remotive" | "arbeitnow";
 export interface Board {
   source: AtsSource;
   token: string;
@@ -65,7 +67,9 @@ export const BOARDS: Board[] = [
 BOARDS.push({ source: "remotive", token: "all", name: "Remotive" }, { source: "arbeitnow", token: "all", name: "Arbeitnow" });
 
 /** One request per board: a full reading takes seconds. */
-export const FAST_BOARDS = BOARDS.filter((b) => b.source !== "smartrecruiters");
+export const FAST_BOARDS = BOARDS.filter((b) => b.source !== "smartrecruiters" && b.source !== "computrabajo");
 /** One request per new posting: read apart, with a limit of new postings per run, so it never fills a whole function call. */
 export const SLOW_BOARDS = BOARDS.filter((b) => b.source === "smartrecruiters");
+/** Computrabajo, read apart and slowly (see lib/ingest/computrabajo): one board is a country and a group of searches, and a run reads one board. */
+export const CT_BOARDS: Board[] = Object.keys(CT_SITES).flatMap((site) => Object.keys(CT_GROUPS).map((group) => ({ source: "computrabajo" as const, token: `${site}:${group}`, name: "Computrabajo" })));
 
