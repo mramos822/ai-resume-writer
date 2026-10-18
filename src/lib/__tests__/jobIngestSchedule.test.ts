@@ -5,8 +5,10 @@ const runs: Doc[] = [];
 const cmp = (v: unknown, c: Record<string, unknown>) =>
   Object.entries(c).every(([op, x]) => (op === "$lt" ? +(v as Date) < +(x as Date) : op === "$gt" ? +(v as Date) > +(x as Date) : op === "$exists" ? (v !== undefined) === x : true));
 const match = (d: Doc, f: Doc) => Object.entries(f).every(([k, v]) => (v && typeof v === "object" && !(v instanceof Date) ? cmp(d[k], v as Record<string, unknown>) : +(d[k] as Date) === +(v as Date) || d[k] === v));
+const mockCommand = jest.fn();
 jest.mock("@/lib/mongodb", () => ({
   db: {
+    command: (...a: unknown[]) => mockCommand(...a),
     collection: () => ({
       find: (f: Doc) => ({ sort: () => ({ limit: (n: number) => ({ toArray: async () => runs.filter((d) => match(d, f)).sort((a, b) => +(b.startedAt as Date) - +(a.startedAt as Date)).slice(0, n) }) }) }),
       findOne: async (f: Doc) => runs.find((d) => match(d, f)) ?? null,
@@ -19,7 +21,7 @@ jest.mock("@/lib/mongodb", () => ({
 const mockIngest = jest.fn();
 jest.mock("@/lib/ingest/run", () => ({ runIngestion: (...a: unknown[]) => mockIngest(...a) }));
 
-import { ingestNow, EVERY_MS, STUCK_MS } from "@/lib/ingest/schedule";
+import { ingestNow, EVERY_MS, STUCK_MS, STOP_AT_MB } from "@/lib/ingest/schedule";
 import type { Board } from "@/lib/ingest/boards";
 
 const boards: Board[] = [{ source: "greenhouse", token: "stripe" }];
@@ -30,6 +32,7 @@ const after = (ms: number) => new Date(+T0 + ms);
 beforeEach(() => {
   runs.length = 0;
   mockIngest.mockReset().mockResolvedValue(ok);
+  mockCommand.mockReset().mockRejectedValue(new Error("no stats")); // the size of the database is unknown unless a test says it
 });
 
 describe("when the ingestion runs", () => {
@@ -61,6 +64,19 @@ describe("when the ingestion runs", () => {
     expect(mockIngest).not.toHaveBeenCalled();
     const stuck = await ingestNow({ by: "scheduler", onlyIfDue: false, boards, now: after(STUCK_MS + 60_000) });
     expect(stuck.started).toBe(true);
+  });
+
+  it("does not write when the database is nearly full, and says so", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    mockCommand.mockResolvedValue({ dataSize: STOP_AT_MB - 10, indexSize: 20 });
+    expect(await ingestNow({ by: "scheduler", onlyIfDue: false, boards, now: T0 })).toEqual({ started: false, reason: "full" });
+    expect(mockIngest).not.toHaveBeenCalled();
+    mockCommand.mockResolvedValue({ dataSize: 150, indexSize: 12 });
+    expect((await ingestNow({ by: "scheduler", onlyIfDue: false, boards, now: T0 })).started).toBe(true);
+  });
+
+  it("goes on when the size of the database cannot be known", async () => {
+    expect((await ingestNow({ by: "scheduler", onlyIfDue: false, boards, now: T0 })).started).toBe(true);
   });
 
   it("never throws: a failing database just means it does not run", async () => {

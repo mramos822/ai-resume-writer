@@ -60,6 +60,16 @@ const MIGRATIONS: Migration[] = [
       await db.collection("ingest_runs").createIndex({ startedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
     },
   },
+  {
+    id: 5,
+    name: "the two caches that only grew (resume reviews, job ad readings) expire after 60 days: a missing one is simply made again",
+    up: async () => {
+      await Promise.all([
+        db.collection("resumeReviews").createIndex({ createdAt: 1 }, { expireAfterSeconds: 60 * 24 * 60 * 60 }),
+        db.collection("ai_jobad_parse_cache").createIndex({ createdAt: 1 }, { expireAfterSeconds: 60 * 24 * 60 * 60 }),
+      ]);
+    },
+  },
 ];
 
 let started: Promise<void> | null = null;

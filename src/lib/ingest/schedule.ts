@@ -25,7 +25,20 @@ export interface RunDoc {
 }
 const runs = () => db.collection<RunDoc>("ingest_runs");
 
-export type Started = { started: true; run: Omit<RunDoc, "startedAt" | "finishedAt" | "by"> & { seconds: number } } | { started: false; reason: "fresh" | "running" | "error" };
+/** The ingestion does not write when the database holds this much (MB): the free plan holds 512, and a full database stops accepting any write, the app's own included. */
+export const STOP_AT_MB = 380;
+
+/** What the database holds now, in MB (data and indexes); null when it cannot be known (then the ingestion goes on). */
+export async function usedMb(): Promise<number | null> {
+  try {
+    const s = (await db.command({ dbStats: 1, scale: 1024 * 1024 })) as { dataSize?: number; indexSize?: number };
+    return typeof s.dataSize === "number" ? s.dataSize + (s.indexSize ?? 0) : null;
+  } catch {
+    return null;
+  }
+}
+
+export type Started = { started: true; run: Omit<RunDoc, "startedAt" | "finishedAt" | "by"> & { seconds: number } } | { started: false; reason: "fresh" | "running" | "error" | "full" };
 
 /**
  * Reads the boards now, unless another run is going (started less than STUCK_MS ago and not finished) or, when `onlyIfDue`, the last
@@ -41,6 +54,12 @@ export async function ingestNow({ by, onlyIfDue, set = "fast", boards, now = new
     if (last && !last.finishedAt && +now - +new Date(last.startedAt) < STUCK_MS) return { started: false, reason: "running" };
     const done = last?.finishedAt ? last : (await runs().find(filter({ finishedAt: { $exists: true } })).sort({ startedAt: -1 }).limit(1).toArray())[0];
     if (onlyIfDue && done?.finishedAt && +now - +new Date(done.finishedAt) < EVERY_MS) return { started: false, reason: "fresh" };
+
+    const used = await usedMb();
+    if (used !== null && used > STOP_AT_MB) {
+      console.error(`Ingestion stopped: the database holds ${Math.round(used)} MB (limit ${STOP_AT_MB})`);
+      return { started: false, reason: "full" };
+    }
 
     const startedAt = now;
     await runs().insertOne({ startedAt, by, set, boards: boards.length } as RunDoc);
