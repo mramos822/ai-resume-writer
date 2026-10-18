@@ -25,6 +25,20 @@ const MIGRATIONS: Migration[] = [
       ]);
     },
   },
+  {
+    id: 2,
+    name: "job catalog: searches and jobs already read expire by themselves (the boards' terms limit how long their data is kept)",
+    up: async () => {
+      await Promise.all([
+        db.collection("job_catalog").createIndex({ key: 1 }, { unique: true }),
+        db.collection("job_catalog").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+        db.collection("job_queries").createIndex({ qkey: 1 }, { unique: true }),
+        db.collection("job_queries").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+        db.collection("job_reads").createIndex({ key: 1 }, { unique: true }),
+        db.collection("job_reads").createIndex({ at: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60 }),
+      ]);
+    },
+  },
 ];
 
 let started: Promise<void> | null = null;

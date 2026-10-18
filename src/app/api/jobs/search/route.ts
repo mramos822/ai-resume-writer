@@ -3,6 +3,7 @@ import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { searchJobs, searchJobsWide } from "@/lib/jobSearch";
 import { readPlace } from "@/lib/jobPlaces";
 import { enrichListings } from "@/lib/jobEnrich";
+import { cachedSearch, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
 import { isPartialPosting } from "@/lib/jobSearch";
 
 /** Jobs whose posting could not be read whole are left out (a resume for them would be written from half of it); if that leaves nothing, they stay. */
@@ -36,9 +37,17 @@ export async function GET(req: Request) {
     };
     // wide = also search similar titles and the person's main skills, so the pool is bigger and closer to their profile
     const skills = (sp.get("skills") ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 3);
-    const result = sp.get("wide") === "1" ? await searchJobsWide(query, skills) : await searchJobs(query);
-    // the boards share only the start of some postings: their whole text is read so the fit shown is the real one
-    return NextResponse.json({ ...result, jobs: withoutCut(await enrichListings(result.jobs)), place: place?.label ?? null });
+    const wide = sp.get("wide") === "1";
+    // a search someone made a moment ago comes back at once, and does not use up the daily limit of the job boards
+    const qkey = searchKey([wide, query.q, query.location, query.remoteOnly, query.country, skills.join(",")]);
+    const again = await cachedSearch(qkey);
+    if (again) return NextResponse.json({ ...again, place: place?.label ?? null });
+    const result = wide ? await searchJobsWide(query, skills) : await searchJobs(query);
+    // the boards share only the start of some postings: what was already read is reused, the rest is read now, so the fit shown is the real one
+    const jobs = withoutCut(await enrichListings(await withKnownText(result.jobs)));
+    const found = { jobs, sources: result.sources, bigCity: result.bigCity };
+    await rememberSearch(qkey, found);
+    return NextResponse.json({ ...found, place: place?.label ?? null });
   } catch (err) {
     return errorResponse(err, "We couldn't search for jobs right now.");
   }
