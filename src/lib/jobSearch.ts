@@ -328,16 +328,63 @@ const SIBLINGS: [RegExp, string[]][] = [
   [/account(ant|ing)/i, ["Accountant", "Staff Accountant"]],
   [/nurse|nursing/i, ["Registered Nurse", "Nurse"]],
   [/teacher|instructor/i, ["Teacher", "Instructor"]],
+  // the companies write these roles in other words: "Cybersecurity Analyst" is "Security Engineer" or "Security Analyst" in their postings
+  [/cyber|security|infosec/i, ["Security Engineer", "Security Analyst", "Information Security Analyst"]],
+  [/\bqa\b|quality assurance|\btest(er| engineer)|sdet/i, ["QA Engineer", "Software Test Engineer", "SDET"]],
+  [/product manager|product owner/i, ["Product Manager", "Product Owner"]],
+  [/\bsales\b|account executive|business development/i, ["Account Executive", "Sales Representative", "Business Development Representative"]],
+  [/customer (service|support|success)|support (specialist|agent)/i, ["Customer Support", "Customer Success Manager", "Support Specialist"]],
+  [/recruit|talent acquisition|human resources|\bhr\b/i, ["Recruiter", "Talent Acquisition", "HR Generalist"]],
+  [/financial analy|finance/i, ["Financial Analyst", "Finance Manager"]],
+  [/warehouse|logistic|supply chain/i, ["Warehouse Associate", "Logistics Coordinator", "Supply Chain Analyst"]],
+  [/\bdriver\b|delivery/i, ["Delivery Driver", "Truck Driver", "CDL Driver"]],
+];
+
+/**
+ * Roles typed in Spanish, in English: our index and most boards write their postings in English, so a person who uses Kaizo in Spanish and
+ * types "contador" is also searched as "Accountant".
+ */
+const SPANISH_ROLES: [RegExp, string][] = [
+  [/ingenier[oa] de software|desarrollador(a)? de software|programador(a)?/i, "Software Engineer"],
+  [/desarrollador(a)? (web|full[\s-]?stack)/i, "Web Developer"],
+  [/desarrollador(a)? (front[\s-]?end)/i, "Frontend Developer"],
+  [/desarrollador(a)? (back[\s-]?end)/i, "Backend Developer"],
+  [/analista de datos/i, "Data Analyst"],
+  [/cient[ií]fic[oa] de datos/i, "Data Scientist"],
+  [/ingenier[oa] de datos/i, "Data Engineer"],
+  [/contador(a)?|contable/i, "Accountant"],
+  [/enfermer[oa]/i, "Nurse"],
+  [/profesor(a)?|docente|maestr[oa]/i, "Teacher"],
+  [/dise[ñn]ador(a)? (ux|ui|de producto)/i, "UX Designer"],
+  [/dise[ñn]ador(a)? gr[aá]fic[oa]/i, "Graphic Designer"],
+  [/(gerente|jefe|jefa) de proyectos?/i, "Project Manager"],
+  [/(gerente|jefe|jefa) de producto/i, "Product Manager"],
+  [/vendedor(a)?|ejecutiv[oa] de ventas|ventas/i, "Sales Representative"],
+  [/atenci[oó]n al cliente|servicio al cliente|soporte al cliente/i, "Customer Service"],
+  [/marketing|mercadeo|mercadotecnia/i, "Marketing Specialist"],
+  [/recursos humanos|reclutador(a)?/i, "Recruiter"],
+  [/analista financier[oa]/i, "Financial Analyst"],
+  [/abogad[oa]/i, "Attorney"],
+  [/asistente administrativ[oa]|administrativ[oa]/i, "Administrative Assistant"],
+  [/ingenier[oa] civil/i, "Civil Engineer"],
+  [/ingenier[oa] industrial/i, "Industrial Engineer"],
+  [/electricista/i, "Electrician"],
+  [/mec[aá]nic[oa]/i, "Mechanic"],
+  [/chofer|conductor(a)?/i, "Driver"],
+  [/almac[eé]n|bodega/i, "Warehouse Associate"],
 ];
 
 /** The searches to run for a role: the role itself, without its seniority, similar titles and the role with the person's main skill. */
 export function relatedQueries(role: string, skills: string[] = []): string[] {
   const base = role.replace(SENIORITY, " ").replace(/\s+/g, " ").trim();
   const out = [role.trim(), base];
-  for (const [re, names] of SIBLINGS) if (re.test(role)) out.push(...names);
+  // the role in English too, when it was typed in Spanish
+  const english = SPANISH_ROLES.filter(([re]) => re.test(role)).map(([, name]) => name);
+  out.push(...english);
+  for (const [re, names] of SIBLINGS) if ([role, ...english].some((r) => re.test(r))) out.push(...names);
   const first = skills.find((x) => x && !base.toLowerCase().includes(x.toLowerCase()));
   if (first && base) out.push(`${base} ${first}`);
-  return Array.from(new Set(out.filter(Boolean).map((x) => x.slice(0, 80)))).slice(0, 4);
+  return Array.from(new Set(out.filter(Boolean).map((x) => x.slice(0, 80)))).slice(0, 5);
 }
 
 /** A wider search: several related searches at once, joined and without repeats. */
@@ -347,7 +394,10 @@ export async function searchJobsWide(q: JobQuery, skills: string[] = [], extra: 
   // was asked for), the other boards are not asked for ANY of them: one short title must not make the whole search wait for them.
   if (opts.live && opts.live !== "auto") {
     // the page asked for our own sources or for the other boards, apart
-    return mergeWide(await Promise.allSettled(queries.map((one) => searchJobs({ ...q, q: one }, extra, opts))));
+    // Adzuna understands synonyms by itself and its daily limit is small (250 requests): it is asked for the role and one similar title only; our
+    // own index (free and instant) is asked for all of them
+    const asked = opts.live === "only" ? queries.slice(0, 2) : queries;
+    return mergeWide(await Promise.allSettled(asked.map((one) => searchJobs({ ...q, q: one }, extra, opts))));
   }
   if (extra.length && !q.location.trim()) {
     const own = await Promise.allSettled(queries.map((one) => searchJobs({ ...q, q: one }, extra, { live: "never" })));
