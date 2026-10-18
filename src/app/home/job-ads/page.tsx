@@ -463,6 +463,53 @@ export default function JobSearchPage() {
     })();
   }, [payKey, tab, loading, payTick]);
 
+  // A link inside the app opens a job: /home/job-ads?job=<key>. The jobs the person already has (saved, applications) open from their own lists; the
+  // others (our index, a job added from a link) are asked of the server; a job of Adzuna is not kept anywhere, so it only opens from the person's lists.
+  // While a job is open the address says so (so the address bar and "Copy link" give a link that opens it).
+  const linkedJob = useRef(typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("job") : null);
+  useEffect(() => {
+    const key = linkedJob.current;
+    if (!key) return;
+    const mine = [...saved, ...apps.map((a) => a.job)].find((j) => j.key === key);
+    if (mine) {
+      linkedJob.current = null;
+      setDetailJob(mine);
+    }
+  }, [saved, apps]);
+  useEffect(() => {
+    const key = linkedJob.current;
+    if (!key) return;
+    if (!key.startsWith("adzuna:")) {
+      void authFetch(`/api/jobs/one?key=${encodeURIComponent(key)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { job?: JobListing } | null) => {
+          if (d?.job && linkedJob.current === key) {
+            linkedJob.current = null;
+            setDetailJob(d.job);
+          }
+        })
+        .catch(() => {});
+    }
+    const giveUp = setTimeout(() => {
+      if (linkedJob.current === key) {
+        linkedJob.current = null;
+        toast.error(tr("That job is no longer available here. Search for it again."));
+      }
+    }, 6000);
+    return () => clearTimeout(giveUp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      if (detailJob) u.searchParams.set("job", detailJob.key);
+      else if (!linkedJob.current) u.searchParams.delete("job");
+      window.history.replaceState(window.history.state, "", u);
+    } catch {
+      /* the address is only a convenience */
+    }
+  }, [detailJob]);
+
   // the headings of a search by place
   const reachTitle = (r: NonNullable<JobListing["reach"]>) =>
     r === "here" ? tr("In {place}", { place: searchedPlace }) : r === "near" ? tr("Near {place}", { place: searchedPlace }) : r === "city" ? tr("The nearest big city: {place}", { place: bigCity }) : r === "remote" ? tr("Remote jobs") : tr("More jobs in the country");

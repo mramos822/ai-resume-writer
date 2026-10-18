@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { fetchJobAdText, JOB_AD_LINK_ERROR } from "@/lib/jobAdText";
 import { isSafePublicUrl } from "@/lib/safeUrl";
@@ -7,6 +7,7 @@ import { offerOfListLink } from "@/lib/ingest/computrabajo";
 import { limitedShared } from "@/lib/rateLimit";
 import { describe, factsOf, JOB_LIST_ERROR, looksLikeJobList, readPosting, str } from "@/lib/jobDigest";
 import { cleanListing, type JobListing } from "@/lib/jobSearch";
+import { cachedImport, importKey, rememberImport } from "@/lib/jobImports";
 
 // "Add a job": for a posting the job search did not find. The person pastes a link (any site) or the text of the posting and
 // it becomes a job like the others: it can be saved, compared with the profile and turned into an application.
@@ -20,15 +21,20 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as { url?: unknown; text?: unknown };
     let url = str(body.url, 1000);
     let text = str(body.text, 20000);
+    let fromPage = false; // the text was read by the server from a public page (and not typed or pasted by the person)
 
     if (!url && text.length < 80) throw new HttpError(400, "Paste a link to the job, or the text of the posting.");
     if (url) {
       if (!/^https?:\/\//i.test(url) || !isSafePublicUrl(url)) throw new HttpError(400, "That link can't be opened. Check it, or paste the text of the posting instead.");
       // a link copied from a company page of Computrabajo with one offer open names that offer after the "#": the offer itself is read, not the list
       url = (await offerOfListLink(url)) ?? url;
+      // the same link already read by somebody: it comes back at once (no download, no AI), and it is kept the same for everybody
       if (!text) {
+        const known = await cachedImport(url);
+        if (known) return NextResponse.json({ job: known, cached: true });
         text = (await fetchJobAdText(url, true)) ?? "";
         if (!text) throw new HttpError(422, JOB_AD_LINK_ERROR);
+        fromPage = true;
       }
     }
 
@@ -43,7 +49,7 @@ export async function POST(req: Request) {
     const tidy = describe(raw);
     const description = tidy.length >= 80 ? tidy : text.replace(/[ \t]+/g, " ").slice(0, 3500); // if the AI gave nothing usable, the text itself
     const job: Partial<JobListing> = {
-      key: `link:${createHash("sha1").update(url || text.slice(0, 2000)).digest("hex").slice(0, 16)}`,
+      key: url ? importKey(url) : `link:${createHash("sha1").update(text.slice(0, 2000)).digest("hex").slice(0, 16)}`,
       source: "link",
       title,
       company: str(raw.company, 200),
@@ -59,6 +65,8 @@ export async function POST(req: Request) {
     };
     const clean = cleanListing(job);
     if (!clean) throw new HttpError(422, "We couldn't read that posting.");
+    // kept for the next person who adds the same link; what a person pastes by hand is never kept
+    if (fromPage && url) after(() => rememberImport(url, clean));
     return NextResponse.json({ job: clean });
   } catch (err) {
     return errorResponse(err, "We couldn't read that posting. Try pasting its text instead.");

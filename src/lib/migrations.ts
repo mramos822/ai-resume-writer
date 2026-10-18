@@ -77,6 +77,16 @@ const MIGRATIONS: Migration[] = [
       await db.collection("ai_budget").createIndex({ expireAt: 1 }, { expireAfterSeconds: 0 });
     },
   },
+  {
+    id: 7,
+    name: "job_imports: the postings added by link are kept for two weeks, so the same link is not read again and a link inside the app can open it",
+    up: async () => {
+      await Promise.all([
+        db.collection("job_imports").createIndex({ key: 1 }, { unique: true }),
+        db.collection("job_imports").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      ]);
+    },
+  },
 ];
 
 let started: Promise<void> | null = null;

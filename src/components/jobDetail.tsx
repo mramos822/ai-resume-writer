@@ -4,7 +4,7 @@
 // Applying on the company's site is the last step, not the first thing a click does.
 import React, { useEffect, useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Bookmark, BookmarkCheck, Briefcase, Clock, ExternalLink, Globe2, MapPin, Wallet, Wand2, X } from "lucide-react";
+import { Bookmark, BookmarkCheck, Briefcase, Clock, ExternalLink, Globe2, Link2, MapPin, Wallet, Wand2, X } from "lucide-react";
 import CompanyLogo from "@/components/companyLogo";
 import { Button } from "@/components/ui/button";
 import { useProfile } from "@/context/profileContext";
@@ -373,6 +373,19 @@ export default function JobDetail({
                   {saved ? tr("Saved") : tr("Save")}
                 </Button>
                 <div className="flex flex-wrap items-center gap-3">
+                  {/* a link inside the app that opens this job again (a job of Adzuna is kept nowhere: its link opens only for who saved it) */}
+                  {(job.source !== "adzuna" || saved) && (
+                    <Button
+                      variant="ghost"
+                      className="gap-1.5 text-muted-foreground"
+                      onClick={() => {
+                        const link = `${window.location.origin}/home/job-ads?job=${encodeURIComponent(job.key)}`;
+                        navigator.clipboard.writeText(link).then(() => toast.success(tr("Link copied.")), () => toast.error(tr("We couldn't copy the link.")));
+                      }}
+                    >
+                      <Link2 className="h-3.5 w-3.5" /> {tr("Copy link")}
+                    </Button>
+                  )}
                   {job.url && (
                     <Button asChild variant="ghost" className="gap-1.5 text-muted-foreground">
                       <a href={job.url} target="_blank" rel="noopener noreferrer">{tr("Original posting")}{" "}<ExternalLink className="h-3.5 w-3.5" />
