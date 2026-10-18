@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { searchJobs, searchJobsWide } from "@/lib/jobSearch";
 import { readPlace } from "@/lib/jobPlaces";
 import { enrichListings } from "@/lib/jobEnrich";
 import { cachedSearch, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
 import { searchIndex } from "@/lib/ingest/searchIndex";
+import { ingestNow } from "@/lib/ingest/schedule";
 import type { ExtraSource } from "@/lib/jobSearch";
 
 // our own index (what the automatic ingestion keeps): complete postings, found at once
@@ -42,6 +43,7 @@ export async function GET(req: Request) {
     };
     // wide = also search similar titles and the person's main skills, so the pool is bigger and closer to their profile
     const skills = (sp.get("skills") ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 3);
+    after(() => ingestNow({ by: "search", onlyIfDue: true })); // the index follows the companies even without a scheduler
     const wide = sp.get("wide") === "1";
     // a search someone made a moment ago comes back at once, and does not use up the daily limit of the job boards
     const qkey = searchKey([wide, query.q, query.location, query.remoteOnly, query.country, skills.join(",")]);

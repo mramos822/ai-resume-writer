@@ -53,6 +53,13 @@ const MIGRATIONS: Migration[] = [
       ]);
     },
   },
+  {
+    id: 4,
+    name: "ingest_runs: the log of every ingestion, kept for a month",
+    up: async () => {
+      await db.collection("ingest_runs").createIndex({ startedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+    },
+  },
 ];
 
 let started: Promise<void> | null = null;
