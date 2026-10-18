@@ -7,7 +7,7 @@ import { cleanFix, profileForReview, type ReviewFix } from "@/lib/resumeReview";
 import { resumeText } from "@/lib/roleProfile";
 import { narrativeText, saysTerm } from "@/lib/jobScore";
 import { jobLang, type ResumeLang } from "@/lib/resumeLang";
-import { baseSkills, covers, mentionedSkills } from "@/lib/jobSkills";
+import { askedSkills, baseSkills, covers, mentionedSkills } from "@/lib/jobSkills";
 import { faithfulBullets } from "@/lib/bulletFidelity";
 import { promptVersion } from "@/lib/promptVersion";
 import { MIN_RECENT_JOBS, newestFirst, type PageFit } from "@/lib/reviewRubric";
@@ -96,7 +96,7 @@ const EVERY_CAREER = ["Soft skills", "Office & productivity", "Languages"];
  * office tools, languages and skills that are not in the lists are never proposed.
  */
 export function cutSuggestions(p: ProfileData, job: JobListing, keep: string[] = []): CutSuggestions {
-  const named = mentionedSkills(`${job.title}. ${job.tags.join(", ")}. ${job.description || job.snippet}`);
+  const named = askedSkills(`${job.title}. ${job.tags.join(", ")}. ${job.description || job.snippet}`);
   const skills = (p.skills ?? []).filter(Boolean);
   const kept = new Set(keep.map((x) => x.toLowerCase()));
   const lower = skills.map((s) => s.toLowerCase());

@@ -130,8 +130,21 @@ export function jobScore(profile: ProfileData, job: JobListing, extra: string[] 
   // written (what "Fix all" improves) is 10%
   // the experience the job asks for scales the whole number (like in the list's first estimate): a Staff job for someone with two years
   // is not "78% ready" because the title looks alike
-  const base = 0.3 * role + 0.35 * coverage + 0.1 * education + 0.15 * narrative + 0.1 * (basics / 100);
-  const score = Math.round(100 * base * (0.35 + 0.65 * level));
+  // The number has to tell a good fit from a bad one, not sit around the same middle value for every job:
+  //  - what decides is the position (45%), the skills the job asks for (40%) and, when the job names keywords the person has, whether the
+  //    resume SAYS them (15%);
+  //  - a posting that names no skills says nothing about them, but that is no reason to give credit to a job that is not the person's field:
+  //    the unknown counts half of the position's match, so an unrelated job gets nothing from what is not known;
+  //  - the education and how well the resume is written only adjust the result (a missing degree the job asks for, a resume that can improve),
+  //    they are not points every job gets.
+  const coverageNow = wTotal === 0 ? 0.5 * role : coverage;
+  const core = (0.45 * role + 0.4 * coverageNow + (keywords.length > 0 ? 0.15 * narrative : 0)) / (keywords.length > 0 ? 1 : 0.85);
+  const base = core * (0.7 + 0.3 * education) * (0.85 + 0.15 * (basics / 100));
+  // A job far BELOW the person is not a good fit either: an internship or an entry level job for someone with years of experience.
+  const myYears = yearsFor(profile);
+  const jobLabel = levelOf(job).label;
+  const over = jobLabel === "Internship" ? (myYears >= 2 ? 0.5 : 1) : jobLabel === "Entry level" ? (myYears >= 5 ? 0.7 : myYears >= 3 ? 0.85 : 1) : 1;
+  const score = Math.round(100 * base * (0.35 + 0.65 * level) * over);
   return {
     score: Math.max(0, Math.min(100, score)),
     skills: { have, total },

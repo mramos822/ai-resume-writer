@@ -1,7 +1,7 @@
 import type { JobListing } from "@/lib/jobSearch";
 import { EN, type Tr } from "@/i18n/translate";
 import { levelOf } from "@/lib/jobLevel";
-import { baseSkills, covers, mentionedSkills } from "@/lib/jobSkills";
+import { askedSkills, baseSkills, covers, mentionedSkills } from "@/lib/jobSkills";
 import { resumeText } from "@/lib/roleProfile";
 import type { ProfileData } from "@/context/profileContext";
 
@@ -62,7 +62,7 @@ export function fitOf(job: JobListing, skills: string[], role: string, myYears?:
   // a skill counts when the job names it or the skill it is built on ("GitHub Actions" counts for a job that asks for GitHub)
   const clean = (s: string) => s.toLowerCase().replace(/[()]/g, "").trim();
   const matched = skills.filter((s) => s.trim() && [s, ...baseSkills(s)].some((t) => hay.includes(clean(t))));
-  const named = mentionedSkills(text);
+  const named = askedSkills(text);
   const covered = named.filter((n) => skills.some((s) => covers(s, n))).length;
   // what the posting names and the person has; when the posting names nothing known, the skills of the person it mentions
   const skillRaw = named.length > 0 ? covered / named.length : skills.length ? Math.min(1, matched.length / 3) : 0;

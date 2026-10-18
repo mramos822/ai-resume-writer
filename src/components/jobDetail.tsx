@@ -15,7 +15,8 @@ import { jobScore } from "@/lib/jobScore";
 import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 import { yearsFor } from "@/lib/experienceLevel";
 import { levelOf } from "@/lib/jobLevel";
-import { covers, mentionedSkills } from "@/lib/jobSkills";
+import { askedSkills, covers } from "@/lib/jobSkills";
+import { isPartialPosting } from "@/lib/jobSearch";
 import type { JobListing } from "@/lib/jobSearch";
 import { useT } from "@/i18n/provider";
 
@@ -46,6 +47,27 @@ function sections(text: string): Block[] | null {
     .filter(Boolean)
     .map((l): Block => (l.startsWith("## ") ? { kind: "h", text: l.slice(3) } : l.startsWith("- ") ? { kind: "li", text: l.slice(2) } : { kind: "p", text: l }));
 }
+
+/**
+ * A posting that came whole, as it was written: its "## " headings and "- " bullets, short lines that introduce a list ("About the Role",
+ * "In this role, you will:") as headings, and every other line as a paragraph. It is shown at once, without waiting for anybody to rewrite it.
+ */
+function structure(text: string): Block[] {
+  const lines = text.split("\n").map((l) => l.trim());
+  const out: Block[] = [];
+  lines.forEach((l, i) => {
+    if (!l) return;
+    if (l.startsWith("## ")) return void out.push({ kind: "h", text: l.slice(3) });
+    if (/^[-•*]\s/.test(l)) return void out.push({ kind: "li", text: l.replace(/^[-•*]\s+/, "") });
+    const next = lines.slice(i + 1).find(Boolean);
+    const heading = l.length <= 70 && !/[.!?]$/.test(l) && !!next && (/:$/.test(l) || l.split(/\s+/).length <= 8);
+    out.push({ kind: heading ? "h" : "p", text: heading ? l.replace(/:$/, "") : l });
+  });
+  return out;
+}
+
+/** The short summary that opens a rewritten posting (what comes before its first "## " section). */
+const summaryOf = (digest: string) => (digest.startsWith("## ") ? "" : digest.split(/\n\n## /)[0].trim());
 
 const CUT = /(\.\.\.|…)\s*$/;
 
@@ -93,28 +115,36 @@ export default function JobDetail({
   const analysis = useMemo(() => {
     if (!job) return null;
     const role = profile.jobTitle?.trim() || "";
-    const source = full?.key === job.key && full.text ? full.text : job.description || job.snippet || "";
+    // A posting that came whole is shown at once as it was written; the AI's rewriting only adds a summary on top when it arrives. A posting
+    // that came cut (the first lines only) shows the rewriting of the whole page instead, once it has been read.
+    const original = job.description || job.snippet || "";
+    const complete = !isPartialPosting(job);
+    const digest = full?.key === job.key && full.text ? full.text : null;
+    const source = complete ? original : digest || original;
     const text = `${job.title}. ${job.tags.join(", ")}. ${source}`;
     // the number is worked out from the whole posting when it has been read: the same number as when the job is added by its link
     const facts = full?.key === job.key ? full.facts : undefined;
-    const whole = source !== (job.description || job.snippet || "") || facts ? { ...job, description: source, facts: facts ?? job.facts } : job;
+    const whole = source !== original || facts ? { ...job, description: source, facts: facts ?? job.facts } : job;
     const myYears = yearsFor(profile);
     // the percentage is the number of the job (see lib/jobScore); the skills it matches come from the quick reading of the posting
     const fit = { ...fitOf(job, skillsForFit(profile), role, myYears), pct: jobScore(profile, whole).score };
     const mine = profile.skills ?? [];
     const has = (s: string) => mine.some((m) => covers(m, s)); // "GitHub Actions" counts for a posting that asks for GitHub
     // the skills the AI read from the whole posting (requirements first) when there are; the keyword list on the text otherwise
-    const mentioned = facts && facts.required.length + facts.preferred.length > 0 ? [...facts.required, ...facts.preferred] : mentionedSkills(text);
+    const mentioned = facts && facts.required.length + facts.preferred.length > 0 ? [...facts.required, ...facts.preferred] : askedSkills(text);
     return {
       fit,
       level: levelOf(whole),
       myYears,
       matched: mentioned.filter(has).slice(0, 12),
       missing: mentioned.filter((s) => !has(s)).slice(0, 8),
-      blocks: sections(source),
+      complete,
+      blocks: complete ? structure(source) : sections(source),
+      // the AI's short summary, when it has been written (only shown above a posting that was already on screen)
+      summary: complete && digest ? summaryOf(digest) : "",
+      // the text still stops in the middle: the rest is only on the posting (a whole posting is kept up to 6000 characters)
+      cut: complete ? source.length >= 5990 : CUT.test(source.trim()),
       body: paragraphs(source.replace(CUT, "").trim()),
-      // the text still stops in the middle: the rest is only on the posting
-      cut: CUT.test(source.trim()),
     };
   }, [job, full, profile]);
 
@@ -143,7 +173,9 @@ export default function JobDetail({
   };
 
   // true from the very first frame of a job until its full posting has come (or failed): there is nothing to show before that but the loading line
-  const reading = !!job && !sections(job.description || job.snippet || "") && full?.key !== job.key;
+  const reading = !!job && isPartialPosting(job) && !sections(job.description || job.snippet || "") && full?.key !== job.key;
+  // the posting is on screen and the AI is still reading it to give the exact fit
+  const aiReading = !!job && !isPartialPosting(job) && full?.key !== job.key;
 
   const pct = analysis?.fit.pct ?? 0;
   const color = pct >= 70 ? "#22c55e" : pct >= 40 ? "#3b82f6" : "#94a3b8";
@@ -250,8 +282,19 @@ export default function JobDetail({
                 )}
 
                 <section>
-                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}{analysis.blocks && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{tr("Written with AI")}</span>}</h3>
-                  {analysis.blocks && <p className="-mt-1.5 mb-3 text-xs text-muted-foreground">{tr("Summary made with AI from the posting. It can leave out details: check the original posting before you apply.")}</p>}
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}{analysis.blocks && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{analysis.complete ? tr("From the original posting") : tr("Written with AI")}</span>}</h3>
+                  {analysis.blocks && !analysis.complete && <p className="-mt-1.5 mb-3 text-xs text-muted-foreground">{tr("Summary made with AI from the posting. It can leave out details: check the original posting before you apply.")}</p>}
+                  {analysis.summary && (
+                    <div className="mb-4 rounded-xl border bg-blue-500/5 p-4 text-sm leading-relaxed">
+                      <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-blue-500">{tr("Summary made with AI")}</p>
+                      <p>{analysis.summary}</p>
+                      <p className="mt-1.5 text-xs text-muted-foreground">{tr("It can leave out details: check the original posting before you apply.")}</p>
+                    </div>
+                  )}
+                  {aiReading && (
+                    <p role="status" className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-blue-500" />{" "}{tr("Reading it with AI to get your exact fit…")}</p>
+                  )}
                   {/* while the full posting is being read, only the loading line shows: the first lines the job board shares would appear and then be replaced */}
                   <div className="space-y-3.5 leading-relaxed">
                     {reading
@@ -259,7 +302,7 @@ export default function JobDetail({
                       : analysis.blocks
                       ? analysis.blocks.map((b, i) =>
                           b.kind === "h" ? (
-                            <h4 key={i} className="pt-2 text-sm font-bold">{tr(b.text)}</h4>
+                            <h4 key={i} className="pt-2 text-sm font-bold">{analysis.complete ? b.text : tr(b.text)}</h4>
                           ) : b.kind === "li" ? (
                             <p key={i} className="flex gap-2.5 pl-1"><span aria-hidden className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />{b.text}</p>
                           ) : (

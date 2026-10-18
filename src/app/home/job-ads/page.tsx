@@ -37,11 +37,11 @@ const PAGE = 15;
 
 const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", greenhouse: "the company's careers page", lever: "the company's careers page", ashby: "the company's careers page", smartrecruiters: "the company's careers page", link: "a link you added" };
 
-function Fit({ pct, estimate }: { pct: number; estimate?: boolean }) {
+function Fit({ pct, estimate, partial }: { pct: number; estimate?: boolean; partial?: boolean }) {
   const { tr } = useT();
   const color = pct >= 70 ? "#22c55e" : pct >= 40 ? "#3b82f6" : "#94a3b8";
   return (
-    <div className="w-24 shrink-0 text-right" title={estimate ? tr("An estimate: the job board only shares the start of this posting. Open the job to see the exact number.") : tr("How many of your skills this job mentions")}>
+    <div className="w-24 shrink-0 text-right" title={estimate ? (partial ? tr("An estimate: the job board only shares the start of this posting. Open the job to see the exact number.") : tr("An estimate: the AI has not read this posting yet. Open the job to see the exact number.")) : tr("How many of your skills this job mentions")}>
       <p className="text-2xl font-black leading-none tabular-nums" style={{ color }}>
         {estimate ? "~" : ""}{pct}
         <span className="text-xs font-bold text-muted-foreground">%</span>
@@ -102,7 +102,7 @@ function JobCard({ job, fit, saved, onToggle, onPrepare, onOpen, onDelete, statu
             </p>
           )}
         </div>
-        <Fit pct={fit.pct} estimate={fit.estimate} />
+        <Fit pct={fit.pct} estimate={fit.estimate} partial={isPartialPosting(job)} />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <p className="text-xs text-muted-foreground">{tr("via")}{" "}{SOURCE_NAME[job.source]}</p>
@@ -367,7 +367,7 @@ export default function JobSearchPage() {
   const ranked = useMemo(() => {
     const visible = tab === "results" ? pool.filter((j) => matchesFilters(j, filters)) : pool;
     // the percentage is the number of the job (see lib/jobScore); the skills it matches come from the quick reading of the posting
-    const withFit = visible.map((j) => ({ job: j, fit: { ...fitOf(j, skills, defaultRole || q, myYears), pct: jobScore(profile, j, [], template, [], basics).score, estimate: isPartialPosting(j) } }));
+    const withFit = visible.map((j) => ({ job: j, fit: { ...fitOf(j, skills, defaultRole || q, myYears), pct: jobScore(profile, j, [], template, [], basics).score, estimate: isPartialPosting(j) || !j.facts } }));
     // best fit first, newest among equals (the saved tab keeps the order they were saved in)
     // (a search by place keeps its groups: in the place, near it, remote, the rest)
     const group = (j: JobListing) => (j.reach ? REACH_ORDER.indexOf(j.reach) : 0);

@@ -63,6 +63,14 @@ Lo que no se puede hacer desde el código (cuentas, claves, dominio) lo haces t�
    (`/api/admin/ingest-jobs` a las 06:00 UTC y `?only=smartrecruiters` a las 06:30 UTC). La segunda también hace la limpieza diaria de la
    política de privacidad (sesiones de invitado de 30 días y mensajes viejos).
 
+### Que el número de cada empleo sea el real desde el principio (opcional, recomendado)
+La IA lee cada empleo una sola vez (años, nivel, habilidades) y el porcentaje deja de ser un estimado (~). Para que lea **todos** antes de que
+nadie los vea hay una tarea lista: `.github/workflows/enrich-jobs.yml` llama cada 5 minutos a `/api/admin/enrich-jobs`.
+1. En GitHub → **Settings → Secrets and variables → Actions**, crea `SITE_URL` (`https://tu-dominio`, sin barra al final) y `CRON_SECRET` (el mismo de Vercel).
+2. Con la clave **gratis** de Gemini solo caben unas 150 lecturas al día (`JOB_FACTS_PER_DAY`, por defecto 150). Para leer miles al día activa la
+   **facturación** de Gemini y sube `JOB_FACTS_PER_DAY` (por ejemplo 3000). Cada lectura usa unos 3 mil tokens: calcula el costo con el precio actual de tu modelo.
+3. Sin esto la app funciona igual: lee a demanda (al abrir un empleo y los 10 de la pantalla) y marca con **~** los que aún no se leyeron.
+
 ## 5. Tu propio dominio
 1. Compra el dominio en un registrador (Namecheap, Cloudflare, Porkbun…; unos USD 10–15 al año).
 2. **Vercel → Settings → Domains → Add** y escribe el dominio. Vercel te dice qué registros DNS poner (un `A` o un `CNAME`).

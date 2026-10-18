@@ -72,6 +72,29 @@ export function levelOf(job: Pick<JobListing, "title" | "description" | "snippet
   return { label, years };
 }
 
+/**
+ * The level a posting asks for when its TITLE does not say it but a sentence of its text does: "We are looking for Senior and Staff Full Stack
+ * Software Engineers", "hiring a junior developer". When it names several levels the lowest counts (they hire from there). Only a sentence that
+ * says who they are looking for is read, so "our Lead Generation team" or "work with senior engineers" are not taken for the level.
+ */
+export function levelFromText(text: string): { label: string; typical: number } | null {
+  const LEVELS: [RegExp, { label: string; typical: number }][] = [
+    [/\b(intern(ship)?s?|trainees?)\b/i, { label: "Internship", typical: 0 }],
+    [/\b(entry[- ]level|junior|jr\.?|new grad(uate)?s?|early[- ]career)\b/i, { label: "Entry level", typical: 0 }],
+    [/\bmid[- ]level\b/i, { label: "Mid level", typical: 3 }],
+    [/\b(senior|sr\.?)\b/i, { label: "Senior", typical: 5 }],
+    [/\b(tech(nical)? lead|team lead|lead (software |backend |frontend |full[- ]stack )?(engineers?|developers?|designers?|analysts?|scientists?|architects?))\b/i, { label: "Lead", typical: 6 }],
+    [/\b(staff|principal)\b/i, { label: "Principal", typical: 8 }],
+  ];
+  const SEEKING = /\b(looking for|seeking|searching for|hiring|we need|we want|join (us|our team|the team) as|you('| a)re an?)\b/i;
+  for (const sentence of text.slice(0, 4000).split(/(?<=[.!?])\s+|\n+/)) {
+    if (!SEEKING.test(sentence)) continue;
+    const found = LEVELS.filter(([re]) => re.test(sentence)).map(([, level]) => level);
+    if (found.length > 0) return found.reduce((low, l) => (l.typical < low.typical ? l : low));
+  }
+  return null;
+}
+
 function levelByRules(job: Pick<JobListing, "title" | "description" | "snippet">): JobLevel {
   const title = WORDS(job.title);
   const stated = statedYears(`${job.description ?? ""} ${job.snippet ?? ""}`);
@@ -107,6 +130,14 @@ function levelByRules(job: Pick<JobListing, "title" | "description" | "snippet">
   } else if (/\b(ii)\b|\b[a-z]+\s+2\s*$/.test(title)) {
     label = "Mid level";
     typical = 3;
+  }
+  // the title says nothing about the level: the text may ("We are looking for Senior and Staff engineers")
+  if (!label) {
+    const said = levelFromText(job.description ?? "");
+    if (said) {
+      label = said.label;
+      typical = said.typical;
+    }
   }
   // when the posting states the years, that is what counts; the title gives the usual number otherwise.
   // An entry level job never asks for more than a couple of years (a number elsewhere in the text is about other roles or "nice to have")

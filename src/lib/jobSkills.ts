@@ -1,4 +1,4 @@
-import { ALL_SKILLS } from "@/lib/skills";
+import { ALL_SKILLS, SKILL_GROUPS } from "@/lib/skills";
 
 // other ways people write the same skill, so "JS" on a resume counts for a posting that asks for JavaScript
 const ALIAS: Record<string, string> = {
@@ -81,6 +81,15 @@ export function mentionedSkills(text: string): string[] {
   return out;
 }
 
+// "Communication", "Collaboration", "Leadership"... appear in almost every posting: they say nothing about what THIS job asks of a person, and
+// they pushed the fit down for nobody's reason (the AI reading of a posting leaves them out too).
+const SOFT = new Set(SKILL_GROUPS["Soft skills"].map((s) => s.toLowerCase()));
+
+/** The skills a POSTING asks for, from its text: the tools, methods and knowledge it names, without the soft skills every posting repeats. */
+export function askedSkills(text: string): string[] {
+  return mentionedSkills(text).filter((s) => !SOFT.has(s.toLowerCase()));
+}
+
 export interface SkillGap {
   /** skills the job mentions that the person already has */
   matched: string[];
@@ -92,7 +101,7 @@ export interface SkillGap {
 
 /** What a posting asks for compared with the person's skills. */
 export function skillGap(postingText: string, mySkills: string[], resumeText = ""): SkillGap {
-  const mentioned = mentionedSkills(postingText);
+  const mentioned = askedSkills(postingText);
   // skills the resume shows in its jobs, projects or studies even if they are not in the list of skills
   const shown = resumeText ? mentionedSkills(resumeText) : [];
   const listed = (s: string) => mySkills.some((m) => covers(m, s));
