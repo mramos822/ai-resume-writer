@@ -423,6 +423,8 @@ export default function LivePreview({
     if (colsRef.current && leftRef.current && rightRef.current) {
       c.style.zoom = "1";
       setScale(1);
+      // these looks are always ONE sheet: the cut that the look before them left (a look that runs to two sheets) must go, or the sheet shows cut in two
+      setSplit(null);
       // one size for both columns, like the PDF: the default (1) when there is little content, smaller only when there is a lot.
       // The header (name, role) is zoomed with them, so it is taken into account: the size is found, the header is zoomed to it, and
       // the size is found again with the space the header really takes.
