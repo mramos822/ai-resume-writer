@@ -94,6 +94,46 @@ export function fromLever(b: Board, p: LeverPosting): IndexedJob | null {
   };
 }
 
+interface AshbyJob {
+  id?: string;
+  title?: string;
+  department?: string;
+  team?: string;
+  employmentType?: string;
+  location?: string;
+  isListed?: boolean;
+  isRemote?: boolean | null;
+  workplaceType?: string;
+  publishedAt?: string;
+  jobUrl?: string;
+  descriptionHtml?: string;
+  descriptionPlain?: string;
+  compensation?: { scrapeableCompensationSalarySummary?: string; compensationTierSummary?: string };
+}
+
+export function fromAshby(b: Board, j: AshbyJob): IndexedJob | null {
+  if (!j.id || !j.title || !j.jobUrl || !/^https?:\/\//.test(j.jobUrl) || j.isListed === false) return null;
+  // the html keeps the lists as lists; the plain text is the fallback
+  const full = (j.descriptionHtml ? htmlToText(j.descriptionHtml, true) : "") || nice(j.descriptionPlain ?? "");
+  const location = nice(j.location ?? "");
+  const pay = nice(j.compensation?.scrapeableCompensationSalarySummary ?? j.compensation?.compensationTierSummary ?? "");
+  return {
+    key: `ashby:${b.token}:${j.id}`,
+    source: "ashby",
+    title: clip(nice(j.title), 200),
+    company: clip(company(b), 200),
+    location: clip(location, 200),
+    remote: j.isRemote === true || /remote/i.test(j.workplaceType ?? "") || REMOTE.test(location) || REMOTE.test(j.title),
+    url: clip(j.jobUrl, 1000),
+    postedAt: iso(j.publishedAt),
+    salary: pay ? clip(pay, 80) : undefined,
+    tags: [nice(j.team ?? j.department ?? ""), nice(j.employmentType ?? "")].filter(Boolean),
+    snippet: clip(nice(full), 380),
+    description: clip(full, 6000),
+    board: `ashby:${b.token}`,
+  };
+}
+
 /** Every opening of one board. Throws when the board does not exist or the site is down: the ingestion reports it and moves on. */
 export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
   if (b.source === "greenhouse") {
@@ -101,6 +141,12 @@ export async function fetchBoard(b: Board): Promise<IndexedJob[]> {
     if (!res.ok) throw new Error(`greenhouse ${b.token}: ${res.status}`);
     const data = (await res.json()) as { jobs?: GreenhouseJob[] };
     return (data.jobs ?? []).map((j) => fromGreenhouse(b, j)).filter((j): j is IndexedJob => !!j);
+  }
+  if (b.source === "ashby") {
+    const res = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(b.token)}?includeCompensation=true`, { signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`ashby ${b.token}: ${res.status}`);
+    const data = (await res.json()) as { jobs?: AshbyJob[] };
+    return (data.jobs ?? []).map((j) => fromAshby(b, j)).filter((j): j is IndexedJob => !!j);
   }
   const out: IndexedJob[] = [];
   for (let skip = 0; skip < 2000; skip += 100) {
