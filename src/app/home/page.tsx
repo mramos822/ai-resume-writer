@@ -6,7 +6,7 @@
 import { realName } from "@/lib/previewData";
 import { fromShouting } from "@/lib/nameCase";
 import { asTemplateId } from "@/lib/templates";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -16,6 +16,7 @@ import { useToast } from "@/context/toastContext";
 import { useDialog } from "@/context/dialogContext";
 import { useProfile } from "@/context/profileContext";
 import { authFetch } from "@/lib/authFetch";
+import { jobSearchParams, withPhase } from "@/lib/jobSearchClient";
 import { getProfileProgress } from "@/lib/profileProgress";
 import type { Tr } from "@/i18n/translate";
 import { aboveLevel } from "@/lib/jobLevel";
@@ -103,7 +104,7 @@ function Illustration() {
 }
 
 export default function HomePage() {
-  const { tr } = useT();
+  const { tr, locale } = useT();
   const { user, loading, unverified } = useAuth();
   const router = useRouter();
   const toast = useToast();
@@ -146,6 +147,7 @@ export default function HomePage() {
   const place = [profile.contactInfo?.city, profile.contactInfo?.state].filter(Boolean).join(", ");
   const country = profile.contactInfo?.countryCode || "US";
   const years = useMemo(() => yearsFor(profile), [profile]);
+  const asked = useRef(new Map<string, Promise<{ jobs?: JobListing[]; more?: boolean }>>()); // the job questions already asked in the background
   const skills = useMemo(() => skillsForFit(profile), [profile]);
   useEffect(() => {
     if (!role) {
@@ -153,17 +155,38 @@ export default function HomePage() {
       return;
     }
     let alive = true;
-    authFetch(`/api/jobs/search?${new URLSearchParams({ q: role, location: place, country })}`)
-      .then((r) => (r.ok ? r.json() : { jobs: [] }))
-      .then((d: { jobs?: JobListing[] }) => {
+    // The same question the job search page asks (see lib/jobSearchClient): our own jobs come at once and fill the matches; then Adzuna's part
+    // is asked too, so the server remembers it and the job search page, when the person goes there, shows it without waiting.
+    const params = jobSearchParams({ q: role, place, country, skills: profile.skills, lang: locale });
+    // (the effect runs again while the profile finishes loading: the same question is asked once, and its answer is shared)
+    const ask = (phase: "own" | "adzuna") => {
+      const key = withPhase(params, phase).toString();
+      let answer = asked.current.get(key);
+      if (!answer) {
+        answer = authFetch(`/api/jobs/search?${key}`)
+          .then((r) => (r.ok ? r.json() : { jobs: [] }))
+          .then((d: { jobs?: JobListing[]; more?: boolean }) => d);
+        asked.current.set(key, answer);
+        answer.catch(() => asked.current.delete(key));
+      }
+      return answer;
+    };
+    const best = (jobs: JobListing[]) =>
+      jobs
+        .filter((j) => !aboveLevel(j, years))
+        .map((job) => ({ job, pct: jobScore(profile, job, [], "classic", [], profileBasics(profile)).score }))
+        .sort((a, b) => b.pct - a.pct)
+        .slice(0, 6);
+    ask("own")
+      .then(async (own) => {
         if (!alive) return;
-        setPicks(
-          (d.jobs ?? [])
-            .filter((j) => !aboveLevel(j, years))
-            .map((job) => ({ job, pct: jobScore(profile, job, [], "classic", [], profileBasics(profile)).score }))
-            .sort((a, b) => b.pct - a.pct)
-            .slice(0, 6)
-        );
+        setPicks(best(own.jobs ?? []));
+        if (own.more) {
+          const more = await ask("adzuna").catch(() => ({ jobs: [] as JobListing[] }));
+          const seen = new Set((own.jobs ?? []).flatMap((j) => [j.key, `${j.title}|${j.company}`.toLowerCase()]));
+          const extra = (more.jobs ?? []).filter((j) => !seen.has(j.key) && !seen.has(`${j.title}|${j.company}`.toLowerCase()));
+          if (alive && extra.length) setPicks(best([...(own.jobs ?? []), ...extra]));
+        }
       })
       .catch(() => alive && setPicks([]));
     return () => {

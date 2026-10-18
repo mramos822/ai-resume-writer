@@ -12,6 +12,8 @@ const HOUR = 60 * 60 * 1000;
 export const KEEP: Record<JobListing["source"], number> = { adzuna: 24 * HOUR, remotive: 72 * HOUR, arbeitnow: 72 * HOUR, greenhouse: 72 * HOUR, lever: 72 * HOUR, ashby: 72 * HOUR, smartrecruiters: 72 * HOUR, link: 24 * HOUR };
 /** how long the answer to one search is served as it is */
 export const QUERY_TTL = 30 * 60 * 1000;
+/** Adzuna's part of a search (the slowest: its postings are read one by one) is remembered longer: a person who comes back, or the dashboard that asked first, gets it at once */
+export const ADZUNA_TTL = 3 * 60 * 60 * 1000;
 
 interface CatalogDoc {
   key: string;
@@ -39,10 +41,10 @@ export interface Found {
 }
 
 /** The answer to a search made a moment ago, or null. Any problem with the database means "not found": the search just runs. */
-export async function cachedSearch(qkey: string): Promise<Found | null> {
+export async function cachedSearch(qkey: string, ttl: number = QUERY_TTL): Promise<Found | null> {
   try {
     const doc = await queries().findOne({ qkey });
-    if (!doc || Date.now() - +new Date(doc.at) > QUERY_TTL || !Array.isArray(doc.jobs)) return null;
+    if (!doc || Date.now() - +new Date(doc.at) > ttl || !Array.isArray(doc.jobs)) return null;
     return { jobs: doc.jobs, sources: doc.sources ?? [], bigCity: doc.bigCity };
   } catch {
     return null;
@@ -50,12 +52,12 @@ export async function cachedSearch(qkey: string): Promise<Found | null> {
 }
 
 /** Remembers a search (its answer) and every job in it. Never fails the search. */
-export async function rememberSearch(qkey: string, found: Found): Promise<void> {
+export async function rememberSearch(qkey: string, found: Found, ttl: number = QUERY_TTL): Promise<void> {
   try {
     const now = Date.now();
     await queries().updateOne(
       { qkey },
-      { $set: { qkey, jobs: found.jobs, sources: found.sources, bigCity: found.bigCity ?? null, at: new Date(now), expiresAt: new Date(now + QUERY_TTL) } as never },
+      { $set: { qkey, jobs: found.jobs, sources: found.sources, bigCity: found.bigCity ?? null, at: new Date(now), expiresAt: new Date(now + ttl) } as never },
       { upsert: true }
     );
     const ops = found.jobs.map((j) => ({

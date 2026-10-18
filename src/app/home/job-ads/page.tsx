@@ -25,6 +25,7 @@ import { aboveLevel, levelOf } from "@/lib/jobLevel";
 import { matchesFilters, NO_FILTERS, type JobFilters } from "@/lib/jobFilters";
 import { byFreshnessThenFit } from "@/lib/jobRank";
 import JobFilterBar from "@/components/jobFilterBar";
+import { jobSearchParams, withPhase } from "@/lib/jobSearchClient";
 import { ago, fitOf, skillsForFit } from "@/lib/jobFit";
 import { isPartialPosting, jobScore, profileBasics } from "@/lib/jobScore";
 import type { JobFacts } from "@/lib/jobFacts";
@@ -207,15 +208,11 @@ export default function JobSearchPage() {
       if (openSaved.current) openSaved.current = false;
       else setTab("results");
       try {
-        const params = new URLSearchParams({ q: query.trim(), location: remote ? "" : place.trim(), country });
-        if (remote) params.set("remote", "1");
-        // a wider search: similar titles and the main skills of the profile, so there are more jobs that fit
-        params.set("wide", "1");
-        params.set("lang", langMode.current === "all" ? "all" : locale);
-        if (profile.skills?.length) params.set("skills", profile.skills.slice(0, 3).join(","));
+        // (the dashboard asks the same thing when the person arrives, so the answer is often already there)
+        const params = jobSearchParams({ q: query, place, country, remote, skills: profile.skills, lang: locale, allLanguages: langMode.current === "all" });
         // two parts: our own jobs (instant) are shown at once, and what the other boards find is added when it arrives
         const ask = async (phase: "own" | "live" | "adzuna") => {
-          const res = await authFetch(`/api/jobs/search?${new URLSearchParams({ ...Object.fromEntries(params), phase })}`);
+          const res = await authFetch(`/api/jobs/search?${withPhase(params, phase)}`);
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(trd(data.error) || tr("We couldn't search for jobs right now."));
           return data as { jobs?: JobListing[]; sources?: string[]; bigCity?: string; place?: string | null; more?: boolean };

@@ -3,7 +3,7 @@ import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { ENOUGH_OWN, isPartialPosting, searchJobs, searchJobsWide, type ExtraSource } from "@/lib/jobSearch";
 import { readPlace } from "@/lib/jobPlaces";
 import { enrichListings } from "@/lib/jobEnrich";
-import { cachedSearch, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
+import { ADZUNA_TTL, cachedSearch, QUERY_TTL, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
 import { searchIndex } from "@/lib/ingest/searchIndex";
 import { ingestNow } from "@/lib/ingest/schedule";
 import { withStoredFacts } from "@/lib/jobFactsStore";
@@ -77,7 +77,8 @@ export async function GET(req: Request) {
     // when our own jobs are plenty and no place was asked for, the other boards add nothing: the page need not ask for them
     const moreToCome = (n: number) => phase === "own" && (query.location.trim() !== "" || n < ENOUGH_OWN);
     t.mark("setup");
-    const again = await cachedSearch(qkey);
+    const ttl = phase === "adzuna" ? ADZUNA_TTL : QUERY_TTL;
+    const again = await cachedSearch(qkey, ttl);
     t.mark("cache");
     if (again) {
       const jobs = await withStoredFacts(again.jobs);
@@ -91,7 +92,7 @@ export async function GET(req: Request) {
     t.mark("read");
     const found = { jobs, sources: result.sources, bigCity: result.bigCity };
     // remembered after the answer has gone: nobody waits for the database to write it down
-    after(() => rememberSearch(qkey, found));
+    after(() => rememberSearch(qkey, found, ttl));
     const withFacts = await withStoredFacts(found.jobs);
     t.mark("facts");
     return NextResponse.json({ ...found, jobs: withFacts, place: place?.label ?? null, more: moreToCome(found.jobs.length) }, { headers: t.header() });

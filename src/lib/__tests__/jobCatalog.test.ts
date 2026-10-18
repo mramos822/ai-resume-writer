@@ -26,7 +26,7 @@ const collection = (name: string) => {
 };
 jest.mock("@/lib/mongodb", () => ({ db: { collection: (n: string) => collection(n) } }));
 
-import { cachedSearch, KEEP, QUERY_TTL, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
+import { ADZUNA_TTL, cachedSearch, KEEP, QUERY_TTL, rememberSearch, searchKey, withKnownText } from "@/lib/jobCatalog";
 
 const job = (key: string, source: JobListing["source"], description: string): JobListing => ({ key, source, title: "Dev", company: "A", location: "NY", remote: false, url: "https://x.test/" + key, postedAt: "", tags: [], snippet: "", description });
 
@@ -49,6 +49,16 @@ describe("job catalog", () => {
     await rememberSearch("q", { jobs: [job("a", "adzuna", "x")], sources: [] });
     (store.job_queries[0] as { at: Date }).at = new Date(Date.now() - QUERY_TTL - 1000);
     expect(await cachedSearch("q")).toBeNull();
+  });
+
+  it("remembers Adzuna's part of a search for hours, longer than the quick ones", async () => {
+    expect(ADZUNA_TTL).toBeGreaterThan(QUERY_TTL);
+    await rememberSearch("slow", { jobs: [job("adzuna:9", "adzuna", "x")], sources: ["Adzuna"] }, ADZUNA_TTL);
+    const doc = store.job_queries.find((d) => d.qkey === "slow") as { at: Date; expiresAt: Date };
+    expect(+doc.expiresAt - +doc.at).toBe(ADZUNA_TTL);
+    doc.at = new Date(Date.now() - QUERY_TTL - 1000); // older than the quick ones are kept
+    expect(await cachedSearch("slow")).toBeNull();
+    expect((await cachedSearch("slow", ADZUNA_TTL))?.jobs).toHaveLength(1);
   });
 
   it("keeps every job with a date to expire, a day for Adzuna", async () => {
