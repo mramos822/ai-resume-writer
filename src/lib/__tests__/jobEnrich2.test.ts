@@ -63,7 +63,7 @@ describe("choosing what to read", () => {
 describe("reading a batch", () => {
   it("reads what there is, and says when nothing is left", async () => {
     jobs.push(job("a", "2026-10-01"), job("b", "2026-10-02"));
-    const r = await enrichBatch({ ms: 5000, parallel: 2 });
+    const r = await enrichBatch({ ms: 5000, parallel: 2, pauseMs: 0 });
     expect(r).toEqual({ read: 2, failed: 0 });
     expect(mockRead).toHaveBeenCalledTimes(2);
     jobs.length = 0;
@@ -73,20 +73,20 @@ describe("reading a batch", () => {
   it("stops when the day's budget is used up", async () => {
     for (let i = 0; i < 6; i++) jobs.push(job(`j${i}`, `2026-10-0${i + 1}`));
     mockTake.mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValue(false);
-    const r = await enrichBatch({ ms: 5000, parallel: 1 });
+    const r = await enrichBatch({ ms: 5000, parallel: 1, pauseMs: 0 });
     expect(r).toMatchObject({ read: 2, stopped: "budget" });
   });
 
   it("stops when the AI says it is busy, and counts a job that failed for another reason without stopping", async () => {
     for (let i = 0; i < 4; i++) jobs.push(job(`j${i}`, `2026-10-0${i + 1}`));
     mockRead.mockRejectedValueOnce(new Error("bad answer")).mockResolvedValueOnce(null).mockRejectedValue(Object.assign(new Error("busy"), { status: 429 }));
-    const r = await enrichBatch({ ms: 5000, parallel: 1 });
+    const r = await enrichBatch({ ms: 5000, parallel: 1, pauseMs: 0 });
     expect(r).toMatchObject({ read: 1, failed: 1, stopped: "busy" });
   });
 
   it("stops when its time is up", async () => {
     for (let i = 0; i < 4; i++) jobs.push(job(`j${i}`, `2026-10-0${i + 1}`));
-    const r = await enrichBatch({ ms: -1, parallel: 1 });
+    const r = await enrichBatch({ ms: -1, parallel: 1, pauseMs: 0 });
     expect(r).toMatchObject({ read: 0, stopped: "time" });
   });
 });

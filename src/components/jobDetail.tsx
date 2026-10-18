@@ -114,6 +114,10 @@ export default function JobDetail({
   const [busy, setBusy] = useState(false);
   // job boards only share the first lines of a posting: we read the whole posting and show it as a summary and its sections
   const [full, setFull] = useState<{ key: string; text: string | null; facts?: JobFacts } | null>(null);
+  // The text of the posting is shown ONCE, already final: a short loading state first, then either the AI's ordered version (when it is ready,
+  // or was kept from an earlier reading) or, if the AI takes too long, the original in short paragraphs. What is on screen is never swapped for
+  // another text afterwards; only the numbers (the fit, the skills) keep updating.
+  const [frozen, setFrozen] = useState<{ key: string; digest: string | null } | null>(null);
 
   useEffect(() => {
     setFull(null);
@@ -130,6 +134,18 @@ export default function JobDetail({
     };
   }, [job]);
 
+  useEffect(() => {
+    setFrozen(null);
+    if (!job) return;
+    // how long to wait for the AI's version before showing the original: a cut posting needs it more
+    const t = setTimeout(() => setFrozen((f) => (f?.key === job.key ? f : { key: job.key, digest: null })), isPartialPosting(job) ? 8000 : 3500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.key]);
+  useEffect(() => {
+    if (job && full?.key === job.key) setFrozen((f) => (f?.key === job.key ? f : { key: job.key, digest: full.text }));
+  }, [full, job]);
+
   const analysis = useMemo(() => {
     if (!job) return null;
     const role = profile.jobTitle?.trim() || "";
@@ -137,7 +153,7 @@ export default function JobDetail({
     // that came cut (the first lines only) shows the rewriting of the whole page instead, once it has been read.
     const original = job.description || job.snippet || "";
     const complete = !isPartialPosting(job);
-    const digest = full?.key === job.key && full.text ? full.text : null;
+    const digest = frozen?.key === job.key ? frozen.digest : null;
     const source = digest || original;
     const fromDigest = !!digest && !!sections(digest);
     const text = `${job.title}. ${job.tags.join(", ")}. ${source}`;
@@ -165,7 +181,7 @@ export default function JobDetail({
       cut: digest ? false : complete ? source.length >= 5990 : CUT.test(source.trim()),
       body: paragraphs(source.replace(CUT, "").trim()),
     };
-  }, [job, full, profile]);
+  }, [job, full, frozen, profile]);
 
   const readKey = full?.text ? full.key : null;
   const readPct = analysis?.fit.pct;
@@ -192,9 +208,10 @@ export default function JobDetail({
   };
 
   // true from the very first frame of a job until its full posting has come (or failed): there is nothing to show before that but the loading line
-  const reading = !!job && isPartialPosting(job) && !sections(job.description || job.snippet || "") && full?.key !== job.key;
-  // the posting is on screen and the AI is still reading it to give the exact fit
-  const aiReading = !!job && !isPartialPosting(job) && full?.key !== job.key;
+  const settled = !!job && frozen?.key === job.key;
+  const reading = !!job && !settled;
+  // the posting is on screen (the AI took long) and the AI is still reading it to give the exact fit
+  const aiReading = !!job && settled && !isPartialPosting(job) && full?.key !== job.key;
 
   const pct = analysis?.fit.pct ?? 0;
   const color = pct >= 70 ? "#22c55e" : pct >= 40 ? "#3b82f6" : "#94a3b8";
@@ -301,8 +318,8 @@ export default function JobDetail({
                 )}
 
                 <section>
-                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}{analysis.blocks && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{analysis.fromDigest || !analysis.complete ? tr("Written with AI") : tr("From the original posting")}</span>}</h3>
-                  {analysis.blocks && (analysis.fromDigest || !analysis.complete) && <p className="-mt-1.5 mb-3 text-xs text-muted-foreground">{tr("Summary made with AI from the posting. It can leave out details: check the original posting before you apply.")}</p>}
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}{!reading && analysis.blocks && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{analysis.fromDigest || !analysis.complete ? tr("Written with AI") : tr("From the original posting")}</span>}</h3>
+                  {!reading && analysis.blocks && (analysis.fromDigest || !analysis.complete) && <p className="-mt-1.5 mb-3 text-xs text-muted-foreground">{tr("Summary made with AI from the posting. It can leave out details: check the original posting before you apply.")}</p>}
                   {aiReading && (
                     <p role="status" className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-blue-500" />{" "}{tr("Reading it with AI to get your exact fit…")}</p>
@@ -310,7 +327,7 @@ export default function JobDetail({
                   {/* while the full posting is being read, only the loading line shows: the first lines the job board shares would appear and then be replaced */}
                   <div className="space-y-3.5 leading-relaxed">
                     {reading
-                      ? null
+                      ? [92, 100, 78, 96, 60].map((w, i) => <div key={i} className="shimmer h-3.5 rounded bg-muted" style={{ width: `${w}%` }} />)
                       : analysis.blocks
                       ? analysis.blocks.map((b, i) =>
                           b.kind === "h" ? (

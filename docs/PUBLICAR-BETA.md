@@ -69,6 +69,9 @@ nadie los vea hay una tarea lista: `.github/workflows/enrich-jobs.yml` llama cad
 1. En GitHub → **Settings → Secrets and variables → Actions**, crea `SITE_URL` (`https://tu-dominio`, sin barra al final) y `CRON_SECRET` (el mismo de Vercel).
 2. Con la clave **gratis** de Gemini solo caben unas 150 lecturas al día (`JOB_FACTS_PER_DAY`, por defecto 150). Para leer miles al día activa la
    **facturación** de Gemini y sube `JOB_FACTS_PER_DAY` (por ejemplo 3000). Cada lectura usa unos 3 mil tokens: calcula el costo con el precio actual de tu modelo.
+   Medido con la clave gratis: sostiene unas **10 lecturas por minuto** si van de a una (una ráfaga rápida la deja en "ocupada"). Por eso el proceso lee
+   de a una, con 3 s de pausa: cada llamada (45 s) lee unas 8 y, llamada cada 5 minutos, son unas 2,300 al día (si subes `JOB_FACTS_PER_DAY`). Con una clave de
+   pago puedes subir `ENRICH_PARALLEL` (por ejemplo 4) y `ENRICH_PAUSE_MS` baja a 1000 para leer mucho más rápido.
 3. Sin esto la app funciona igual: lee a demanda (al abrir un empleo y los 10 de la pantalla) y marca con **~** los que aún no se leyeron.
 
 ## 5. Tu propio dominio

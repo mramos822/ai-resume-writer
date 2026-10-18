@@ -43,10 +43,17 @@ export interface EnrichResult {
 }
 
 /**
- * Reads unread jobs for up to `ms` milliseconds, `parallel` at a time (the free key allows few requests a minute: keep it low), each one taking
- * a reading from the day's budget. Stops when the budget is used up, when the AI says it is busy, or when there is nothing left to read.
+ * Reads unread jobs for up to `ms` milliseconds, steadily: `parallel` at a time with `pauseMs` between two readings of the same worker, each one
+ * taking a reading from the day's budget. The free key of Gemini sustains about ten readings a minute (one worker, 3 s pause) and answers "busy" to
+ * a burst, so the default is one worker; with a paid key raise ENRICH_PARALLEL (and JOB_FACTS_PER_DAY). Stops when the budget is used up, when
+ * the AI says it is busy, or when there is nothing left to read.
  */
-export async function enrichBatch({ ms = 45_000, parallel = 3, max = 40 }: { ms?: number; parallel?: number; max?: number } = {}): Promise<EnrichResult> {
+export async function enrichBatch({
+  ms = 45_000,
+  parallel = Math.max(1, Number(process.env.ENRICH_PARALLEL) || 1),
+  pauseMs = Number.isFinite(Number(process.env.ENRICH_PAUSE_MS)) && process.env.ENRICH_PAUSE_MS ? Number(process.env.ENRICH_PAUSE_MS) : 3000,
+  max = 40,
+}: { ms?: number; parallel?: number; pauseMs?: number; max?: number } = {}): Promise<EnrichResult> {
   const deadline = Date.now() + ms;
   const queue = await pickUnread(max);
   const result: EnrichResult = { read: 0, failed: 0 };
@@ -72,6 +79,7 @@ export async function enrichBatch({ ms = 45_000, parallel = 3, max = 40 }: { ms?
         }
         result.failed++;
       }
+      if (queue.length > 0 && pauseMs > 0) await new Promise((r) => setTimeout(r, pauseMs));
     }
   };
   await Promise.all(Array.from({ length: parallel }, worker));

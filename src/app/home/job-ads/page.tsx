@@ -24,7 +24,7 @@ import { REACH_ORDER } from "@/lib/jobReach";
 import { aboveLevel, levelOf } from "@/lib/jobLevel";
 import { matchesFilters, NO_FILTERS, type JobFilters } from "@/lib/jobFilters";
 import { byFreshnessThenFit } from "@/lib/jobRank";
-import JobFilterBar from "@/components/jobFilterBar";
+import { JobFilterControls, JobFilterPanel } from "@/components/jobFilterBar";
 import { jobSearchParams, withPhase } from "@/lib/jobSearchClient";
 import { ago, fitOf, skillsForFit } from "@/lib/jobFit";
 import { isPartialPosting, jobScore, profileBasics } from "@/lib/jobScore";
@@ -179,6 +179,7 @@ export default function JobSearchPage() {
   const [loadingMore, setLoadingMore] = useState(false); // our own jobs are on screen and the other boards are still answering
   const searchId = useRef(0); // only the answers of the last search are used
   const [filters, setFilters] = useState<JobFilters>(NO_FILTERS); // what the person chose to see
+  const [filtersOpen, setFiltersOpen] = useState(false); // the panel with the other choices
   const langMode = useRef<JobFilters["lang"]>("auto"); // read by the search: "all" asks for every language
   const [searchedPlace, setSearchedPlace] = useState(""); // the place the results are about, as the search understood it
   const [searchedRemote, setSearchedRemote] = useState(false); // the search was for remote work
@@ -385,6 +386,15 @@ export default function JobSearchPage() {
 
   // The jobs on screen (the first ten) are read in the background by the server, slowly, so their number becomes the exact one without
   // opening them. What comes back is shown in place: the order of the list does not move while somebody looks at it.
+  // a change of the filters; the language is asked of the server, so the search runs again with it
+  const changeFilters = (next: JobFilters) => {
+    const languageChanged = next.lang !== filters.lang;
+    setFilters(next);
+    if (languageChanged) {
+      langMode.current = next.lang;
+      void search();
+    }
+  };
   const rankedRef = useRef(ranked);
   rankedRef.current = ranked;
   const profileRef = useRef({ profile, template, basics });
@@ -481,6 +491,11 @@ export default function JobSearchPage() {
             </button>
           ))}
         </div>
+        {tab === "results" && jobs.length > 0 && (
+          <div className="min-w-0 flex-1">
+            <JobFilterControls value={filters} onChange={changeFilters} open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} shown={ranked.length} total={pool.length} />
+          </div>
+        )}
         {tab === "saved" && saved.some((j) => !appByKey.has(j.key)) && (
           <Button onClick={prepareAllSaved} disabled={!!preparing} className="gap-2 bg-blue-600 font-bold hover:bg-blue-700">
             {preparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
@@ -488,28 +503,12 @@ export default function JobSearchPage() {
           </Button>
         )}
         <div className="flex items-center gap-3">
-          {tab === "results" && sources.length > 0 && <p className="hidden text-xs text-muted-foreground lg:block">{tr("Sources:")}{" "}{sources.join(", ")}</p>}
           <Button type="button" variant="outline" onClick={() => setAdding(true)} className="gap-2 rounded-full font-semibold">
             <Link2 className="h-4 w-4" />{" "}{tr("Add a job")}</Button>
         </div>
       </div>
 
-      {tab === "results" && jobs.length > 0 && (
-        <JobFilterBar
-          value={filters}
-          shown={ranked.length}
-          total={pool.length}
-          onChange={(next) => {
-            const languageChanged = next.lang !== filters.lang;
-            setFilters(next);
-            if (languageChanged) {
-              // the language is asked of the server: the search runs again with it
-              langMode.current = next.lang;
-              void search();
-            }
-          }}
-        />
-      )}
+      {tab === "results" && jobs.length > 0 && filtersOpen && <JobFilterPanel value={filters} onChange={changeFilters} sources={sources} />}
 
       {noneHere && (
         <p className="mb-4 rounded-xl border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
