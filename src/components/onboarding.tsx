@@ -1055,6 +1055,18 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
     router.push(href);
   };
 
+  // while the phone bar is up, the page does not bounce/stretch at the scroll ends, so the fixed bar stays put
+  const barUp = open && (embedded ? topSlot !== null : step === "finish");
+  useEffect(() => {
+    if (!barUp) return;
+    const html = document.documentElement;
+    const prev = html.style.overscrollBehaviorY;
+    html.style.overscrollBehaviorY = "none";
+    return () => {
+      html.style.overscrollBehaviorY = prev;
+    };
+  }, [barUp]);
+
   if (!open) return null;
 
   const summary = [
@@ -1695,7 +1707,7 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
                 </button>
               ))}
             </div>
-            <Button onClick={generate} disabled={working} className="h-9 gap-2 rounded-full px-5 font-bold">
+            <Button onClick={generate} disabled={working} className="h-9 gap-2 rounded-full px-5 font-bold max-sm:hidden">
               {working ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               {working ? tr("Making your resume…") : editingId ? tr("Save changes") : tr("Create resume")}
             </Button>
@@ -1704,10 +1716,25 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
         )
       : null;
 
+  // on phones the main action (Download / Create resume / Save changes) sits in a bar at the bottom of the screen, within thumb reach
+  const showBottomBar = embedded ? topSlot !== null : step === "finish";
+  const bottomBar =
+    showBottomBar && typeof document !== "undefined"
+      ? createPortal(
+          <div className={`fixed inset-x-0 bottom-0 ${embedded ? "z-40" : "z-[60]"} border-t bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur [transform:translateZ(0)] will-change-transform sm:hidden`}>
+            <Button onClick={generate} disabled={working} className="h-12 w-full gap-2 rounded-full text-base font-bold">
+              {working ? <Loader2 className="h-5 w-5 animate-spin" /> : embedded || buildMode ? editingId ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" /> : <Download className="h-5 w-5" />}
+              {working ? tr("Making your resume…") : embedded || buildMode ? (editingId ? tr("Save changes") : tr("Create resume")) : tr("Download")}
+            </Button>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <div
       ref={scroller}
-      className={`${intro ? "animate-wizard-in " : ""}${embedded ? "relative" : "no-scrollbar fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-background"}`}
+      className={`${intro ? "animate-wizard-in " : ""}${showBottomBar ? "max-sm:pb-24 " : ""}${embedded ? "relative" :"no-scrollbar fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-background"}`}
       role={embedded ? undefined : "dialog"}
       aria-modal={embedded ? undefined : true}
       aria-label={tr("Set up your resume")}
@@ -1720,6 +1747,7 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
       )}
       <div className="relative flex min-h-full flex-col">
       {topToolbar}
+      {bottomBar}
       {!embedded && (
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur">
         <div className="h-0.5 w-full bg-border">
@@ -1760,7 +1788,7 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
                 {!isGuest && (
                   <Button size="sm" variant="outline" onClick={() => finishTo("/home")} disabled={working} className="hidden sm:inline-flex">{tr("Go to my dashboard")}</Button>
                 )}
-                <Button size="sm" onClick={generate} disabled={working} className="gap-1.5">
+                <Button size="sm" onClick={generate} disabled={working} className="gap-1.5 max-sm:hidden">
                   {working ? <Loader2 className="h-4 w-4 animate-spin" /> : buildMode ? <Plus className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                   {working ? tr("Making your resume…") : buildMode ? (editingId ? tr("Save changes") : tr("Create resume")) : tr("Download")}
                 </Button>
