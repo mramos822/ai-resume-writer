@@ -1,151 +1,86 @@
-// src/components/profile/CareerObjectiveSection.tsx
+// src/components/profile/careerObjectiveSection.tsx
 "use client";
 
-import React from "react";
-import { motion } from "framer-motion";
-import { useForm } from "react-hook-form";
-import { Target } from "lucide-react";
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronDown } from "lucide-react";
 import { useProfile } from "@/context/profileContext";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input"; // Import Input for jobTitle
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import JobTitleInput from "../jobTitleInput";
+import ExperienceLevelPicker from "@/components/experienceLevelPicker";
+import { useT } from "@/i18n/provider";
 
-interface CareerObjectiveForm {
-  careerObjective: string;
-  jobTitle: string; // Added jobTitle to form interface
-}
+const EXAMPLES = [
+  {
+    who: "Software engineer",
+    text: "Full-stack developer with five years of experience building web apps that people actually use. I like turning messy problems into simple tools, and I have led small teams through launches in React and Node.js. I am looking for a role where I can keep building and help others grow.",
+  },
+  {
+    who: "Marketing",
+    text: "Digital marketer who grew a brand's audience by 40% in two years through content and email campaigns. I enjoy mixing creative ideas with numbers to see what works. I want to bring that approach to a team that cares about its customers.",
+  },
+];
 
+/** Where the person says which job they want and tells their story. Changes go straight to the profile (Save keeps them). */
 const CareerObjectiveSection: React.FC = () => {
-  const { activeProfile, updateCareerObjective, updateJobTitle } = useProfile();
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<CareerObjectiveForm>({
-    defaultValues: {
-      careerObjective: activeProfile.careerObjective,
-      jobTitle: activeProfile.jobTitle, // Set default value for jobTitle
-    },
-  });
-
-  const onSubmit = (data: CareerObjectiveForm) => {
-    updateCareerObjective(data.careerObjective);
-    updateJobTitle(data.jobTitle); // Update jobTitle
-  };
+  const { tr } = useT();
+  const { activeProfile: profile, updateJobTitle, updateCareerObjective } = useProfile();
+  const [showExamples, setShowExamples] = useState(false);
+  const text = profile.careerObjective ?? "";
+  const n = text.trim().length;
+  const state = n === 0 ? "empty" : n < 250 ? "short" : n <= 700 ? "good" : "long";
+  const note = {
+    empty: "Write three to five sentences about who you are and what you bring.",
+    short: "Good start. A few more sentences will make it feel like a real introduction.",
+    good: "This length reads well.",
+    long: "It is getting long. Try to keep it to about five sentences.",
+  }[state];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">
-          Career Objective
-        </h2>
-        <p className="text-muted-foreground">
-          Define your professional goals and career aspirations
-        </p>
+    <motion.div className="space-y-7">
+      <div className="grid gap-x-6 gap-y-5 md:grid-cols-[minmax(0,1fr)_17rem]">
+        <div>
+          <label htmlFor="job-title" className="mb-1.5 block font-semibold">{tr("The job you are after")}</label>
+          <JobTitleInput value={profile.jobTitle ?? ""} onChange={updateJobTitle} placeholder={tr("Start typing, e.g. Software Engineer")} />
+          <p className="mt-1.5 text-sm text-muted-foreground">{tr("It goes under your name and helps match you with the right jobs.")}</p>
+        </div>
+        <ExperienceLevelPicker compact />
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Job Title */}
-        <div className="space-y-2">
-          <Label htmlFor="jobTitle">Current Job Title / Desired Role *</Label>
-          <Input
-            {...register("jobTitle", { required: "Job title is required" })}
-            type="text"
-            id="jobTitle"
-            placeholder="e.g., Senior Software Engineer"
-          />
-          {errors.jobTitle && (
-            <p className="text-sm text-destructive">{errors.jobTitle.message}</p>
-          )}
+      <div>
+        <label htmlFor="summary" className="mb-1.5 block font-semibold">{tr("Your summary")}</label>
+        <textarea
+          id="summary"
+          value={text}
+          onChange={(e) => updateCareerObjective(e.target.value)}
+          rows={7}
+          placeholder={tr("Tell it like you would to someone you just met at an interview: who you are, what you are good at, and what you want to do next.")}
+          className="w-full resize-y rounded-xl border bg-background px-4 py-3 text-[15px] leading-relaxed outline-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
+        />
+        <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+          <p className={state === "good" ? "font-medium text-green-600" : "text-muted-foreground"}>{note}</p>
+          <p className="shrink-0 tabular-nums text-muted-foreground">{n}{" "}{tr("characters")}</p>
         </div>
+      </div>
 
-        {/* Career Objective */}
-        <div className="space-y-2">
-          <Label htmlFor="careerObjective">
-            Career Objective Statement
-          </Label>
-          <div className="relative">
-            <Target className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
-            <Textarea
-              {...register("careerObjective", {
-                required: "Career objective is required",
-                minLength: {
-                  value: 50,
-                  message:
-                    "Career objective should be at least 50 characters",
-                },
-              })}
-              rows={6}
-              className="pl-10 resize-none"
-              placeholder="Describe your career goals, what you're looking for in your next role, and how you want to contribute to an organization..."
-            />
-          </div>
-          {errors.careerObjective && (
-            <p className="text-sm text-destructive">
-              {errors.careerObjective.message}
-            </p>
+      <div className="rounded-xl bg-muted/40">
+        <button type="button" aria-expanded={showExamples} onClick={() => setShowExamples((v) => !v)} className="flex w-full items-center justify-between px-4 py-3 text-left font-semibold">{tr("Need some inspiration?")}<ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-300 ${showExamples ? "rotate-180" : ""}`} />
+        </button>
+        <AnimatePresence initial={false}>
+          {showExamples && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} style={{ overflow: "hidden" }}>
+              <div className="space-y-4 px-4 pb-4">
+                {EXAMPLES.map((e) => (
+                  <div key={e.who}>
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{e.who}</p>
+                    <p className="mt-1 text-sm leading-relaxed">&ldquo;{tr(e.text)}&rdquo;</p>
+                    <button type="button" onClick={() => updateCareerObjective(e.text)} className="mt-1.5 text-sm font-semibold text-blue-500 hover:underline">{tr("Use it as a starting point")}</button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
           )}
-        </div>
-
-        <Button type="submit" className="w-full">
-          Update Profile Summary
-        </Button>
-      </form>
-
-      {/* Writing Tips */}
-      <Card className="border-blue-500">
-        <CardHeader>
-          <CardTitle className="font-semibold text-blue-400">
-            💡 Writing Tips
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="text-sm space-y-1">
-            <li>• Keep it concise but impactful (2–3 sentences)</li>
-            <li>• Focus on what you can offer, not just what you want</li>
-            <li>• Include your key strengths and experience level</li>
-            <li>• Mention the type of role or industry you’re targeting</li>
-            <li>• Use action words and specific achievements when possible</li>
-          </ul>
-        </CardContent>
-      </Card>
-
-      {/* Example Objectives */}
-      <Card className="border-blue-500">
-        <CardHeader>
-          <CardTitle className="font-semibold text-blue-400">
-            📝 Example Objectives
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div className="border-l-4 border-blue-500 pl-3">
-            <strong>Software Engineer:</strong> “Experienced full‐stack
-            developer with 5+ years building scalable web applications.
-            Seeking a senior engineering role where I can leverage my
-            expertise in React, Node.js, and cloud technologies to drive
-            innovation and mentor junior developers.”
-          </div>
-          <div className="border-l-4 border-green-500 pl-3">
-            <strong>Marketing Professional:</strong> “Results‐driven digital
-            marketing specialist with a proven track record of increasing
-            brand awareness by 40% and ROI by 35%. Looking to apply
-            data‐driven strategies and creative campaign development in a
-            growth‐focused marketing manager position.”
-          </div>
-        </CardContent>
-      </Card>
+        </AnimatePresence>
+      </div>
     </motion.div>
   );
 };

@@ -1,0 +1,17 @@
+rules_version = '2';
+// What the app needs from Firestore, and nothing more: each person reads and writes only their own document and the files they uploaded.
+// (users/{uid}: the theme; users/{uid}/uploadedFiles: the list of resumes the person uploaded.) Everything else is closed.
+// Deploy with `firebase deploy --only firestore:rules`, or paste it in the Firebase console (Firestore > Rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      match /uploadedFiles/{file} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

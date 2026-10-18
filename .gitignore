@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-check/
 /out/
 
 # production
@@ -32,6 +33,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -45,3 +47,14 @@ next-env.d.ts
 *Zone.Identifier
 # Local Netlify folder
 .netlify
+
+# generated scratch files
+/temp
+
+# copied from node_modules/pdfjs-dist by "npm run copy-pdf-worker" (runs on npm install)
+/public/pdf.worker.min.mjs
+/i18n-keys.json
+
+# originals of the illustrations (the site uses the light copies in public/)
+/design-source/
+/i18n-lists.json

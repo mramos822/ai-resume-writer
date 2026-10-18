@@ -1,8 +1,11 @@
 // src/app/api/job-ads/route.ts
 import { NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
 import admin from "firebase-admin";
 import { db } from "@/lib/mongodb";
 import OpenAI from "openai";
+import { AI_API_KEY, AI_BASE_URL, AI_MODEL } from "@/lib/aiConfig";
+import { fetchJobAdText, JOB_AD_LINK_ERROR } from "@/lib/jobAdText";
 
 // 1) Initialize Firebase Admin if needed
 if (!admin.apps.length) {
@@ -13,15 +16,14 @@ if (!admin.apps.length) {
   });
 }
 
-// 2) OpenAI client using your GitHub token
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-if (!GITHUB_TOKEN) {
-  console.error("Missing GITHUB_TOKEN");
+// 2) OpenAI-compatible client (Gemini by default)
+if (!AI_API_KEY) {
+  console.error("Missing AI_API_KEY");
 }
-const openai = GITHUB_TOKEN
+const openai = AI_API_KEY
   ? new OpenAI({
-      baseURL: "https://models.github.ai/inference",
-      apiKey: GITHUB_TOKEN,
+      baseURL: AI_BASE_URL,
+      apiKey: AI_API_KEY,
     })
   : null;
 
@@ -75,7 +77,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (!openai) {
     return NextResponse.json(
-      { error: "Server misconfiguration: missing GITHUB_TOKEN" },
+      { error: "Server misconfiguration: missing AI_API_KEY" },
       { status: 500 }
     );
   }
@@ -100,10 +102,16 @@ export async function POST(request: Request) {
     );
   }
 
+  let adText = body.rawText ?? "";
+  if (!adText && body.url) {
+    adText = (await fetchJobAdText(body.url)) ?? "";
+    if (!adText) {
+      return NextResponse.json({ error: JOB_AD_LINK_ERROR }, { status: 422 });
+    }
+  }
+
   // Build the AI prompt
-  const source = body.url
-    ? `Fetch and parse this job ad: ${body.url}`
-    : `Parse this job ad text:\n\n${body.rawText}`;
+  const source = `Parse this job ad text:\n\n${adText}`;
 
   const systemPrompt = `
 You are a job‐ad extractor. Return ONLY JSON with these fields:
@@ -113,11 +121,12 @@ You are a job‐ad extractor. Return ONLY JSON with these fields:
   "postedAt": string,     // ISO date
   "previewHtml": string   // short HTML snippet
 }
+Today is ${new Date().toISOString().slice(0, 10)}. Convert relative dates like "4 days ago" using today's date; if no date is given, use today.
 Respond with nothing else, no markdown fences.
 `.trim();
 
   const ai = await openai.chat.completions.create({
-    model: "mistral-ai/mistral-medium-2505",
+    model: AI_MODEL,
     temperature: 0,
     messages: [
       { role: "system", content: systemPrompt },
@@ -153,10 +162,10 @@ Respond with nothing else, no markdown fences.
   const record: JobAdRecord = {
     userId: decoded.uid,
     url: body.url,
-    rawText: body.rawText,
+    rawText: adText,
     companyName: parsed.companyName,
     jobTitle: parsed.jobTitle,
-    postedAt: new Date(parsed.postedAt),
+    postedAt: Number.isNaN(new Date(parsed.postedAt).getTime()) ? now : new Date(parsed.postedAt),
     previewHtml: parsed.previewHtml,
     createdAt: now,
     updatedAt: now,
@@ -167,10 +176,39 @@ Respond with nothing else, no markdown fences.
   return NextResponse.json({
     id: result.insertedId.toString(),
     url: body.url,
-    rawText: body.rawText,
+    rawText: adText,
     companyName: parsed.companyName,
     jobTitle: parsed.jobTitle,
     postedAt: parsed.postedAt,
     previewHtml: parsed.previewHtml,
   });
+}
+
+
+// 6) DELETE /api/job-ads?id=... → remove one of this user's job ads
+export async function DELETE(request: Request) {
+  const auth = request.headers.get("Authorization")?.split(" ")[1];
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let decoded: admin.auth.DecodedIdToken;
+  try {
+    decoded = await admin.auth().verifyIdToken(auth);
+  } catch {
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  }
+
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id || !ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "Bad job ad ID" }, { status: 400 });
+  }
+
+  const result = await db
+    .collection<JobAdRecord>("jobAds")
+    .deleteOne({ _id: new ObjectId(id), userId: decoded.uid } as never);
+  if (result.deletedCount === 0) {
+    return NextResponse.json({ error: "Job ad not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
 }

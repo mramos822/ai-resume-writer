@@ -1,16 +1,10 @@
 // src/lib/openaiRouter.ts
 import { getOpenAIChatCompletion } from './openaiClient';
-import { getMistralChatCompletion } from './mistralClient';
+import { AI_MODEL } from './aiConfig';
 
-// Set your model here
-export const MODEL = process.env.AI_MODEL || 'mistral-ai/mistral-medium-2505';
+// Model is configured via AI_MODEL (see aiConfig.ts)
+export const MODEL = AI_MODEL;
 
-export async function getChatCompletion(params: any) {
-  if (MODEL.startsWith('openai/')) {
-    return getOpenAIChatCompletion({ ...params, model: MODEL });
-  } else if (MODEL.startsWith('mistral-ai/')) {
-    return getMistralChatCompletion({ ...params, model: MODEL });
-  } else {
-    throw new Error('Unknown model provider');
-  }
-} 
+export async function getChatCompletion(params: Parameters<typeof getOpenAIChatCompletion>[0]) {
+  return getOpenAIChatCompletion({ ...params, model: MODEL });
+}

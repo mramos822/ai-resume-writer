@@ -50,6 +50,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
   const blob = maybeFile as Blob;
+  if (blob.size > 10 * 1024 * 1024) {
+    return NextResponse.json({ error: "That file is too large. The limit is 10 MB." }, { status: 413 });
+  }
   const buf = Buffer.from(await blob.arrayBuffer());
 
   // 4) Decide filename + type

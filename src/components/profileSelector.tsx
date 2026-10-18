@@ -4,8 +4,11 @@
 import React, { useState } from "react";
 import { useProfile } from "@/context/profileContext";
 import { Button } from "@/components/ui/button";
+import { useDialog } from "@/context/dialogContext";
+import { useT } from "@/i18n/provider";
 
 export default function ProfileSelector() {
+  const { tr } = useT();
   const {
     profiles,
     activeProfileId,
@@ -15,10 +18,12 @@ export default function ProfileSelector() {
     deleteProfile,
   } = useProfile();
   const [newName, setNewName] = useState("");
+  const dialog = useDialog();
 
   return (
     <div className="flex items-center space-x-2">
       <select
+        aria-label={tr("Profile")}
         value={activeProfileId ?? ""}
         onChange={(e) => setActiveProfileId(e.target.value)}
         className="border p-1 rounded"
@@ -30,15 +35,14 @@ export default function ProfileSelector() {
         ))}
       </select>
 
-      <Button onClick={createProfile} size="sm">
-        + New
-      </Button>
+      <Button onClick={() => createProfile()} size="sm">{tr("+ New")}</Button>
 
       <input
         type="text"
+        aria-label={tr("New name")}
         value={newName}
         onChange={(e) => setNewName(e.target.value)}
-        placeholder="Rename to…"
+        placeholder={tr("Rename to…")}
         className="border p-1 rounded w-32"
       />
       <Button
@@ -47,21 +51,22 @@ export default function ProfileSelector() {
           setNewName("");
         }}
         size="sm"
-      >
-        Rename
-      </Button>
+      >{tr("Rename")}</Button>
 
       <Button
-        onClick={() => {
-          if (activeProfileId && confirm("Delete this profile?")) {
-            deleteProfile(activeProfileId);
-          }
+        onClick={async () => {
+          if (!activeProfileId) return;
+          const ok = await dialog.confirm({
+            title: tr("Delete this profile?"),
+            description: tr("All of its details and uploads will be removed for good."),
+            confirmText: tr("Delete profile"),
+            tone: "danger",
+          });
+          if (ok) deleteProfile(activeProfileId);
         }}
         size="sm"
         variant="destructive"
-      >
-        Delete
-      </Button>
+      >{tr("Delete")}</Button>
     </div>
   );
 }

@@ -1,29 +1,130 @@
 // src/app/home/profile/page.tsx
 "use client";
 
-import React, { useCallback, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Save, RefreshCw, AlertCircle } from 'lucide-react';
+import SkillGroupsEditor from "@/components/skillGroupsEditor";
+import React, { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Save,
+  RefreshCw,
+  Mail,
+  Target,
+  Wrench,
+  Building2,
+  GraduationCap,
+  Sprout,
+  FolderKanban,
+  Globe,
+  Languages,
+  Sparkles,
+  Check,
+  type LucideIcon,
+} from "lucide-react";
 
 import { useProfile } from "@/context/profileContext";
-import ContactInfoSection from '@/components/profile/contactInfoSection';
-import CareerObjectiveSection from '@/components/profile/careerObjectiveSection';
-import SkillsSection from '@/components/profile/skillsSection';
-import JobHistorySection from '@/components/profile/jobHistorySection';
-import EducationSection from '@/components/profile/educationSection';
-import InternshipSection from '@/components/profile/internshipSection';
+import ContactInfoSection from "@/components/profile/contactInfoSection";
+import CareerObjectiveSection from "@/components/profile/careerObjectiveSection";
+import SkillsSection from "@/components/profile/skillsSection";
+import JobHistorySection from "@/components/profile/jobHistorySection";
+import EducationSection from "@/components/profile/educationSection";
+import ExtrasEditor from "@/components/extrasEditor";
+import SkillLevelPicker from "@/components/skillLevelPicker";
+import AdviceView from "@/components/adviceView";
+import { getProfileProgress } from "@/lib/profileProgress";
 
-import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/context/toastContext";
-import { usePathname } from 'next/navigation';
+import { useDialog } from "@/context/dialogContext";
+import { useTranslationOffer } from "@/components/useTranslationOffer";
+import { usePathname } from "@/i18n/navigation";
+import { authFetch } from "@/lib/authFetch";
+import { useT } from "@/i18n/provider";
+import { useHidePageScrollbar } from "@/lib/useHidePageScrollbar";
 
-const VALID_SECTIONS = ["contact","objective","skills","jobs","education","internships"] as const;
-type SectionKey = typeof VALID_SECTIONS[number];
+const VALID_SECTIONS = ["contact", "objective", "skills", "jobs", "education", "projects", "internships", "links", "languages"] as const;
+type SectionKey = (typeof VALID_SECTIONS)[number];
 
-/** 
+/** Each section gets its own color so people can find their place at a glance. */
+const META: Record<
+  SectionKey,
+  { label: string; blurb: string; icon: LucideIcon; tile: string; ring: string; title?: string }
+> = {
+  contact: {
+    label: "Contact",
+    blurb: "Your name and where to find you. It only goes on the resumes you make.",
+    title: "How can employers reach you?",
+    icon: Mail,
+    tile: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+    ring: "ring-blue-300",
+  },
+  objective: {
+    label: "Objective",
+    blurb: "The job you want and a few lines about you. This is the first thing people read.",
+    title: "Tell your story",
+    icon: Target,
+    tile: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+    ring: "ring-violet-300",
+  },
+  skills: {
+    label: "Skills",
+    blurb: "Add what you do well. The first ones are the ones people see first.",
+    title: "What are you good at?",
+    icon: Wrench,
+    tile: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+    ring: "ring-amber-300",
+  },
+  jobs: {
+    label: "Jobs",
+    blurb: "Your jobs, newest first. Short bullets with results work best.",
+    title: "Where have you worked?",
+    icon: Building2,
+    tile: "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
+    ring: "ring-teal-300",
+  },
+  education: {
+    label: "Education",
+    blurb: "Schools, degrees and courses.",
+    title: "Where did you study?",
+    icon: GraduationCap,
+    tile: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+    ring: "ring-rose-300",
+  },
+  projects: {
+    label: "Projects",
+    blurb: "Class, personal or open-source projects. Great when you have little work experience.",
+    title: "What have you built?",
+    icon: FolderKanban,
+    tile: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+    ring: "ring-sky-300",
+  },
+  links: {
+    label: "Links",
+    blurb: "Your portfolio, LinkedIn, GitHub, and any certifications.",
+    title: "Where can people see your work?",
+    icon: Globe,
+    tile: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
+    ring: "ring-indigo-300",
+  },
+  languages: {
+    label: "Languages",
+    blurb: "Add them with your level in each.",
+    title: "Which languages do you speak?",
+    icon: Languages,
+    tile: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-300",
+    ring: "ring-fuchsia-300",
+  },
+  internships: {
+    label: "Internships",
+    blurb: "Formal internships, co-ops or traineeships.",
+    title: "Any internships?",
+    icon: Sprout,
+    tile: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    ring: "ring-emerald-300",
+  },
+};
+
+/**
  * Reads location.hash and updates whenever:
  *  - the hash changes (in-page navigation)
  *  - the pathname changes to /home/profile (cross-page Link→hash)
@@ -36,21 +137,14 @@ function useHash(): SectionKey {
   };
 
   const [hash, setHash] = useState<SectionKey>(() => {
-    // on first mount, pick up any existing fragment
     if (typeof window !== "undefined") return getHash();
     return "contact";
   });
 
   React.useEffect(() => {
-    // in-page hash changes
     const onHashChange = () => setHash(getHash());
     window.addEventListener("hashchange", onHashChange);
-
-    // cross-page nav: if we just landed on /home/profile, re-read the hash
-    if (pathname === "/home/profile") {
-      setHash(getHash());
-    }
-
+    if (pathname === "/home/profile") setHash(getHash());
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [pathname]);
 
@@ -58,6 +152,7 @@ function useHash(): SectionKey {
 }
 
 function ResumeAdviceSection() {
+  const { tr } = useT();
   const [advice, setAdvice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,171 +163,258 @@ function ResumeAdviceSection() {
     setAdvice(null);
     setError(null);
     try {
-      const res = await fetch('/api/job-ads/advice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await authFetch("/api/job-ads/advice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile: activeProfile }),
       });
-      if (!res.ok) throw new Error('Failed to get advice');
+      if (!res.ok) throw new Error(tr("Failed to get advice"));
       const data = await res.json();
-      setAdvice(data.advice || data.text || 'No advice returned.');
+      setAdvice(data.advice || data.text || "No advice returned.");
     } catch (err: unknown) {
-      let message = 'Unknown error';
-      if (err instanceof Error) {
-        message = err.message;
-      }
-      setError(message);
+      setError(err instanceof Error ? err.message : tr("Unknown error"));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="my-8 p-6 bg-neutral-800 rounded-lg shadow">
-      <h2 className="text-lg font-semibold mb-2 text-neutral-100">Resume Advice</h2>
-      <button
-        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-        onClick={handleRequestAdvice}
-        disabled={loading}
-      >
-        {loading ? 'Requesting Advice…' : 'Get Resume Advice'}
-      </button>
-      {loading && <div className="mt-4 text-blue-400">Loading advice…</div>}
-      {error && <div className="mt-4 text-red-500">{error}</div>}
-      {advice && !loading && (
-        <div className="mt-4 p-4 bg-neutral-900 rounded text-neutral-100 whitespace-pre-line">
-          {advice}
+    <Card className="mt-4 overflow-hidden border-blue-200 sm:mt-6">
+      <CardContent className="p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-bold">{tr("Want a second opinion?")}</h2>
+              <p className="text-sm text-muted-foreground">{tr("Kaizo reads your whole profile and tells you what could be stronger.")}</p>
+            </div>
+          </div>
+          <Button onClick={handleRequestAdvice} disabled={loading} className="gap-2">
+            {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {loading ? tr("Reading your profile…") : tr("Get advice")}
+          </Button>
         </div>
-      )}
-    </div>
+
+        {loading && (
+          <div className="mt-5 space-y-2">
+            <div className="shimmer h-3 w-11/12 rounded bg-muted" />
+            <div className="shimmer h-3 w-9/12 rounded bg-muted" />
+            <div className="shimmer h-3 w-10/12 rounded bg-muted" />
+          </div>
+        )}
+        {error && (
+          <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{tr("We couldn't get advice right now (")}{error}{tr("). Please try again in a moment.")}</p>
+        )}
+        {advice && !loading && (
+          <AdviceView text={advice} />
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
 export default function ProfilePage() {
-  const { hasUnsavedChanges, saveChanges } = useProfile();
+  const { tr } = useT();
+  useHidePageScrollbar();
+  const { hasUnsavedChanges, saveChanges, activeProfile, parseFile, applyProfileData, updateSkillLevels, updateSkillGroups, updateLanguages } = useProfile();
+  const dialog = useDialog();
+  const offerTranslation = useTranslationOffer();
   const [isReParsing, setIsReParsing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const toast = useToast();
 
-  // read + update from URL hash
   const activeTab = useHash();
+  // below 1024 px the side menu is closed, so the sections have their own strip of chips here; choosing one takes you to the top of it
+  const navRef = useRef<HTMLDivElement>(null);
+  const firstRender = useRef(true);
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ inline: "center", block: "nearest" });
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    // always back to the top: the strip then sits in the same place for every section, however long or short its content is
+    if (window.innerWidth < 1024) window.scrollTo({ top: 0 });
+  }, [activeTab]);
+  const progress = getProfileProgress(activeProfile, tr);
+  const doneMap: Record<string, boolean> = Object.fromEntries(progress.sections.map((s) => [s.key, s.done]));
+  doneMap.internships = (activeProfile.internships?.length ?? 0) > 0;
+  doneMap.projects = (activeProfile.projects?.length ?? 0) > 0;
+  doneMap.links = (activeProfile.links?.length ?? 0) + (activeProfile.certifications?.length ?? 0) > 0;
+  doneMap.languages = (activeProfile.languages?.length ?? 0) > 0;
 
-  // when user clicks the in-page tab buttons:
-  const onTabChange = useCallback((val: string) => {
-    window.location.hash = val;            // triggers hashchange → our hook updates
-  }, []);
 
   const handleSave = async () => {
-    await saveChanges();
-    toast.success('Profile saved successfully!');
+    setSaving(true);
+    try {
+      await saveChanges();
+      toast.success(tr("Profile saved. Your next resume will use these details."));
+    } catch {
+      toast.error(tr("We couldn't save your changes. Check your connection and try again."));
+    } finally {
+      setSaving(false);
+    }
   };
 
+  // Warn before closing the tab or reloading while there are unsaved edits
+  React.useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedChanges]);
+
+  /** Reads your most recent upload again and refreshes this profile with it. */
   const handleReParse = async () => {
     setIsReParsing(true);
-    // simulate a re-parse (or you could re-fetch & re-call parseAndUpdate here)
-    await new Promise((r) => setTimeout(r, 2000));
-    setIsReParsing(false);
-    toast.success('Profile re-parsed successfully!');
+    try {
+      const res = await authFetch("/api/uploads");
+      const files: { id: string; filename: string; createdAt: string }[] = res.ok ? await res.json() : [];
+      const latest = [...files].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0];
+      if (!latest) {
+        toast.info(tr("You haven't uploaded anything yet. Import a resume from the Dashboard first."));
+        return;
+      }
+      const ok = await dialog.confirm({
+        title: tr("Re-read “{filename}”?", { filename: latest.filename }),
+        description:
+          tr("We'll read your most recent upload again and replace the details in this profile with what we find. Anything you edited by hand will be overwritten."),
+        confirmText: tr("Re-read it"),
+        tone: "danger",
+      });
+      if (!ok) return;
+      const parsed = await parseFile(latest.id);
+      const translated = await offerTranslation(parsed);
+      if (translated) await applyProfileData(translated);
+    } catch (err) {
+      toast.error(tr("We couldn't re-read your file: {message}", { message: (err as Error).message }));
+    } finally {
+      setIsReParsing(false);
+    }
   };
 
+
+  const meta = META[activeTab];
+  const ActiveIcon = meta.icon;
+
   return (
-    <div className="min-h-screen py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                Your Profile
-              </h1>
-              <p className="text-muted-foreground">
-                Review and edit your structured professional information
-              </p>
-            </div>
+    <div className="mx-auto max-w-[1600px] pb-24">
+      <h1 className="sr-only">{tr("Profile")}</h1>
 
-            <div className="flex items-center space-x-3">
-              <Button
-                variant="outline"
-                onClick={handleReParse}
-                disabled={isReParsing}
+      {/* the sections, always at hand on phones and tablets (from 1024 px the side menu has them) */}
+      <nav aria-label={tr("Profile sections")} className="sticky top-[65px] z-10 -mx-4 -mt-4 mb-3 border-b bg-background/90 backdrop-blur-md sm:-mx-5 sm:-mt-5 sm:top-16 lg:hidden">
+        <div ref={navRef} className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 py-2 sm:px-5">
+          {VALID_SECTIONS.map((k) => {
+            const m = META[k];
+            const I = m.icon;
+            const on = k === activeTab;
+            return (
+              <a
+                key={k}
+                href={`#${k}`}
+                aria-current={on ? "page" : undefined}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition-colors ${on ? "border-blue-600 bg-blue-600 text-white" : "bg-card text-muted-foreground hover:text-foreground"}`}
               >
-                <RefreshCw
-                  className={`h-4 w-4 mr-2 ${
-                    isReParsing ? 'animate-spin' : ''
-                  }`}
-                />
-                Re-parse History
-              </Button>
+                <I className="h-4 w-4" aria-hidden />
+                {tr(m.label)}
+                {doneMap[k] && !on && <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" strokeWidth={3} aria-label={tr("done")} />}
+              </a>
+            );
+          })}
+        </div>
+      </nav>
 
-              <Button onClick={handleSave} disabled={!hasUnsavedChanges}>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </Button>
-            </div>
-          </div>
+      <div className="grid gap-6 lg:grid-cols-1">
 
-          {hasUnsavedChanges && (
-            <Alert className="mt-4 border-amber-200 bg-amber-50">
-              <AlertCircle className="h-4 w-4" color='black' />
-              <AlertDescription className="text-amber-800">
-                You have unsaved changes
-              </AlertDescription>
-            </Alert>
-          )}
-        </motion.div>
+        {/* Active section */}
+        <div className="w-full min-w-0">
+          <Card className="rounded-2xl shadow-sm max-lg:min-h-[calc(100dvh-10rem)]">
+            <CardContent className="p-4 sm:p-8">
+              {/* the progress of the whole profile stays still while the sections change: only the section's own title and content animate */}
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 sm:mb-6">
+                <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }} className="flex min-w-0 items-center gap-3 sm:gap-4">
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl ${meta.tile}`}>
+                    <ActiveIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="text-xl font-extrabold leading-tight sm:text-2xl">{tr(meta.title ?? meta.label)}</h2>
+                    <p className="text-sm text-muted-foreground">{tr(meta.blurb)}</p>
+                  </div>
+                </motion.div>
+                <div className="w-full min-w-[13rem] sm:w-auto sm:text-right">
+                  <p className="flex items-baseline gap-1.5 leading-none sm:justify-end">
+                    <span className="text-3xl font-black tabular-nums tracking-tight">{progress.percent}</span>
+                    <span className="text-base font-bold text-muted-foreground">%</span>
+                    <span className="ml-1 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{progress.percent === 100 ? tr("complete") : tr("done")}</span>
+                  </p>
+                  <div className="mt-2 flex gap-1" aria-hidden>
+                    {progress.sections.map((sec) => (
+                      <span key={sec.key} title={sec.label} className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${sec.done ? "bg-blue-600" : "bg-border"}`} />
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {progress.next ? <>{tr("Next:")}{" "}{progress.next.hint.toLowerCase()}</> : tr("Everything a resume needs is here.")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleReParse}
+                    disabled={isReParsing}
+                    title={tr("Reads the newest file you uploaded again and refreshes this profile with it (it replaces what you edited by hand)")}
+                    className="mt-1 inline-flex min-h-6 items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-60"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isReParsing ? "animate-spin" : ""}`} />
+                    {isReParsing ? tr("Reading your upload…") : tr("Refresh from my latest upload")}
+                  </button>
+                </div>
+              </div>
 
-        {/* Sections Tabs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card>
-            <CardContent className="p-6">
-              <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-                <TabsList className="grid w-full grid-cols-6">
-                  {VALID_SECTIONS.map((key) => (
-                    <TabsTrigger key={key} value={key} className="flex items-center space-x-2">
-                      {{
-                        contact: "👤",
-                        objective: "🎯",
-                        skills: "⚡",
-                        jobs: "💼",
-                        education: "🎓",
-                        internships: "🌟", // New icon for internships
-                      }[key]}
-                      <span className="hidden sm:inline capitalize">{key}</span>
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-
-                <TabsContent value="contact" className="mt-6">
-                  <ContactInfoSection />
-                </TabsContent>
-                <TabsContent value="objective" className="mt-6">
-                  <CareerObjectiveSection />
-                </TabsContent>
-                <TabsContent value="skills" className="mt-6">
-                  <SkillsSection />
-                </TabsContent>
-                <TabsContent value="jobs" className="mt-6">
-                  <JobHistorySection />
-                </TabsContent>
-                <TabsContent value="education" className="mt-6">
-                  <EducationSection />
-                </TabsContent>
-                <TabsContent value="internships" className="mt-6">
-                  <InternshipSection />
-                </TabsContent>
-              </Tabs>
+              <motion.div key={`${activeTab}-body`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
+                {activeTab === "contact" && <ContactInfoSection />}
+                  {activeTab === "objective" && <CareerObjectiveSection />}
+                  {activeTab === "skills" && (
+                    <>
+                      <SkillsSection />
+                      <SkillLevelPicker skills={activeProfile.skills ?? []} levels={activeProfile.skillLevels ?? {}} onChange={updateSkillLevels} />
+                      <SkillGroupsEditor skills={activeProfile.skills ?? []} groups={activeProfile.skillGroups} onChange={updateSkillGroups} />
+                    </>
+                  )}
+                  {activeTab === "jobs" && <JobHistorySection />}
+                  {activeTab === "education" && <EducationSection />}
+                  {activeTab === "projects" && <ExtrasEditor only={["projects"]} />}
+                  {activeTab === "internships" && <ExtrasEditor only={["internships"]} />}
+                  {activeTab === "links" && <ExtrasEditor only={["links", "certifications", "interests"]} />}
+                  {activeTab === "languages" && <ExtrasEditor only={["languages"]} languages={activeProfile.languages ?? []} onLanguagesChange={updateLanguages} />}
+              </motion.div>
             </CardContent>
           </Card>
-        </motion.div>
-        <ResumeAdviceSection />
+
+          <ResumeAdviceSection />
+        </div>
+
       </div>
+
+      {/* Save bar appears only when there is something to save */}
+      <AnimatePresence>
+        {hasUnsavedChanges && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-center justify-between gap-4 rounded-lg border border-amber-300 bg-card p-3 pl-4 shadow-2xl sm:bottom-6"
+          >
+            <p className="text-sm font-medium">{tr("You have changes that aren't saved yet.")}</p>
+            <Button onClick={handleSave} disabled={saving} className="gap-2">
+              {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? tr("Saving…") : tr("Save changes")}
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

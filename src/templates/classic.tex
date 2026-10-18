@@ -57,7 +57,7 @@
 \vspace{0.5ex}
 <% profile.jobHistory.forEach(function(job) { %>
   \noindent{\bfseries $\blacklozenge$ <%= job.title || 'TITLE' %>, <%= job.company || 'COMPANY' %>}
-  \hfill {\color{graytext}\textit{<%= job.startDate || 'START' %> --- <%= job.endDate || 'END' %>}}\\
+  \hfill {\color{graytext}\textit{<%= period(job) %>}}\\
   <% if (job.location) { %>
     \hspace*{1.5em}{\small <%= job.location %>}\\
   <% } %>
@@ -76,7 +76,7 @@
 <% if (profile.education && profile.education.length > 0) { %>
 \sectionbar{Education}
 <% profile.education.forEach(function(edu) { %>
-  \noindent{\bfseries $\blacklozenge$ <%= edu.school || 'SCHOOL' %>} \hfill {\color{graytext}\textit{<%= edu.dates || 'DATES' %>}}\\
+  \noindent{\bfseries $\blacklozenge$ <%= edu.school || 'SCHOOL' %>} \hfill {\color{graytext}\textit{<%= period(edu) %>}}\\
   {\emph{<%= edu.degree || 'DEGREE' %>}}\\[1ex]
 <% }); %>
 <% } %>
@@ -104,7 +104,7 @@
 \sectionbar{Internships}
 <% profile.internships.forEach(function(internship) { %>
   \noindent{\bfseries $\blacklozenge$ <%= internship.title || 'TITLE' %>, <%= internship.company || 'COMPANY' %>}
-  \hfill {\color{graytext}\textit{<%= internship.startDate || 'START' %> --- <%= internship.endDate || 'END' %>}}\\
+  \hfill {\color{graytext}\textit{<%= period(internship) %>}}\\
   <% if (internship.location) { %>
     \hspace*{1.5em}{\small <%= internship.location %>}\\
   <% } %>

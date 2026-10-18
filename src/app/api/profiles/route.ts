@@ -12,6 +12,9 @@ if (!admin.apps.length) {
   });
 }
 
+// the first profile starts as the sample person instead of "Profile 1"; it is replaced by the real name once known
+const DEFAULT_PROFILE_NAME = "John Doe";
+
 const EMPTY_DATA = {
   contactInfo: { email: "", phone: "" },
   careerObjective: "",
@@ -50,7 +53,7 @@ export async function GET(request: Request) {
 
   // lazy‐create a first profile if none
   if (docs.length === 0) {
-    const name = "Profile 1";
+    const name = DEFAULT_PROFILE_NAME;
     const res = await db.collection("profiles").insertOne({
       userId: decoded.uid,
       name,
@@ -91,12 +94,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
-  // how many they already have?
-  const count = await db
-    .collection("profiles")
-    .countDocuments({ userId: decoded.uid });
+  // the name may come with the request (a profile is named when it is made); without one it gets "Profile N"
+  const body = (await request.json().catch(() => ({}))) as { name?: unknown };
+  const asked = typeof body.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, 60) : null;
+  if (asked !== null && !asked) {
+    return NextResponse.json({ error: "name-empty" }, { status: 400 });
+  }
 
-  const newName = `Profile ${count + 1}`;
+  const mine = await db.collection("profiles").find({ userId: decoded.uid }, { projection: { name: 1 } }).toArray();
+  const same = (a: string, b: string) => a.trim().replace(/\s+/g, " ").toLowerCase() === b.trim().replace(/\s+/g, " ").toLowerCase();
+  if (asked) {
+    const taken = mine.find((p) => typeof p.name === "string" && same(p.name, asked));
+    if (taken) return NextResponse.json({ error: "name-taken", id: taken._id.toString(), name: taken.name }, { status: 409 });
+  }
+
+  const newName = asked ?? `Profile ${mine.length + 1}`;
   const insert = await db.collection("profiles").insertOne({
     userId: decoded.uid,
     name: newName,

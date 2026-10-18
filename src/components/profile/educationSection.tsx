@@ -3,18 +3,18 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  GraduationCap,
-  Calendar,
-} from "lucide-react";
-import { useProfile, EducationEntry } from "@/context/profileContext";
+import { Plus } from "lucide-react";
+import { useProfile, EducationEntry, formatEducationDates } from "@/context/profileContext";
+import EntryCard from "./entryCard";
 import EducationEntryForm from "./educationEntryForm";
+import { useDialog } from "@/context/dialogContext";
+import { asResumeLang } from "@/lib/dateFormat";
+import { useT } from "@/i18n/provider";
 
 const EducationSection: React.FC = () => {
+  const { tr, locale } = useT();
   const { activeProfile, deleteEducationEntry } = useProfile();
+  const dialog = useDialog();
   const [editingEducation, setEditingEducation] = useState<EducationEntry | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -24,15 +24,20 @@ const EducationSection: React.FC = () => {
     setShowAddForm(false);
   }, [activeProfile]);
 
+  // a school is a fold: a tap opens its details to edit and a second tap closes it
   const handleEdit = (education: EducationEntry) => {
-    setEditingEducation(education);
-    setShowAddForm(true);
+    setShowAddForm(false);
+    setEditingEducation((cur) => (cur?.id === education.id ? null : education));
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this education entry?")) {
-      deleteEducationEntry(id);
-    }
+  const handleDelete = async (id: string) => {
+    const ok = await dialog.confirm({
+      title: tr("Remove this education entry?"),
+      description: tr("It will disappear from your profile and from resumes you generate next."),
+      confirmText: tr("Remove"),
+      tone: "danger",
+    });
+    if (ok) deleteEducationEntry(id);
   };
 
   const handleCloseForm = () => {
@@ -41,36 +46,24 @@ const EducationSection: React.FC = () => {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
+    <motion.div className="space-y-4">
       {/* Header + Add Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">
-            Education
-          </h2>
-          <p className="text-muted-foreground">
-            Manage your educational background and qualifications
-          </p>
-        </div>
+      <div className="flex items-center justify-end">
         <button
           onClick={() => {
             setEditingEducation(null);
             setShowAddForm(true);
           }}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
         >
           <Plus className="h-4 w-4" />
-          <span>Add Education</span>
+          <span>{tr("Add Education")}</span>
         </button>
       </div>
 
-      {/* Add / Edit Form */}
+      {/* Add form (the edit form opens in the place of the school being edited) */}
       <AnimatePresence>
-        {(showAddForm || editingEducation) && (
+        {showAddForm && !editingEducation && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
@@ -85,80 +78,41 @@ const EducationSection: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Education List */}
-      <div className="space-y-4">
-        {activeProfile.education.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <GraduationCap className="h-12 w-12 mx-auto mb-4 text-white" />
-            <p className="text-lg font-medium mb-2">No education entries yet</p>
-            <p>Add your educational background to get started</p>
-          </div>
-        ) : (
-          activeProfile.education.map((education, index) => (
-            <motion.div
+      {/* Education list: a timeline, newest first */}
+      {activeProfile.education.length === 0 ? (
+        <div className="rounded-2xl border border-dashed px-6 py-12 text-center">
+          <p className="text-lg font-bold">{tr("Where did you study?")}</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{tr("Add your school, degree or course. Even a course you are still taking counts.")}</p>
+          <button
+            onClick={() => {
+              setEditingEducation(null);
+              setShowAddForm(true);
+            }}
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />{" "}{tr("Add your school")}</button>
+        </div>
+      ) : (
+        <ul className="relative ml-2 space-y-3 border-l-2 border-border/70 pl-6">
+          {activeProfile.education.map((education, index) => (
+            <EntryCard
               key={education.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-neutral-800 border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+              index={index}
+              when={formatEducationDates(education, " – ", asResumeLang(locale))}
+              where={education.location}
+              title={education.school}
+              subtitle={education.degree}
+              note={[education.gpa ? `GPA ${education.gpa}` : "", education.honors ?? ""].filter(Boolean).join("  ·  ") || undefined}
+              current={Boolean(education.current)}
+              open={editingEducation?.id === education.id}
+              onToggle={() => handleEdit(education)}
+              onDelete={() => handleDelete(education.id)}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <GraduationCap className="h-5 w-5 text-white" />
-                    <h3 className="text-lg font-semibold text-white">
-                      {education.school}
-                    </h3>
-                  </div>
-
-                  <p className="text-white font-medium mb-2">
-                    {education.degree}
-                  </p>
-
-                  <div className="flex items-center space-x-4 text-sm text-white">
-                    <div className="flex items-center space-x-1">
-                      <Calendar className="h-4 w-4" />
-                      <span>{education.dates}</span>
-                    </div>
-                    {education.gpa && (
-                      <div>
-                        <span className="font-medium">GPA: {education.gpa}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2 ml-4">
-                  <button
-                    onClick={() => handleEdit(education)}
-                    className="p-2 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-colors"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(education.id)}
-                    className="p-2 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          ))
-        )}
-      </div>
-
-      {/* Tips */}
-      <div className="rounded-lg p-4 border border-blue-500">
-        <h4 className="font-semibold text-purple-500 mb-2">🎓 Education Tips:</h4>
-        <ul className="text-sm text-neutral-200 space-y-1">
-          <li>• List education in reverse chronological order (most recent first)</li>
-          <li>• Include relevant coursework, honors, or achievements</li>
-          <li>• Add GPA if it’s 3.5 or higher (or equivalent)</li>
-          <li>• Include certifications, bootcamps, and professional development</li>
-          <li>• Don’t forget relevant online courses or training</li>
+              <EducationEntryForm education={education} onClose={handleCloseForm} embedded />
+            </EntryCard>
+          ))}
         </ul>
-      </div>
+      )}
     </motion.div>
   );
 };

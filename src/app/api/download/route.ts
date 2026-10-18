@@ -54,6 +54,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Bad file ID" }, { status: 400 });
   }
 
+  if (uid.startsWith("guest-")) {
+    return NextResponse.json({ error: "Create a free account to download your resume.", code: "account-required" }, { status: 403 });
+  }
+
   // 4) Look up metadata, enforcing metadata.userId = uid
   const filesColl = sharedDb.collection(`${bucketName}.files`);
   const fileDoc = await filesColl.findOne({

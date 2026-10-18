@@ -1,350 +1,381 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// Settings: who you are, how the app looks, your password and your data. A rail on the left jumps between the parts, each part
+// says what it is for, and the save bar only appears when there is something to save.
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import Link from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation"; // Import useRouter for navigation
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button"; // Assuming you have a Button component
-import {
-    Select,
-    SelectTrigger,
-    SelectValue,
-    SelectContent,
-    SelectItem,
-} from "@/components/ui/select";
-import { useTheme } from "@/context/themeContext"; // Import the useTheme hook
-import { getAuth, onAuthStateChanged, updateProfile } from "firebase/auth"; // Import Firebase Auth
+import { getAuth, onAuthStateChanged, updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential, signOut, type User } from "firebase/auth";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
-import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
+import { Check, Download, Eye, EyeOff, KeyRound, Loader2, Monitor, Moon, Palette, ShieldAlert, Sun, Trash2, UserRound } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useTheme } from "@/context/themeContext";
+import { useDialog } from "@/context/dialogContext";
+import { auth as appAuth } from "@/lib/firebase";
+import { authFetch } from "@/lib/authFetch";
 import { getFriendlyFirebaseErrorMessage } from "@/utils/firebaseErrorHandler";
+import { useT } from "@/i18n/provider";
 
 type ThemeType = "light" | "dark" | "system";
 
+const SECTIONS = [
+    { id: "account", label: "Account", icon: UserRound },
+    { id: "appearance", label: "Appearance", icon: Palette },
+    { id: "security", label: "Password", icon: KeyRound },
+    { id: "data", label: "Your data", icon: ShieldAlert },
+];
+
+const field = "h-11 w-full rounded-lg border bg-background px-3.5 text-[15px] outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-blue-500/50 disabled:opacity-60";
+
+/** How strong a new password is: 0 to 4. */
+function strength(p: string): number {
+    let n = 0;
+    if (p.length >= 8) n++;
+    if (p.length >= 12) n++;
+    if (/[a-z]/.test(p) && /[A-Z]/.test(p)) n++;
+    if (/\d/.test(p) && /[^A-Za-z0-9]/.test(p)) n++;
+    return n;
+}
+
+/** A little drawing of the app in each theme. */
+function ThemeArt({ mode }: { mode: ThemeType }) {
+    const paint = (dark: boolean) => (
+        <div className={`flex h-full w-full ${dark ? "bg-[#0b1220]" : "bg-[#f4f6fb]"}`}>
+            <div className={`w-1/4 space-y-1.5 p-2 ${dark ? "bg-[#111a2e]" : "bg-white"}`}>
+                <div className="h-1.5 w-3/4 rounded bg-blue-500" />
+                {[0, 1, 2].map((i) => (
+                    <div key={i} className={`h-1 rounded ${dark ? "bg-white/15" : "bg-black/10"}`} />
+                ))}
+            </div>
+            <div className="flex-1 space-y-1.5 p-2">
+                <div className={`h-1.5 w-1/2 rounded ${dark ? "bg-white/70" : "bg-black/60"}`} />
+                <div className={`h-6 rounded ${dark ? "bg-[#111a2e]" : "bg-white"}`} />
+                <div className="h-1.5 w-1/3 rounded bg-blue-500" />
+            </div>
+        </div>
+    );
+    if (mode === "system") {
+        return (
+            <div className="relative h-full w-full overflow-hidden">
+                <div className="absolute inset-0">{paint(false)}</div>
+                <div className="absolute inset-0" style={{ clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }}>{paint(true)}</div>
+            </div>
+        );
+    }
+    return paint(mode === "dark");
+}
+
 export default function SettingsPage() {
-    const { theme, setTheme } = useTheme(); // Use the global theme context
-    const [name, setName] = useState<string>(""); // State for the user's name
-    const [email, setEmail] = useState<string>(""); // State for the user's email
-    const [isSaving, setIsSaving] = useState<boolean>(false); // State for saving status
-    const [error, setError] = useState<string | null>(null); // State for error messages
-    const router = useRouter(); // Initialize router for navigation
-    const [isOAuthUser, setIsOAuthUser] = useState(false);
-    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-    const [showNewPassword, setShowNewPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { tr, trd } = useT();
+    const { theme, setTheme } = useTheme();
+    const router = useRouter();
+    const dialog = useDialog();
+
+    const [user, setUser] = useState<User | null>(null);
+    const [name, setName] = useState("");
+    const [savedName, setSavedName] = useState("");
+    const [savedTheme, setSavedTheme] = useState<ThemeType>(theme as ThemeType);
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [show, setShow] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [exporting, setExporting] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [active, setActive] = useState("account");
+    const loaded = useRef(false);
 
     useEffect(() => {
-        const auth = getAuth(); // Initialize Firebase Auth
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                // Populate the name and email fields if the user is signed in
-                setName(user.displayName || ""); // Use displayName or an empty string
-                setEmail(user.email || ""); // Use email or an empty string
-                // Check if any provider is NOT password (i.e., OAuth)
-                const isOAuth = user.providerData.some(
-                    (provider) => provider.providerId !== "password"
-                );
-                setIsOAuthUser(isOAuth);
+        return onAuthStateChanged(getAuth(), (u) => {
+            setUser(u);
+            if (u && !loaded.current) {
+                loaded.current = true;
+                setName(u.displayName || "");
+                setSavedName(u.displayName || "");
+                setSavedTheme(theme as ThemeType);
             }
         });
-
-        // Cleanup the listener on unmount
-        return () => unsubscribe();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const form = useForm({
-        defaultValues: {
-            name: name,
-            email: email,
-            theme: theme,
-            currentPassword: "",
-            newPassword: "",
-            confirmPassword: "",
-        },
-    });
-
+    // the rail follows the part of the page that is in view
     useEffect(() => {
-        if (name && email && theme) {
-            form.reset({
-                name,
-                email,
-                theme,
-                currentPassword: "",
-                newPassword: "",
-                confirmPassword: "",
-            });
-        }
-    }, [name, email, theme, form]);
+        const els = SECTIONS.map((s) => document.getElementById(s.id)).filter((e): e is HTMLElement => !!e);
+        const obs = new IntersectionObserver(
+            (entries) => entries.forEach((e) => e.isIntersecting && setActive(e.target.id)),
+            { rootMargin: "-20% 0px -65% 0px" }
+        );
+        els.forEach((e) => obs.observe(e));
+        return () => obs.disconnect();
+    }, []);
 
-    const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        setIsSaving(true);
+    const isOAuth = !!user?.providerData.some((p) => p.providerId !== "password");
+    const provider = user?.providerData[0]?.providerId === "google.com" ? "Google" : isOAuth ? tr("a social account") : tr("Email and password");
+    const initials = (name || user?.email || "?").split(/[\s._@-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
+    const since = user?.metadata.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "";
+
+    const wantsPassword = !isOAuth && (currentPassword !== "" || newPassword !== "" || confirmPassword !== "");
+    const dirty = name.trim() !== savedName.trim() || theme !== savedTheme || wantsPassword;
+    const score = useMemo(() => strength(newPassword), [newPassword]);
+
+    const discard = () => {
+        setName(savedName);
+        if (theme !== savedTheme) setTheme(savedTheme);
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
         setError(null);
+    };
 
+    const save = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        if (!user || saving) return;
+        setSaving(true);
+        setError(null);
         try {
-            const auth = getAuth();
-            const user = auth.currentUser;
-            const values = form.getValues();
+            if (name.trim() !== (user.displayName || "")) await updateProfile(user, { displayName: name.trim() });
+            await setDoc(doc(getFirestore(), "users", user.uid), { theme }, { merge: true });
 
-            if (!user) {
-                throw new Error("No user is currently signed in.");
+            if (wantsPassword) {
+                if (!currentPassword || !newPassword || !confirmPassword) throw new Error(tr("To change your password, fill in all three password fields."));
+                if (newPassword !== confirmPassword) throw new Error(tr("The new password and its confirmation do not match."));
+                if (newPassword.length < 8) throw new Error(tr("Use at least 8 characters for the new password."));
+                await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email!, currentPassword));
+                await updatePassword(user, newPassword);
+                toast.success(tr("Password changed."));
             }
-
-            // Update the displayName in Firebase
-            if (values.name !== user.displayName) {
-                await updateProfile(user, { displayName: values.name });
-            }
-
-            // Save theme to Firestore
-            const db = getFirestore();
-            const userRef = doc(db, "users", user.uid);
-            await setDoc(
-                userRef,
-                { theme: values.theme },
-                { merge: true }
-            );
-
-            // Change password if not OAuth and fields are filled
-            if (
-                !isOAuthUser &&
-                values.currentPassword &&
-                values.newPassword &&
-                values.confirmPassword
-            ) {
-                if (values.newPassword !== values.confirmPassword) {
-                    throw new Error("New password and confirmation do not match.");
-                }
-                // Re-authenticate
-                const credential = EmailAuthProvider.credential(
-                    user.email!,
-                    values.currentPassword
-                );
-                await reauthenticateWithCredential(user, credential);
-                await updatePassword(user, values.newPassword);
-                toast.success("Password changed successfully.");
-            }
-
-            toast.success("Profile settings saved.");
-
-            // Clear password fields after successful save
-            form.reset({
-                name: values.name,
-                email: values.email,
-                theme: values.theme,
-                currentPassword: "",
-                newPassword: "",
-                confirmPassword: "",
-            });
-
-        } catch (err: unknown) {
-            console.error("Error saving changes:", err);
-            setError(getFriendlyFirebaseErrorMessage(err));
+            setSavedName(name.trim());
+            setSavedTheme(theme as ThemeType);
+            setCurrentPassword("");
+            setNewPassword("");
+            setConfirmPassword("");
+            toast.success(tr("Settings saved."));
+        } catch (err) {
+            console.error("Error saving settings", err);
+            setError(err instanceof Error && !("code" in err) ? err.message : getFriendlyFirebaseErrorMessage(err));
         } finally {
-            setIsSaving(false);
+            setSaving(false);
         }
     };
 
-    const handleCancel = () => {
-        router.push("/home"); // Navigate back to the home page
+    const handleExport = async () => {
+        setExporting(true);
+        try {
+            const res = await authFetch("/api/account");
+            if (!res.ok) throw new Error();
+            const url = URL.createObjectURL(await res.blob());
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "kaizo-my-data.json";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch {
+            toast.error(tr("We couldn't prepare your data. Please try again."));
+        } finally {
+            setExporting(false);
+        }
     };
+
+    const handleDeleteAccount = async () => {
+        const typed = await dialog.prompt({
+            title: tr("Delete your account?"),
+            description: tr("Your account, profiles, resumes, applications and saved jobs will be removed for good. Download your data first if you want to keep a copy."),
+            label: tr("Type DELETE to confirm"),
+            placeholder: tr("DELETE"),
+            confirmText: tr("Delete my account"),
+            validate: (v) => (v.trim() === "DELETE" ? null : "Type the word DELETE in capital letters."),
+        });
+        if (typed?.trim() !== "DELETE") return;
+        setDeleting(true);
+        try {
+            const res = await authFetch("/api/account", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: "DELETE" }) });
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 401 && data.code === "reauth") {
+                toast.error(tr("For your security, log in again and then delete your account."));
+                await signOut(appAuth);
+                router.push("/login?view=login");
+                return;
+            }
+            if (!res.ok) throw new Error(trd(data.error) || "");
+            await signOut(appAuth).catch(() => {});
+            router.push("/");
+        } catch (e) {
+            toast.error((e as Error).message || tr("We couldn't delete your account. Please try again or contact us."));
+            setDeleting(false);
+        }
+    };
+
+    const THEMES: { id: ThemeType; label: string; hint: string; icon: typeof Sun }[] = [
+        { id: "light", label: "Light", hint: "Bright and clean", icon: Sun },
+        { id: "dark", label: "Dark", hint: "Easy on the eyes", icon: Moon },
+        { id: "system", label: "Automatic", hint: "Follows your device", icon: Monitor },
+    ];
 
     return (
-        <div className="flex items-center justify-center min-h-screen text-gray-900 dark:text-gray-100">
-            <div className="w-full max-w-md">
-                <h1 className="text-2xl font-bold mb-6">Settings</h1>
-                <Form {...form}>
-                    <form className="space-y-6" onSubmit={handleSave}>
-                        {/* Name Field */}
-                        <FormField
-                            control={form.control}
-                            name="name"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Name</FormLabel>
-                                    <FormControl>
-                                        <Input
-                                            {...field}
-                                            placeholder="Enter your name"
-                                            disabled={isSaving}
-                                        />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+        <div className="mx-auto max-w-5xl pb-24 sm:pb-28">
+            {/* who you are */}
+            <header className="relative overflow-hidden rounded-2xl border bg-card p-4 sm:rounded-3xl sm:p-8">
+                <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-blue-600/15 blur-3xl" />
+                <div className="relative flex items-center gap-4 sm:gap-5">
+                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-xl font-black text-white shadow-lg shadow-blue-600/30 sm:h-20 sm:w-20 sm:rounded-2xl sm:text-3xl">{initials || "?"}</span>
+                    <div className="min-w-0">
+                        <h1 className="truncate text-xl font-black tracking-tight sm:text-3xl">{name || tr("Your settings")}</h1>
+                        <p className="truncate text-sm text-muted-foreground sm:text-base">{user?.email}</p>
+                        <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-semibold sm:mt-2 sm:gap-2">
+                            <span className="rounded-full bg-muted px-2 py-0.5 sm:px-2.5 sm:py-1">{tr("Signed in with")}{" "}{provider}</span>
+                            {since && <span className="rounded-full bg-muted px-2 py-0.5 sm:px-2.5 sm:py-1">{tr("Member since")}{" "}{since}</span>}
+                        </p>
+                    </div>
+                </div>
+            </header>
 
-                        {/* Email Field */}
-                        <FormField
-                            control={form.control}
-                            name="email"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Email</FormLabel>
-                                    <FormControl>
-                                        <Input
-                                            {...field}
-                                            placeholder="Enter your email"
-                                            disabled
-                                        />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+            <div className="mt-5 grid gap-10 sm:mt-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
+                {/* the rail */}
+                <nav aria-label={tr("Settings sections")} className="hidden lg:block">
+                    <ul className="sticky top-24 space-y-1">
+                        {SECTIONS.map((s) => (
+                            <li key={s.id}>
+                                <a href={`#${s.id}`} aria-current={active === s.id ? "true" : undefined} className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${active === s.id ? "bg-blue-600/10 text-blue-600 dark:text-blue-400" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}>
+                                    <s.icon className="h-4 w-4" /> {tr(s.label)}
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                </nav>
 
-                        {/* Theme Field */}
-                        <FormField
-                            control={form.control}
-                            name="theme"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Theme</FormLabel>
-                                    <FormControl>
-                                        <Select
-                                            onValueChange={(value) => {
-                                                field.onChange(value);
-                                                setTheme(value as ThemeType);
-                                            }}
-                                            value={field.value}
-                                            disabled={isSaving}
-                                        >
-                                            <SelectTrigger id="theme">
-                                                <SelectValue placeholder="Select theme" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="light">Light</SelectItem>
-                                                <SelectItem value="dark">Dark</SelectItem>
-                                                <SelectItem value="system">System</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
-                        {/* Password Fields */}
-                        <FormField
-                            control={form.control}
-                            name="currentPassword"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Current Password</FormLabel>
-                                    <FormControl>
-                                        <div className="relative">
-                                            <Input
-                                                {...field}
-                                                type={showCurrentPassword ? "text" : "password"}
-                                                placeholder="Enter your current password"
-                                                disabled={isOAuthUser}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowCurrentPassword((v) => !v)}
-                                                className="absolute inset-y-0 right-3 flex items-center text-gray-500 dark:text-gray-400"
-                                                tabIndex={-1}
-                                            >
-                                                {showCurrentPassword ? (
-                                                    <EyeSlashIcon className="h-5 w-5" />
-                                                ) : (
-                                                    <EyeIcon className="h-5 w-5" />
-                                                )}
-                                            </button>
-                                        </div>
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="newPassword"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>New Password</FormLabel>
-                                    <FormControl>
-                                        <div className="relative">
-                                            <Input
-                                                {...field}
-                                                type={showNewPassword ? "text" : "password"}
-                                                placeholder="Enter your new password"
-                                                disabled={isOAuthUser}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowNewPassword((v) => !v)}
-                                                className="absolute inset-y-0 right-3 flex items-center text-gray-500 dark:text-gray-400"
-                                                tabIndex={-1}
-                                            >
-                                                {showNewPassword ? (
-                                                    <EyeSlashIcon className="h-5 w-5" />
-                                                ) : (
-                                                    <EyeIcon className="h-5 w-5" />
-                                                )}
-                                            </button>
-                                        </div>
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="confirmPassword"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Confirm Password</FormLabel>
-                                    <FormControl>
-                                        <div className="relative">
-                                            <Input
-                                                {...field}
-                                                type={showConfirmPassword ? "text" : "password"}
-                                                placeholder="Confirm your password"
-                                                disabled={isOAuthUser}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowConfirmPassword((v) => !v)}
-                                                className="absolute inset-y-0 right-3 flex items-center text-gray-500 dark:text-gray-400"
-                                                tabIndex={-1}
-                                            >
-                                                {showConfirmPassword ? (
-                                                    <EyeSlashIcon className="h-5 w-5" />
-                                                ) : (
-                                                    <EyeIcon className="h-5 w-5" />
-                                                )}
-                                            </button>
-                                        </div>
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
-                        {/* Buttons */}
-                        <div className="flex justify-end space-x-4">
-                            <Button
-                                type="submit"
-                                disabled={isSaving}
-                                className="w-32 bg-blue-500 hover:bg-blue-600 text-white"
-                            >
-                                {isSaving ? "Saving..." : "Save"}
-                            </Button>
-                            <Button
-                                type="button"
-                                onClick={handleCancel}
-                                className="w-32 bg-gray-500 hover:bg-gray-600 text-white"
-                            >
-                                Cancel
-                            </Button>
+                <form onSubmit={save} className="min-w-0 space-y-8 sm:space-y-14" noValidate>
+                    {/* account */}
+                    <section id="account" className="scroll-mt-24" aria-labelledby="account-h">
+                        <h2 id="account-h" className="text-lg font-extrabold sm:text-xl">{tr("Account")}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">{tr("This is how Kaizo greets you.")}</p>
+                        <div className="mt-4 grid gap-4 sm:mt-5 sm:grid-cols-2 sm:gap-5">
+                            <div>
+                                <label htmlFor="s-name" className="mb-1.5 block text-sm font-semibold">{tr("Name")}</label>
+                                <input id="s-name" className={field} value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("Your name")} autoComplete="name" maxLength={80} disabled={saving} />
+                            </div>
+                            <div>
+                                <label htmlFor="s-email" className="mb-1.5 block text-sm font-semibold">{tr("Email")}</label>
+                                <input id="s-email" className={`${field} cursor-not-allowed bg-muted/50`} value={user?.email || ""} readOnly aria-describedby="s-email-h" />
+                                <p id="s-email-h" className="mt-1.5 text-xs text-muted-foreground">{tr("Your email is how you sign in, so it cannot be changed here.")}</p>
+                            </div>
                         </div>
+                    </section>
 
-                        {/* Error Message */}
-                        {error && <p className="text-red-500 mt-2">{error}</p>}
-                    </form>
-                </Form>            </div>
+                    {/* appearance */}
+                    <section id="appearance" className="scroll-mt-24" aria-labelledby="appearance-h">
+                        <h2 id="appearance-h" className="text-lg font-extrabold sm:text-xl">{tr("Appearance")}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">{tr("It changes right away, and is saved with the rest.")}</p>
+                        <div role="radiogroup" aria-label={tr("Theme")} className="mt-4 grid grid-cols-3 gap-2 sm:mt-5 sm:gap-4">
+                            {THEMES.map((t) => {
+                                const on = theme === t.id;
+                                return (
+                                    <button key={t.id} type="button" role="radio" aria-checked={on} onClick={() => setTheme(t.id)} className={`group rounded-xl border-2 p-1.5 text-left transition-all sm:rounded-2xl sm:p-2 ${on ? "border-blue-600 bg-blue-600/5" : "border-transparent bg-muted/40 hover:border-border"}`}>
+                                        <span className="block aspect-[16/10] overflow-hidden rounded-lg ring-1 ring-black/10 sm:rounded-xl"><ThemeArt mode={t.id} /></span>
+                                        <span className="mt-1.5 flex items-center justify-between px-0.5 pb-0.5 sm:mt-2.5 sm:px-1.5 sm:pb-1">
+                                            <span>
+                                                <span className="flex items-center gap-1 text-xs font-bold sm:gap-1.5 sm:text-sm"><t.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> {tr(t.label)}</span>
+                                                <span className="block text-xs text-muted-foreground max-sm:hidden">{tr(t.hint)}</span>
+                                            </span>
+                                            <span className={`flex h-5 w-5 items-center justify-center rounded-full border max-sm:hidden ${on ? "border-blue-600 bg-blue-600 text-white" : "border-border"}`}>{on && <Check className="h-3 w-3" strokeWidth={4} />}</span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
+
+                    {/* password */}
+                    <section id="security" className="scroll-mt-24" aria-labelledby="security-h">
+                        <h2 id="security-h" className="text-lg font-extrabold sm:text-xl">{tr("Password")}</h2>
+                        {isOAuth ? (
+                            <p className="mt-3 rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">{tr("You sign in with")}{" "}{provider}{tr(", so there is no Kaizo password to change. Manage it in that account.")}</p>
+                        ) : (
+                            <>
+                                <p className="mt-1 text-sm text-muted-foreground">{tr("Leave these empty if you do not want to change it.")}</p>
+                                <div className="mt-4 grid max-w-xl gap-4 sm:mt-5 sm:gap-5">
+                                    <div>
+                                        <label htmlFor="s-cur" className="mb-1.5 block text-sm font-semibold">{tr("Current password")}</label>
+                                        <div className="relative">
+                                            <input id="s-cur" className={`${field} pr-11`} type={show ? "text" : "password"} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" disabled={saving} />
+                                            <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? tr("Hide passwords") : tr("Show passwords")} className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+                                                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
+                                        <div>
+                                            <label htmlFor="s-new" className="mb-1.5 block text-sm font-semibold">{tr("New password")}</label>
+                                            <input id="s-new" className={field} type={show ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" aria-describedby="s-strength" disabled={saving} />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="s-conf" className="mb-1.5 block text-sm font-semibold">{tr("Repeat it")}</label>
+                                            <input id="s-conf" className={field} type={show ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" disabled={saving} />
+                                        </div>
+                                    </div>
+                                    {newPassword && (
+                                        <div id="s-strength" aria-live="polite">
+                                            <div className="flex gap-1.5" aria-hidden>
+                                                {[1, 2, 3, 4].map((i) => (
+                                                    <span key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${score >= i ? (score <= 1 ? "bg-red-500" : score <= 2 ? "bg-amber-500" : "bg-green-500") : "bg-muted"}`} />
+                                                ))}
+                                            </div>
+                                            <p className="mt-1.5 text-xs text-muted-foreground">{["Too short", "Weak", "Fair", "Good", "Strong"][score]}{tr(". Use 12 or more characters, with capitals, numbers and symbols.")}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </section>
+
+                    {/* your data */}
+                    <section id="data" className="scroll-mt-24" aria-labelledby="data-h">
+                        <h2 id="data-h" className="text-lg font-extrabold sm:text-xl">{tr("Your data")}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">{tr("You decide what Kaizo keeps. How it is used is in the")}{" "}<Link href="/privacy" className="font-medium text-blue-600 underline dark:text-blue-400">{tr("Privacy Policy")}</Link>.
+                        </p>
+                        <div className="mt-4 divide-y overflow-hidden rounded-2xl border sm:mt-5">
+                            <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:gap-4 sm:p-5">
+                                <div>
+                                    <p className="font-semibold">{tr("Download a copy of your data")}</p>
+                                    <p className="text-sm text-muted-foreground">{tr("Your profiles, applications, saved jobs and the list of your files, in one file.")}</p>
+                                </div>
+                                <Button type="button" variant="outline" onClick={handleExport} disabled={exporting} className="gap-2">
+                                    {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} {exporting ? tr("Preparing…") : tr("Download my data")}
+                                </Button>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-3 bg-red-500/[0.04] p-4 sm:gap-4 sm:p-5">
+                                <div>
+                                    <p className="font-semibold text-red-600 dark:text-red-400">{tr("Delete my account")}</p>
+                                    <p className="text-sm text-muted-foreground">{tr("Removes your account, profiles, resumes, applications and saved jobs for good.")}</p>
+                                </div>
+                                <Button type="button" variant="outline" onClick={handleDeleteAccount} disabled={deleting} className="gap-2 border-red-500/50 text-red-600 hover:bg-red-500/10 hover:text-red-600 dark:text-red-400">
+                                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} {deleting ? tr("Deleting…") : tr("Delete my account")}
+                                </Button>
+                            </div>
+                        </div>
+                    </section>
+
+                    {error && (
+                        <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-400">{error}</p>
+                    )}
+
+                    {/* the save bar: only when something changed */}
+                    {dirty && (
+                        <div role="region" aria-label={tr("Unsaved changes")} className="fixed inset-x-3 bottom-4 z-30 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-2xl border bg-card/95 p-3 pl-5 shadow-2xl backdrop-blur">
+                            <p className="text-sm font-semibold"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-amber-400" aria-hidden />{tr("You have unsaved changes")}</p>
+                            <div className="flex gap-2">
+                                <Button type="button" variant="ghost" onClick={discard} disabled={saving}>{tr("Discard")}</Button>
+                                <Button type="submit" disabled={saving} className="gap-2">
+                                    {saving && <Loader2 className="h-4 w-4 animate-spin" />} {saving ? tr("Saving…") : tr("Save changes")}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </form>
+            </div>
         </div>
     );
 }

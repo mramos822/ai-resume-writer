@@ -16,7 +16,7 @@ jest.mock("@/components/ui/button", () => ({
 
 jest.mock("@/components/ui/form", () => ({
     Form: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    FormField: ({ render, ...props }: { render: (args: any) => React.ReactNode }) => <>{render({ field: {} })}</>,
+    FormField: ({ render, ...props }: { render: (args: { field: Record<string, unknown> }) => React.ReactNode }) => <>{render({ field: {} })}</>,
     FormItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     FormLabel: ({ children }: { children: React.ReactNode }) => <label>{children}</label>,
     FormControl: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

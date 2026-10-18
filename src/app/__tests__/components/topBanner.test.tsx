@@ -1,106 +1,70 @@
-/* eslint-disable @next/next/no-img-element */
-
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import TopBanner from "@/components/topBanner";
-import { signOut } from "firebase/auth";
-
-
-// Mock dependencies
-jest.mock("@heroicons/react/24/outline", () => ({
-    Bars3Icon: (props: React.SVGProps<SVGSVGElement>) => <svg data-testid="bars-icon" {...props} />,
-}));
 
 jest.mock("next/link", () => ({
     __esModule: true,
-    default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children: React.ReactNode }) => (
-        <a href={href} {...props}>{children}</a>
+    default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+        <a href={href} {...props}>
+            {children}
+        </a>
     ),
 }));
 
-jest.mock("next/image", () => ({
-    __esModule: true,
-    default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img alt={props.alt} {...props} />,
-}));
-
-const pushMock = jest.fn();
 jest.mock("next/navigation", () => ({
-    useRouter: () => ({ push: pushMock }),
+    useRouter: () => ({ push: jest.fn() }),
     usePathname: () => "/home",
 }));
 
 jest.mock("firebase/auth", () => ({
     signOut: jest.fn(() => Promise.resolve()),
 }));
+jest.mock("@/lib/firebase", () => ({ auth: {} }));
 
-// Mock auth.currentUser
-jest.mock("@/lib/firebase", () => ({
-    auth: {
-        currentUser: {
-            displayName: "Jane Doe",
-        },
-    },
+let mockUser: { displayName?: string | null; email?: string | null } | null = {
+    displayName: "Jane Doe",
+    email: "jane@example.com",
+};
+jest.mock("@/context/authContext", () => ({
+    useAuth: () => ({ user: mockUser, loading: false }),
 }));
 
-// At the top of your test file
-let mockDisplayName = "Jane Doe";
-jest.mock("@/lib/firebase", () => ({
-    auth: {
-        get currentUser() {
-            return { displayName: mockDisplayName };
-        },
-    },
-}));
+// The guided tour opener is just a function; the real one dispatches a window event
+jest.mock("@/components/guidedTour", () => ({ openTour: jest.fn() }));
 
-// Mock UI components
-jest.mock("@/components/ui/avatar", () => ({
-    Avatar: ({ children }: { children: React.ReactNode }) => <div data-testid="avatar">{children}</div>,
-    AvatarImage: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img data-testid="avatar-image" {...props} alt="" />,
-    AvatarFallback: ({ children }: { children: React.ReactNode }) => <span data-testid="avatar-fallback">{children}</span>,
-}));
-
-jest.mock("@/components/ui/dropdown-menu", () => ({
-    DropdownMenu: ({ children }: { children: React.ReactNode }) => <div data-testid="dropdown-menu">{children}</div>,
-    DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="dropdown-trigger">{children}</div>,
-    DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div data-testid="dropdown-content">{children}</div>,
-    DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-        <div data-testid="dropdown-item" onClick={onClick}>{children}</div>
-    ),
-}));
+// the day / night switch needs the app's theme provider, which is exercised elsewhere
+jest.mock("@/components/themeSwitch", () => ({ __esModule: true, default: () => <div data-testid="theme-toggle" /> }));
 
 describe("TopBanner", () => {
-    it("renders logo, page title, and avatar", () => {
-        render(<TopBanner toggleSidePanel={jest.fn()} />);
-        expect(screen.getByAltText("Marcus Home")).toBeInTheDocument();
-        expect(screen.getByText("Home")).toBeInTheDocument();
-        expect(screen.getByText("Marcus")).toBeInTheDocument();
-        expect(screen.getByTestId("avatar-fallback")).toHaveTextContent("jd");
+    beforeEach(() => {
+        mockUser = { displayName: "Jane Doe", email: "jane@example.com" };
     });
 
-    it("calls toggleSidePanel when hamburger is clicked", () => {
-        const toggleMock = jest.fn();
-        render(<TopBanner toggleSidePanel={toggleMock} />);
-        fireEvent.click(screen.getByTestId("bars-icon"));
-        expect(toggleMock).toHaveBeenCalled();
+    it("shows the current page title", () => {
+        render(<TopBanner toggleSidePanel={() => {}} />);
+        expect(screen.getByText("Dashboard")).toBeInTheDocument();
     });
 
-    it("shows correct initials for single name", () => {
-        mockDisplayName = "Alice";
-        render(<TopBanner toggleSidePanel={jest.fn()} />);
-        expect(screen.getByTestId("avatar-fallback")).toHaveTextContent("a");
+    it("has a quick 'New resume' shortcut", () => {
+        render(<TopBanner toggleSidePanel={() => {}} />);
+        expect(screen.getByRole("link", { name: /new resume/i })).toHaveAttribute("href", "/home/resumes/new");
     });
 
-    it("navigates to settings when Settings is clicked", () => {
-        render(<TopBanner toggleSidePanel={jest.fn()} />);
-        fireEvent.click(screen.getAllByTestId("dropdown-item")[0]);
-        expect(pushMock).toHaveBeenCalledWith("/home/settings");
+    it("calls toggleSidePanel when the menu button is clicked", () => {
+        const toggle = jest.fn();
+        render(<TopBanner toggleSidePanel={toggle} />);
+        fireEvent.click(screen.getByLabelText("Toggle menu"));
+        expect(toggle).toHaveBeenCalledTimes(1);
     });
 
-    it("calls signOut and redirects on Logout", async () => {
-        render(<TopBanner toggleSidePanel={jest.fn()} />);
-        fireEvent.click(screen.getAllByTestId("dropdown-item")[1]);
-        expect(signOut).toHaveBeenCalled();
-        await Promise.resolve();
-        expect(pushMock).toHaveBeenCalledWith("/");
+    it("shows the user's initials", () => {
+        render(<TopBanner toggleSidePanel={() => {}} />);
+        expect(screen.getByText("JD")).toBeInTheDocument();
+    });
+
+    it("falls back to the email name for a single-name user", () => {
+        mockUser = { displayName: "Cher", email: "cher@example.com" };
+        render(<TopBanner toggleSidePanel={() => {}} />);
+        expect(screen.getByText("C")).toBeInTheDocument();
     });
 });

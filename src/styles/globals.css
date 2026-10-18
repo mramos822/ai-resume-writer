@@ -44,79 +44,482 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.147 0.004 49.25);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.147 0.004 49.25);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.147 0.004 49.25);
-  --primary: oklch(0.216 0.006 56.043);
-  --primary-foreground: oklch(0.985 0.001 106.423);
-  --secondary: oklch(0.97 0.001 106.424);
-  --secondary-foreground: oklch(0.216 0.006 56.043);
-  --muted: oklch(0.97 0.001 106.424);
-  --muted-foreground: oklch(0.553 0.013 58.071);
-  --accent: oklch(0.97 0.001 106.424);
-  --accent-foreground: oklch(0.216 0.006 56.043);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.923 0.003 48.717);
-  --input: oklch(0.923 0.003 48.717);
-  --ring: oklch(0.709 0.01 56.259);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0.001 106.423);
-  --sidebar-foreground: oklch(0.147 0.004 49.25);
-  --sidebar-primary: oklch(0.216 0.006 56.043);
-  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-accent: oklch(0.97 0.001 106.424);
-  --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
-  --sidebar-border: oklch(0.923 0.003 48.717);
-  --sidebar-ring: oklch(0.709 0.01 56.259);
+  --radius: 0.5rem;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #eef3ff;
+  --accent-foreground: #1d4ed8;
+  --destructive: #dc2626;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: #2563eb;
+  --chart-1: #2563eb;
+  --chart-2: #14b8a6;
+  --chart-3: #6366f1;
+  --chart-4: #f59e0b;
+  --chart-5: #ef4444;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eff6ff;
+  --sidebar-accent-foreground: #1d4ed8;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #2563eb;
 }
 
 .dark {
-  --background: oklch(0.147 0.004 49.25);
-  --foreground: oklch(0.985 0.001 106.423);
-  --card: oklch(0.216 0.006 56.043);
-  --card-foreground: oklch(0.985 0.001 106.423);
-  --popover: oklch(0.216 0.006 56.043);
-  --popover-foreground: oklch(0.985 0.001 106.423);
-  --primary: oklch(0.923 0.003 48.717);
-  --primary-foreground: oklch(0.216 0.006 56.043);
-  --secondary: oklch(0.268 0.007 34.298);
-  --secondary-foreground: oklch(0.985 0.001 106.423);
-  --muted: oklch(0.268 0.007 34.298);
-  --muted-foreground: oklch(0.709 0.01 56.259);
-  --accent: oklch(0.268 0.007 34.298);
-  --accent-foreground: oklch(0.985 0.001 106.423);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.7 0.15 264);      /* changed to blue | original: oklch(0.553 0.013 58.071); */
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.216 0.006 56.043);
-  --sidebar-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-accent: oklch(0.268 0.007 34.298);
-  --sidebar-accent-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.553 0.013 58.071);
+  /* native scrollbars, and form controls, are drawn dark too: no white scrollbar on a dark page */
+  color-scheme: dark;
+  --background: #0b1220;
+  --foreground: #f1f5f9;
+  --card: #111a2e;
+  --card-foreground: #f1f5f9;
+  --popover: #111a2e;
+  --popover-foreground: #f1f5f9;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #1a2540;
+  --secondary-foreground: #f1f5f9;
+  --muted: #1a2540;
+  --muted-foreground: #94a3b8;
+  --accent: #172554;
+  --accent-foreground: #93c5fd;
+  --destructive: #f87171;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.18);
+  --ring: #3b82f6;
+  --chart-1: #3b82f6;
+  --chart-2: #2dd4bf;
+  --chart-3: #818cf8;
+  --chart-4: #fbbf24;
+  --chart-5: #f87171;
+  --sidebar: #0f1729;
+  --sidebar-foreground: #f1f5f9;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #172554;
+  --sidebar-accent-foreground: #93c5fd;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #3b82f6;
+}
+
+/* Links that stand alone (the menus, the footer, the top bar) are at least 24px tall, as WCAG 2.2 asks; links inside a sentence are exempt.
+   It lives in the base layer with no specificity, so a class on the link (hidden, block, flex...) always wins: written outside the layers it
+   beat "hidden" and showed links that are meant to be hidden on phones (the top bar of the dashboard wrapped into two rows). */
+@layer base {
+  :where(header, footer, nav) a:where(:not(.inline-flex)) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+  }
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Testimonials scrolling animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+}
+
+/* Optional fade-in for entire page (keep if you use .animate-fadeIn) */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+/* Fade-in per section */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  opacity: 0;
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+
+/* Force white background on all inputs inside the login popover */
+.login-popover input,
+.login-popover input:where([type="email"]),
+.login-popover input:where([type="password"]) {
+  background-color: white !important;
+  color: black !important;
+  border-color: #d1d5db !important;
+  /* Tailwind gray-300 */
+}
+
+/* Optional: also make sure placeholder text stays visible */
+.login-popover input::placeholder {
+  color: #6b7280 !important;
+  /* Tailwind gray-500 */
+}
+
+/* Make sure all inputs in the login popover have white background */
+.login-popover input {
+  background-color: white !important;
+  color: black !important;
+}
+
+.login-popover input::placeholder {
+  color: #6b7280 !important;
+  /* gray-500 */
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* Homepage personality palette */
+@theme {
+  --color-paper: #f6f0e4;
+  --color-paper-dark: #ece3d0;
+  --color-ink: #1c1b19;
+  --color-tomato: #e8542f;
+  --color-mustard: #f2b632;
+  --color-moss: #2f6f4f;
+  --shadow-hard: 4px 4px 0 0 #1c1b19;
+  --shadow-hard-lg: 8px 8px 0 0 #1c1b19;
+}
+
+/* the public pages are always light, even when the app theme is dark */
+.dark .public-site {
+  color-scheme: light;
+}
+
+/* Light, on-brand look for auth forms (login popover + sign-in pages) */
+.auth-light {
+  color: #111827;
+  color-scheme: light;
+}
+.auth-light label {
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.auth-light input {
+  height: 2.75rem;
+  background-color: #fff !important;
+  color: #111827 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px;
+}
+.auth-light input::placeholder {
+  color: #9ca3af !important;
+}
+.auth-light input:focus,
+.auth-light input:focus-visible {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  outline: none;
+}
+.auth-light form button[type="submit"] {
+  height: 2.75rem;
+  background-color: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  border-radius: 6px;
+}
+.auth-light form button[type="submit"]:hover {
+  background-color: #1d4ed8;
+}
+.auth-light form button[type="button"].w-full {
+  height: 2.75rem;
+  background-color: #fff;
+  color: #111827;
+  font-weight: 600;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px;
+}
+.auth-light form button[type="button"].w-full:hover {
+  background-color: #f9fafb;
+}
+.auth-light form .text-gray-500,
+.auth-light form .text-gray-600 {
+  color: #6b7280;
+}
+
+/* App: animated progress + shimmer helpers */
+@keyframes progress-fill {
+  from { width: 0; }
+}
+.progress-fill {
+  animation: progress-fill 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: shimmer 2s infinite;
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-pop-in {
+  animation: pop-in 0.25s ease-out both;
+}
+
+@keyframes toast-life {
+  from { width: 100%; }
+  to { width: 0; }
+}
+
+/* Sonner (form toasts) matched to the app look */
+[data-sonner-toaster] [data-sonner-toast] {
+  border-radius: 8px !important;
+  font-family: inherit;
+  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.35) !important;
+}
+
+/* App look: friendly display font for headings, soft dotted paper background */
+.app-shell h1,
+.app-shell h2,
+.app-shell h3,
+.app-shell [data-slot="card-title"] {
+  font-family: var(--font-app-display), var(--font-app-body), sans-serif;
+  letter-spacing: -0.01em;
+}
+.app-shell {
+  background-image: radial-gradient(rgba(15, 23, 42, 0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.app-shell main {
+  font-size: 0.9375rem;
+}
+
+/* Entrance of the step-by-step builder: the page fades in, the form's pieces rise one by one, the preview slides in */
+@keyframes wizard-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes enter-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+@keyframes preview-in { from { opacity: 0; transform: translateX(44px) scale(0.97); } to { opacity: 1; transform: none; } }
+.animate-wizard-in { animation: wizard-in 0.4s ease-out both; }
+.animate-preview-in { animation: preview-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both; }
+.enter-stagger > * { animation: enter-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.enter-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.enter-stagger > *:nth-child(2) { animation-delay: 0.12s; }
+.enter-stagger > *:nth-child(3) { animation-delay: 0.19s; }
+.enter-stagger > *:nth-child(4) { animation-delay: 0.26s; }
+.enter-stagger > *:nth-child(5) { animation-delay: 0.33s; }
+.enter-stagger > *:nth-child(n + 6) { animation-delay: 0.4s; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-wizard-in, .animate-preview-in, .enter-stagger > * { animation: none; }
+}
+
+/* Light/dark switch: the browser cross-fades two snapshots of the page on the GPU (View Transitions), which is far
+   smoother than transitioning the colors of every element. Browsers without it switch instantly. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.28s;
+  animation-timing-function: ease-out;
+  mix-blend-mode: normal;
+}
+
+/* Global loading screen */
+/* a line travelling over the whole resume, down and up */
+@keyframes scan-bar {
+  0%, 100% { top: 3%; }
+  50% { top: 97%; }
+}
+.animate-scan-bar { animation: scan-bar 2.8s ease-in-out infinite; }
+/* the blue copy of the sheet is only visible in a band centred on the line (same timing as the line) */
+@keyframes scan-light {
+  0%, 100% { -webkit-mask-position: 0 -20.5%; mask-position: 0 -20.5%; }
+  50% { -webkit-mask-position: 0 120.5%; mask-position: 0 120.5%; }
+}
+.animate-scan-light {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 35%, #000 65%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 35%, #000 65%, transparent);
+  -webkit-mask-size: 100% 96px;
+  mask-size: 100% 96px;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: scan-light 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-scan-bar { animation: none; top: 40%; }
+  .animate-scan-light { animation: none; }
+}
+
+/* Scrollable areas that still scroll with wheel, touch or keys but never draw a scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* logos and pictures are part of the page: they cannot be dragged out or selected */
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* In dark mode blue text needs to be lighter to stay readable (WCAG AA). The public pages are always light, so they keep theirs. */
+.dark .text-blue-600 {
+  color: #60a5fa;
+}
+.dark .text-blue-500 {
+  color: #6aa8fb;
+}
+.dark .public-site .text-blue-600,
+.dark .auth-light .text-blue-600 {
+  color: #2563eb;
+}
+.dark .public-site .text-blue-500,
+.dark .auth-light .text-blue-500 {
+  color: #3b82f6;
+}
+
+/* The ribbon of templates: two copies of the list side by side, moved by half their width, so it never ends. It goes from the left to the right. */
+@keyframes ribbon {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.animate-ribbon {
+  animation: ribbon 70s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-ribbon {
+    animation: none;
+  }
+}
+
+/* A band of light that crosses a button, then rests. */
+@keyframes shine {
+  0% {
+    transform: translateX(0) skewX(-12deg);
+  }
+  60%,
+  100% {
+    transform: translateX(520%) skewX(-12deg);
+  }
+}
+
+/* A wave that drifts sideways: the shape repeats every 720 units, and the drawing is twice as wide as the box. */
+@keyframes wave {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-wave {
+  animation: wave 38s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-wave {
+    animation: none;
+  }
+}
+
+/* The badge of a step lights up when the little light passes by (the path takes 12 seconds, four steps: one every 3). */
+@keyframes step {
+  0%,
+  12% {
+    background-color: #4f46e5;
+    color: #fff;
+    transform: scale(1.12);
+  }
+  22%,
+  100% {
+    background-color: #eef2ff;
+    color: #4f46e5;
+    transform: scale(1);
+  }
+}
+.animate-step {
+  animation: step 12s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-step {
+    animation: none;
+  }
+}
+
+/* A pin of the map jumps a little when the car reaches it (the road takes 12 seconds, four pins: one every 3). */
+@keyframes pin {
+  0%,
+  12% {
+    transform: translate(-3px, 3px) scale(1.18);
+    background-color: #f59e0b;
+  }
+  22%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    background-color: #4f46e5;
+  }
+}
+.animate-pin {
+  animation: pin 12s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-pin {
+    animation: none;
   }
 }

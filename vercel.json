@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/admin/ingest-jobs",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/admin/ingest-jobs?only=smartrecruiters",
+      "schedule": "30 6 * * *"
+    }
+  ]
+}

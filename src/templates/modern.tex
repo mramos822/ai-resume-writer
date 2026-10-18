@@ -86,7 +86,7 @@
 <% profile.jobHistory.forEach(function(job) { %>
   \textbf{<%= job.title || 'TITLE' %>}\\
   {\footnotesize <%= job.company || 'COMPANY' %> \hfill <%= job.location || '' %>}\\
-  {\footnotesize <%= job.startDate || 'START' %> -- <%= job.endDate || 'END' %>}\\[-1ex]
+  {\footnotesize <%= period(job) %>}\\[-1ex]
   \begin{itemize}[leftmargin=*, label=\textbullet]
   <% (job.accomplishments || []).forEach(function(acc) { %>
     \item <%= acc %>
@@ -101,7 +101,7 @@
 <% profile.education.forEach(function(edu) { %>
   \textbf{<%= edu.degree || 'DEGREE' %>}\\
   {\footnotesize <%= edu.school || 'SCHOOL' %> \hfill <%= edu.location || '' %>}\\
-  {\footnotesize <%= edu.dates || 'DATES' %>}\\[1ex]
+  {\footnotesize <%= period(edu) %>}\\[1ex]
 <% }); %>
 <% } %>
 

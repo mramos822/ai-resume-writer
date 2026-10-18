@@ -1,13 +1,17 @@
 // src/components/UploadedItems.tsx
 "use client";
 
+import { dndAccessibility } from "@/i18n/dnd";
 import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
   } from "react";
 import { useAuth } from "@/context/authContext";
 import { useProfile } from "@/context/profileContext";
+import { useDialog } from "@/context/dialogContext";
+import { useToast } from "@/context/toastContext";
 import { Button } from "@/components/ui/button";
 import {
   List,
@@ -16,6 +20,9 @@ import {
   FileText,
   X,
   GripVertical,
+  Wand2,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import * as mammoth from "mammoth";
@@ -36,6 +43,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useT, useLocaleTag } from "@/i18n/provider";
 
 type UploadedRecord = {
   id: string;
@@ -44,6 +52,27 @@ type UploadedRecord = {
   type: string;
   order?: number;
 };
+
+// Which files this browser has already read into the profile (the server does not keep that): they get a "Read" mark.
+const READ_KEY = "kaizo:read-uploads";
+const readIds = (): string[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(READ_KEY) || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+};
+const markRead = (id: string) => {
+  try {
+    localStorage.setItem(READ_KEY, JSON.stringify([...new Set([...readIds(), id])].slice(-200)));
+  } catch {
+    /* storage blocked: the mark is only for this visit */
+  }
+};
+
+// The sort bar is only worth its room when there are enough files to sort.
+const SORT_FROM = 4;
 
 type SortBy = "order" | "name" | "date" | "type";
 type SortDir = "asc" | "desc";
@@ -58,7 +87,11 @@ function SortableTile(props: {
   token: string;
   onParse: (id: string) => void;
   isParsing: boolean;
+  /** the name to show (two files with the same name get " (2)", " (3)"...) */
+  label: string;
+  isRead: boolean;
 }) {
+  const { tr } = useT();
   const {
     record: it,
     fmt,
@@ -66,9 +99,10 @@ function SortableTile(props: {
     onDelete,
     getTypeLabel,
     viewMode,
-    token,
     onParse,
     isParsing,
+    label,
+    isRead,
   } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: it.id });
@@ -80,17 +114,22 @@ function SortableTile(props: {
     cursor: isDragging ? "grabbing" : "grab",
   };
 
-  const thumbnailUrl =
-    `/api/download?id=${encodeURIComponent(it.id)}` +
-    `&type=upload&token=${encodeURIComponent(token)}`;
-
+  const dialog = useDialog();
   const deleteBtn = (
     <button
-      onClick={(e) => {
+      onClick={async (e) => {
         e.stopPropagation();
-        if (confirm(`Delete “${it.filename}”?`)) onDelete(it.id);
+        const ok = await dialog.confirm({
+          title: tr("Delete “{filename}”?", { filename: it.filename }),
+          description: tr("The file is removed from your uploads. Details already imported into your profile are kept."),
+          confirmText: tr("Delete file"),
+          tone: "danger",
+        });
+        if (ok) onDelete(it.id);
       }}
-      className="p-1 hover:text-red-500"
+      aria-label={tr("Delete “{filename}”?", { filename: label })}
+      title={tr("Delete file")}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
     >
       <X className="h-4 w-4" />
     </button>
@@ -101,12 +140,15 @@ function SortableTile(props: {
       size="sm"
       variant="outline"
       disabled={isParsing}
+      aria-label={isParsing ? tr("Reading…") : tr("Fill my profile from “{filename}”", { filename: label })}
+      className="gap-1.5"
       onClick={(e) => {
         e.stopPropagation();
         onParse(it.id);
       }}
     >
-      {isParsing ? "Parsing…" : "Parse"}
+      {isParsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+      <span className="max-sm:sr-only">{isParsing ? tr("Reading…") : isRead ? tr("Read again") : tr("Fill my profile")}</span>
     </Button>
   );
 
@@ -118,26 +160,27 @@ function SortableTile(props: {
         {...listeners}
         onClick={() => onClick(it)}
         style={style}
-        className="flex items-center justify-between p-2.5 bg-neutral-800 rounded hover:bg-neutral-700 cursor-pointer"
+        className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-3 transition-colors hover:bg-muted"
       >
-        <div {...attributes} {...listeners} className="p-1 cursor-grab hover:text-blue-400">
-          <GripVertical className="h-4 w-4 text-neutral-400" />
+        <div {...attributes} {...listeners} title={tr("Drag to move this section")} className="hidden cursor-grab p-1 hover:text-blue-400 sm:block">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
-        <div className="flex items-center space-x-2 flex-1 min-w-0">
-          {it.type.startsWith("text/") ? (
-            <FileText className="h-5 w-5 text-neutral-200 flex-shrink-0" />
-          ) : (
-            <FileIcon className="h-5 w-5 text-neutral-200 flex-shrink-0" />
-          )}
-          <span className="text-neutral-100 truncate">{it.filename}</span>
-          <span className="ml-2 text-xs uppercase bg-neutral-700 text-neutral-300 px-1 rounded truncate">
-            {getTypeLabel(it.type, it.filename)}
-          </span>
-        </div>
-        <span className="ml-4 text-sm text-neutral-400 whitespace-nowrap flex-shrink-0">
-          {fmt(it.createdAt)}
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600/10 text-blue-500">
+          {it.type.startsWith("text/") ? <FileText className="h-5 w-5" /> : <FileIcon className="h-5 w-5" />}
         </span>
-        <div className="ml-4 flex items-center space-x-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-foreground">{label}</p>
+          <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            <span className="rounded bg-muted px-1.5 py-0.5 font-semibold uppercase tracking-wide">{getTypeLabel(it.type, it.filename)}</span>
+            <span className="truncate">{fmt(it.createdAt)}</span>
+            {isRead && (
+              <span className="inline-flex items-center gap-1 font-medium text-green-600 dark:text-green-400">
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> {tr("Read")}
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
           {parseBtn}
           {deleteBtn}
         </div>
@@ -152,53 +195,33 @@ function SortableTile(props: {
       {...listeners}
       onClick={() => onClick(it)}
       style={style}
-      className="relative flex flex-col items-center justify-center p-4 bg-neutral-800 rounded hover:bg-neutral-700"
+      className="relative flex cursor-pointer flex-col items-center rounded-xl border bg-card p-4 text-center transition-colors hover:bg-muted"
     >
-      {it.type === "application/pdf" ? (
-        <embed
-          src={thumbnailUrl}
-          type="application/pdf"
-          className="w-full h-32 object-cover rounded pointer-events-none"
-        />
-      ) : it.type.startsWith("text/") ? (
-        <embed
-          src={thumbnailUrl}
-          type={it.type}
-          className="w-full h-32 object-cover rounded whitespace-pre-wrap overflow-hidden"
-        />
-      ) : (
-        <FileIcon className="h-8 w-8 text-neutral-200" />
+      <div className="absolute right-1.5 top-1.5">{deleteBtn}</div>
+      <span className="mt-2 flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600/10 text-blue-500">
+        {it.type.startsWith("text/") ? <FileText className="h-7 w-7" /> : <FileIcon className="h-7 w-7" />}
+      </span>
+      <p className="mt-3 w-full truncate text-sm font-medium text-foreground">{label}</p>
+      <p className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+        <span className="rounded bg-muted px-1.5 py-0.5 font-semibold uppercase tracking-wide">{getTypeLabel(it.type, it.filename)}</span>
+        <span>{fmt(it.createdAt)}</span>
+      </p>
+      {isRead && (
+        <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> {tr("Read")}
+        </p>
       )}
-      <div className="mt-2 text-center w-full">
-        <span className="block text-sm text-neutral-100 truncate">{it.filename}</span>
-        <span className="block text-xs uppercase bg-neutral-700 text-neutral-300 inline-block px-1 rounded truncate">
-          {getTypeLabel(it.type, it.filename)}
-        </span>
-        <span className="block text-xs text-neutral-400 truncate">
-          {new Date(it.createdAt).toLocaleDateString()}
-        </span>
-      </div>
-      <div className="absolute top-1 right-1 flex space-x-1">
-        <Button
-          size="icon"
-          variant="outline"
-          disabled={isParsing}
-          onClick={(e) => {
-            e.stopPropagation();
-            onParse(it.id);
-          }}
-        >
-          {isParsing ? "…" : "⟳"}
-        </Button>
-        {deleteBtn}
-      </div>
+      <div className="mt-3">{parseBtn}</div>
     </div>
   );
 }
 
 export default function UploadedItems() {
+  const { tr } = useT();
+  const tag = useLocaleTag();
   const { user, loading } = useAuth();
   const { parseFile } = useProfile();
+  const toast = useToast();
   const [items, setItems] = useState<UploadedRecord[]>([]);
   const [viewMode, setViewMode] = useState<"list" | "icon">("list");
   const [token, setToken] = useState<string>("");
@@ -216,6 +239,8 @@ export default function UploadedItems() {
 
   // track which file is currently being parsed
   const [parsingId, setParsingId] = useState<string | null>(null);
+  const [read, setRead] = useState<string[]>([]);
+  useEffect(() => setRead(readIds()), []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -240,7 +265,7 @@ export default function UploadedItems() {
     }
     return mime.split("/")[1] || mime;
   };
-  const fmt = (iso: string) => new Date(iso).toLocaleString();
+  const fmt = (iso: string) => new Date(iso).toLocaleString(tag, { dateStyle: "medium", timeStyle: "short" });
 
   // Fetch uploads
   useEffect(() => {
@@ -263,8 +288,14 @@ export default function UploadedItems() {
       setItems(data.map((f) => ({ ...f, createdAt: new Date(f.createdAt).toISOString() })));
     };
     fetchUploads();
-    const iv = setInterval(fetchUploads, 5000);
-    return () => clearInterval(iv);
+    // it refreshes when the person comes back to the tab, and every 30 seconds while the tab is in sight (not every 5, and never hidden)
+    const refresh = () => document.visibilityState === "visible" && fetchUploads();
+    const iv = setInterval(refresh, 30_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [user, token]);
 
   useEffect(() => {
@@ -282,6 +313,18 @@ export default function UploadedItems() {
     arr.sort((a, b) => (sortDir === "asc" ? cmp(a, b) : -cmp(a, b)));
     return arr;
   }, [items, sortBy, sortDir]);
+
+  // two files with the same name are told apart: the older one keeps its name, the next one is "name (2)"...
+  const labels = React.useMemo(() => {
+    const seen = new Map<string, number>();
+    const out = new Map<string, string>();
+    for (const it of [...items].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())) {
+      const n = (seen.get(it.filename) ?? 0) + 1;
+      seen.set(it.filename, n);
+      out.set(it.id, n === 1 ? it.filename : it.filename.replace(/(\.[^.]+)?$/, ` (${n})$1`));
+    }
+    return out;
+  }, [items]);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -317,11 +360,29 @@ export default function UploadedItems() {
     (id: string) => {
       setParsingId(id);
       parseFile(id)
-        .catch((err) => alert(`Parse failed: ${err.message}`))
+        .then(() => {
+          markRead(id);
+          setRead(readIds());
+        })
+        .catch((err) =>
+          toast.error(tr("We couldn't read that file: {message}. Try again, or paste the text in Write Biography.", { message: err.message }))
+        )
         .finally(() => setParsingId(null));
     },
-    [parseFile]
+    [parseFile, toast, tr]
   );
+
+  // A file that was just uploaded is read into the profile automatically
+  const parseRef = useRef(handleParse);
+  parseRef.current = handleParse;
+  useEffect(() => {
+    const onUploaded = (e: Event) => {
+      const id = (e as CustomEvent<{ fileId?: string }>).detail?.fileId;
+      if (id) parseRef.current(id);
+    };
+    window.addEventListener("kaizo:file-uploaded", onUploaded);
+    return () => window.removeEventListener("kaizo:file-uploaded", onUploaded);
+  }, []);
 
   const openItem = async (it: UploadedRecord) => {
     if (!user) return;
@@ -367,37 +428,47 @@ export default function UploadedItems() {
   return (
     <div>
       {/* header + toggle */}
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="text-lg font-semibold text-neutral-100">Your Uploads</h4>
-        <div className="flex space-x-2">
-          <Button variant="ghost" size="icon" onClick={() => setViewMode("list")}>
-            <List className={`h-5 w-5 ${viewMode === "list" ? "text-blue-400" : "text-neutral-400"}`} />
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-base font-bold text-foreground sm:text-lg">
+          {tr("Your uploads")}
+          {items.length > 0 && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{items.length}</span>}
+        </h4>
+        <div className="hidden gap-1 sm:flex">
+          <Button variant="ghost" size="icon" aria-label={tr("List view")} aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}>
+            <List className={`h-5 w-5 ${viewMode === "list" ? "text-blue-600" : "text-muted-foreground"}`} />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setViewMode("icon")}>
-            <GridIcon className={`h-5 w-5 ${viewMode === "icon" ? "text-blue-400" : "text-neutral-400"}`} />
+          <Button variant="ghost" size="icon" aria-label={tr("Grid view")} aria-pressed={viewMode === "icon"} onClick={() => setViewMode("icon")}>
+            <GridIcon className={`h-5 w-5 ${viewMode === "icon" ? "text-blue-600" : "text-muted-foreground"}`} />
           </Button>
         </div>
       </div>
 
-      {/* SORT BAR */}
-      <div className="flex items-center space-x-2 mb-4">
-        <span className="text-sm text-neutral-400">Sort by:</span>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortBy)}
-          className="bg-neutral-800 text-neutral-100 text-sm rounded px-2 py-1"
-        >
-          <option value="order">Order</option>
-          <option value="name">Name</option>
-          <option value="date">Date</option>
-          <option value="type">Type</option>
-        </select>
-        <button onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} className="bg-neutral-800 text-neutral-100 text-sm rounded px-2 py-1">
-          {sortDir === "asc" ? "↑" : "↓"}
-        </button>
-      </div>
+      {/* SORT BAR: only when there are enough files to be worth sorting */}
+      {items.length >= SORT_FROM && (
+        <div className="mb-4 hidden items-center gap-2 sm:flex">
+          <span className="text-sm text-muted-foreground">{tr("Sort by:")}</span>
+          <select
+            aria-label={tr("Sort by:")}
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className="rounded-md border bg-card px-2 py-1 text-sm text-foreground"
+          >
+            <option value="order">{tr("Order")}</option>
+            <option value="name">{tr("Name")}</option>
+            <option value="date">{tr("Date")}</option>
+            <option value="type">{tr("Type")}</option>
+          </select>
+          <button
+            onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+            aria-label={sortDir === "asc" ? tr("Ascending") : tr("Descending")}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-card text-sm text-foreground"
+          >
+            {sortDir === "asc" ? "↑" : "↓"}
+          </button>
+        </div>
+      )}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext accessibility={dndAccessibility(tr)} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={sortedItems.map((i) => i.id)} strategy={viewMode === "list" ? verticalListSortingStrategy : rectSortingStrategy}>
           {viewMode === "list" ? (
             <ul className="space-y-2">
@@ -413,11 +484,13 @@ export default function UploadedItems() {
                   viewMode="list"
                   token={token}
                   isParsing={parsingId === it.id}
+                  label={labels.get(it.id) ?? it.filename}
+                  isRead={read.includes(it.id)}
                 />
               ))}
             </ul>
           ) : (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {sortedItems.map((it) => (
                 <SortableTile
                   key={it.id}
@@ -430,6 +503,8 @@ export default function UploadedItems() {
                   viewMode="icon"
                   token={token}
                   isParsing={parsingId === it.id}
+                  label={labels.get(it.id) ?? it.filename}
+                  isRead={read.includes(it.id)}
                 />
               ))}
             </div>
@@ -438,32 +513,32 @@ export default function UploadedItems() {
       </DndContext>
 
       {selected && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-neutral-900 max-w-3xl w-full max-h-[80vh] overflow-auto rounded-lg p-6 relative">
-            <button onClick={closeModal} className="absolute top-4 right-4 p-1 text-neutral-400 hover:text-white">
+        <div className="fixed inset-0 bg-background/50 flex items-center justify-center z-[70]">
+          <div className="bg-card max-w-3xl w-full max-h-[80vh] overflow-auto rounded-lg p-6 relative">
+            <button onClick={closeModal} aria-label={tr("Close")} className="absolute top-4 right-4 p-1 text-muted-foreground hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
               <X className="h-6 w-6" />
             </button>
 
-            <h2 className="text-xl font-semibold text-neutral-100 mb-4">
-              <a href={contentUrl!} download={selected.filename} className="text-blue-400 underline">
+            <h2 className="text-xl font-semibold text-foreground mb-4">
+              <a href={contentUrl!} download={selected.filename} className="text-blue-600 underline">
                 {selected.filename}
               </a>
             </h2>
 
             {loadingContent ? (
-              <p className="text-neutral-400">Loading…</p>
+              <p className="text-muted-foreground">{tr("Opening your file…")}</p>
             ) : previewMode === "pdf" ? (
               <iframe src={contentUrl!} className="w-full h-[70vh] border" title={selected.filename} />
             ) : previewMode === "docx" ? (
-              <div className="prose prose-invert max-w-none text-neutral-200" dangerouslySetInnerHTML={{ __html: textContent! }} />
+              <div className="prose prose-invert max-w-none text-foreground" dangerouslySetInnerHTML={{ __html: textContent! }} />
             ) : previewMode === "md" ? (
-              <div className="prose prose-invert overflow-auto text-neutral-200">
+              <div className="prose prose-invert overflow-auto text-foreground">
                 <ReactMarkdown>{textContent!}</ReactMarkdown>
               </div>
             ) : previewMode === "text" ? (
-              <pre className="whitespace-pre-wrap text-neutral-200">{textContent}</pre>
+              <pre className="whitespace-pre-wrap text-foreground">{textContent}</pre>
             ) : (
-              <p className="text-neutral-400">No preview available.</p>
+              <p className="text-muted-foreground">{tr("No preview available.")}</p>
             )}
           </div>
         </div>

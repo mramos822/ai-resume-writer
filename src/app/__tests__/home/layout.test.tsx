@@ -1,8 +1,7 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import HomeLayout from "@/app/home/layout";
 
-// Mock TopBanner and SidePanel with explicit prop types
 jest.mock("@/components/topBanner", () => ({
     __esModule: true,
     default: ({ toggleSidePanel }: { toggleSidePanel: () => void }) => (
@@ -18,17 +17,55 @@ jest.mock("@/components/sidePanel", () => ({
         <div data-testid="side-panel">{isSidePanelOpen ? "Open" : "Closed"}</div>
     ),
 }));
+jest.mock("@/components/guidedTour", () => ({
+    __esModule: true,
+    default: () => <div data-testid="tour" />,
+}));
+
+jest.mock("@/components/onboarding", () => ({
+    __esModule: true,
+    default: () => <div data-testid="onboarding" />,
+}));
+
+jest.mock("@/context/authContext", () => ({
+    useAuth: () => ({ user: { uid: "u1" }, loading: false }),
+}));
+jest.mock("next/navigation", () => ({
+    useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+    usePathname: () => "/home",
+}));
+
+// Providers are exercised elsewhere; here they just pass children through
+jest.mock("@/context/toastContext", () => ({
+    ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+jest.mock("@/context/dialogContext", () => ({
+    DialogProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+jest.mock("@/context/profileContext", () => ({
+    ProfileProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 describe("HomeLayout", () => {
-    it("renders TopBanner, SidePanel, and children", () => {
+    it("renders TopBanner, SidePanel, the tour and children", () => {
         render(
             <HomeLayout>
                 <div data-testid="main-content">Main Content</div>
             </HomeLayout>
         );
-
         expect(screen.getByTestId("top-banner")).toBeInTheDocument();
         expect(screen.getByTestId("side-panel")).toHaveTextContent("Open");
+        expect(screen.getByTestId("tour")).toBeInTheDocument();
         expect(screen.getByTestId("main-content")).toBeInTheDocument();
+    });
+
+    it("toggles the side panel from the top banner", () => {
+        render(
+            <HomeLayout>
+                <div />
+            </HomeLayout>
+        );
+        fireEvent.click(screen.getByText("Toggle"));
+        expect(screen.getByTestId("side-panel")).toHaveTextContent("Closed");
     });
 });

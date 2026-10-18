@@ -1,20 +1,20 @@
 // src/lib/parser.ts
 import mammoth            from "mammoth";
 import OpenAI             from "openai";
-import type { Readable }  from "stream";
 import type { ProfileData } from "@/context/profileContext";
 
-const TOKEN = process.env.GITHUB_TOKEN;
-if (!TOKEN) {
-  throw new Error("Missing GITHUB_TOKEN");
+import { AI_API_KEY, AI_BASE_URL, AI_MODEL } from "@/lib/aiConfig";
+
+if (!AI_API_KEY) {
+  throw new Error("Missing AI_API_KEY");
 }
 
-const client = new OpenAI({ apiKey: TOKEN });
-const MODEL  = "mistral-ai/mistral-medium-2505";
+const client = new OpenAI({ apiKey: AI_API_KEY, baseURL: AI_BASE_URL, timeout: 60_000 });
+const MODEL  = AI_MODEL;
 
 /** 
  * Given a Buffer and its MIME type, extract text (PDF/Word/plain),
- * call mistral-ai/mistral-medium-2505 to parse into JSON, and return a Partial<ProfileData>.
+ * call the configured AI model to parse into JSON, and return a Partial<ProfileData>.
  */
 export async function parseBufferToProfileData(
   buffer: Buffer,
@@ -41,12 +41,16 @@ You are an expert resume parser.
 Respond with NOTHING but a single, valid JSON object matching this interface exactly:
 
 interface ProfileData {
-  contactInfo: { email: string; phone: string; additionalEmails?: string[]; additionalPhones?: string[] };
+  contactInfo: { email: string; phone: string; address: string; additionalEmails?: string[]; additionalPhones?: string[] };
   careerObjective: string;
   skills: string[];
-  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; accomplishments: string[] }[];
-  education: { school: string; degree: string; dates: string; gpa?: string }[];
+  jobHistory: { company: string; title: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
+  education: { school: string; degree: string; startDate: string; endDate: string; current: boolean; gpa?: string }[];
+  internships: { company: string; title: string; description: string; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
+  projects: { name: string; description: string; link?: string; technologies: string[]; startDate: string; endDate: string; current: boolean; accomplishments: string[] }[];
 }
+
+"internships" is ONLY for formal internships or co-ops at a company. Personal, academic, hackathon, open-source or side projects go in "projects", never in "internships" or "jobHistory".
 
 Output only the JSON, no explanation.
   `.trim();
@@ -56,7 +60,7 @@ Output only the JSON, no explanation.
     model: MODEL,
     temperature: 0,
     top_p: 1,
-    max_tokens: 2000,
+    max_tokens: 8192,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user",   content: text },

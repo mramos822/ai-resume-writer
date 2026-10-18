@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { toast } from "sonner";
+import { useT } from "@/i18n/provider";
 
 // Define schema for form validation
 const resetPasswordSchema = z.object({
@@ -21,12 +22,12 @@ type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 export function ResetPasswordForm({
     onSuccess,
     buttonText = "Reset password",
-    inputSpacing = "mb-4",
 }: {
     onSuccess: () => void;
     buttonText?: string;
     inputSpacing?: string;
 }) {
+  const { tr } = useT();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const form = useForm<ResetPasswordFormValues>({
         resolver: zodResolver(resetPasswordSchema),
@@ -39,10 +40,10 @@ export function ResetPasswordForm({
         setIsSubmitting(true);
         try {
             await sendPasswordResetEmail(auth, values.email);
-            toast.success("Password reset email sent. Please check your inbox.");
+            toast.success(tr("Password reset email sent. Please check your inbox."));
             onSuccess(); // Notify parent of success
         } catch (error: unknown) {
-            toast.error("Failed to send password reset email. Please try again.");
+            toast.error(tr("Failed to send password reset email. Please try again."));
             console.error("Password reset error:", error);
         } finally {
             setIsSubmitting(false);
@@ -60,12 +61,12 @@ export function ResetPasswordForm({
                     control={form.control}
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel>{tr("Email")}</FormLabel>
                             <FormControl>
                                 <Input
                                     id="email"
                                     type="email"
-                                    placeholder="Enter your email"
+                                    placeholder={tr("Enter your email")}
                                     {...field}
                                 />
                             </FormControl>
@@ -74,7 +75,7 @@ export function ResetPasswordForm({
                     )}
                 />
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? "Sending..." : buttonText}
+                    {isSubmitting ? tr("Sending...") : buttonText}
                 </Button>
             </form>
         </Form>

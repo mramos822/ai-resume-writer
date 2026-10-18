@@ -1,5 +1,8 @@
 "use client";
 
+import { usePopularTemplates } from "@/lib/usePopularTemplates";
+import { PopularRibbon } from "@/components/popularRibbon";
+import { authFetch } from "@/lib/authFetch";
 import {
     Dialog,
     DialogContent,
@@ -13,6 +16,7 @@ import Image from "next/image";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/context/toastContext";
+import { useT } from "@/i18n/provider";
 
 interface Template {
     id: string;
@@ -28,6 +32,8 @@ interface DownloadModalProps {
 }
 
 export default function DownloadModal({ isOpen, onClose, profileId }: DownloadModalProps) {
+  const isPopular = usePopularTemplates(); // the three looks with the most resumes
+  const { tr, locale } = useT();
     const [templates, setTemplates] = useState<Template[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
     const [outputFormat, setOutputFormat] = useState("pdf");
@@ -51,14 +57,14 @@ export default function DownloadModal({ isOpen, onClose, profileId }: DownloadMo
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                    <DialogTitle>Download Resume</DialogTitle>
+                    <DialogTitle>{tr("Download Resume")}</DialogTitle>
                     <Button
                         variant="ghost"
                         className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
                         onClick={onClose}
                     >
                         <X className="h-4 w-4" />
-                        <span className="sr-only">Close</span>
+                        <span className="sr-only">{tr("Close")}</span>
                     </Button>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -66,35 +72,36 @@ export default function DownloadModal({ isOpen, onClose, profileId }: DownloadMo
                         {templates.map((template) => (
                             <div
                                 key={template.id}
-                                className={`cursor-pointer border-2 rounded-lg p-2 ${
+                                className={`relative overflow-hidden cursor-pointer border-2 rounded-lg p-2 ${
                                     selectedTemplate === template.id
                                         ? "border-blue-500"
                                         : "border-transparent"
                                 }`}
                                 onClick={() => setSelectedTemplate(template.id)}
                             >
+                                {isPopular(template.id) && <PopularRibbon />}
                                 <Image
                                     src={template.imageUrl}
-                                    alt={template.name}
+                                    alt={tr(template.name.replace(" (Default)", ""))}
                                     width={150}
                                     height={200}
                                     className="rounded-md"
                                 />
-                                <h3 className="text-lg font-semibold mt-2">{template.name}</h3>
-                                <p className="text-sm text-gray-500">{template.description}</p>
+                                <h3 className="text-lg font-semibold mt-2">{tr(template.name.replace(" (Default)", ""))}</h3>
+                                <p className="text-sm text-gray-500">{tr(template.description)}</p>
                             </div>
                         ))}
                     </div>
                     <div className="mt-4">
-                        <h4 className="text-md font-semibold mb-2">Output Format</h4>
+                        <h4 className="text-md font-semibold mb-2">{tr("Output Format")}</h4>
                         <RadioGroup defaultValue="pdf" onValueChange={setOutputFormat}>
                             <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="pdf" id="pdf" />
-                                <Label htmlFor="pdf">PDF</Label>
+                                <Label htmlFor="pdf">{tr("PDF")}</Label>
                             </div>
                             <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="docx" id="docx" />
-                                <Label htmlFor="docx">DOCX</Label>
+                                <Label htmlFor="docx">{tr("DOCX")}</Label>
                             </div>
                         </RadioGroup>
                     </div>
@@ -104,7 +111,7 @@ export default function DownloadModal({ isOpen, onClose, profileId }: DownloadMo
                                 if (!selectedTemplate) return;
                                 setIsProcessing(true);
                                 try {
-                                    const response = await fetch('/api/generate-resume', {
+                                    const response = await authFetch('/api/generate-resume', {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
@@ -113,11 +120,12 @@ export default function DownloadModal({ isOpen, onClose, profileId }: DownloadMo
                                             template: selectedTemplate,
                                             format: outputFormat,
                                             profileId: profileId,
+                                            lang: locale,
                                         }),
                                     });
                                     if (!response.ok) {
                                         const errText = await response.text();
-                                        throw new Error(errText || 'Failed to generate resume');
+                                        throw new Error(errText || tr("Failed to generate resume"));
                                     }
                                     const blob = await response.blob();
                                     const url = window.URL.createObjectURL(blob);
@@ -127,7 +135,7 @@ export default function DownloadModal({ isOpen, onClose, profileId }: DownloadMo
                                     document.body.appendChild(a);
                                     a.click();
                                     a.remove();
-                                    toast.success('Resume generated and downloaded!');
+                                    toast.success(tr("Resume generated and downloaded!"));
                                 } catch (err) {
                                     let message = 'Failed to generate resume. Please try again.';
                                     if (err instanceof Error && err.message) {
@@ -142,11 +150,9 @@ export default function DownloadModal({ isOpen, onClose, profileId }: DownloadMo
                         >
                             {isProcessing ? (
                                 <>
-                                    <span className="w-4 h-4 mr-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block align-middle" />
-                                    Processing...
-                                </>
+                                    <span className="w-4 h-4 mr-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block align-middle" />{tr("Processing...")}</>
                             ) : (
-                                'Download'
+                                tr("Download")
                             )}
                         </Button>
                     </div>
