@@ -83,6 +83,31 @@ export function offersOn(html: string): { path: string; id: string }[] {
   return out;
 }
 
+/**
+ * A link copied from a page of a company or a search of Computrabajo while one of its offers is open ends with that offer's id
+ * ("...-FD65FF1729C877A8#CCAF41B6CC05D56761373E686DCF3405"): the browser does not send what follows "#", so the server would only see the list.
+ * This finds that offer's own address in the list page; null when the link is not of that kind or the offer is not on the page.
+ */
+export async function offerOfListLink(link: string): Promise<string | null> {
+  let u: URL;
+  try {
+    u = new URL(link);
+  } catch {
+    return null;
+  }
+  const id = /^#([0-9A-F]{32})$/i.exec(u.hash)?.[1];
+  if (!id || !/(^|\.)computrabajo\./i.test(u.hostname) || !/^\/(empresas\/|trabajo-de-)/i.test(u.pathname)) return null;
+  const page = new URL(u.pathname + u.search, u.origin).toString();
+  if (!allowed(u.pathname + u.search)) return null;
+  try {
+    const html = await get(page);
+    const own = html && offersOn(html).find((o) => o.id.toUpperCase() === id.toUpperCase());
+    return own ? `${u.origin}${own.path}` : null;
+  } catch {
+    return null;
+  }
+}
+
 interface JobPostingData {
   title?: string;
   description?: string;

@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { allowed, BlockedError, CT_NEW_PER_RUN, fetchComputrabajo, fromComputrabajo, jobPostingOf, offersOn, setPace } from "@/lib/ingest/computrabajo";
+import { allowed, BlockedError, CT_NEW_PER_RUN, fetchComputrabajo, fromComputrabajo, jobPostingOf, offerOfListLink, offersOn, setPace } from "@/lib/ingest/computrabajo";
 import type { Board } from "@/lib/ingest/boards";
 
 const B: Board = { source: "computrabajo", token: "pe:tech", name: "Computrabajo" };
@@ -137,5 +137,32 @@ describe("reading a board of Computrabajo", () => {
 
   it("asks for nothing it does not know: an unknown board is an error", async () => {
     await expect(fetchComputrabajo({ source: "computrabajo", token: "xx:nope" }, new Set())).rejects.toThrow(/unknown board/);
+  });
+});
+
+describe("a link copied from a company page with one offer open", () => {
+  const LIST = "https://pe.computrabajo.com/empresas/ofertas-de-trabajo-de-qreps-selecciona-FD65FF1729C877A8";
+  beforeEach(() => setPace(0));
+  afterEach(() => jest.restoreAllMocks());
+
+  it("is the address of that offer: the id after the # is looked up in the list page", async () => {
+    const spy = jest.spyOn(global, "fetch").mockImplementation(async () => new Response(listPage([1, 2, 3]), { status: 200 }));
+    expect(await offerOfListLink(`${LIST}#${hex(2)}`)).toBe(`https://pe.computrabajo.com${path(2)}`);
+    expect(String(spy.mock.calls[0][0])).toBe(LIST); // the # is not sent, and only the list page is asked for
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("is nothing when the link is not of that kind or the offer is not on the page", async () => {
+    const spy = jest.spyOn(global, "fetch").mockImplementation(async () => new Response(listPage([1, 2, 3]), { status: 200 }));
+    expect(await offerOfListLink(LIST)).toBeNull(); // no id: nothing is asked for
+    expect(await offerOfListLink(`https://example.com/empresas/x#${hex(2)}`)).toBeNull(); // another site
+    expect(await offerOfListLink(`https://pe.computrabajo.com${path(2)}#${hex(2)}`)).toBeNull(); // already an offer
+    expect(spy).not.toHaveBeenCalled();
+    expect(await offerOfListLink(`${LIST}#${hex(99)}`)).toBeNull(); // not on the page
+  });
+
+  it("is nothing when the site turns the request away", async () => {
+    jest.spyOn(global, "fetch").mockImplementation(async () => new Response("", { status: 429 }));
+    expect(await offerOfListLink(`${LIST}#${hex(2)}`)).toBeNull();
   });
 });

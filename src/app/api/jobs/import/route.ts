@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
 import { fetchJobAdText, JOB_AD_LINK_ERROR } from "@/lib/jobAdText";
 import { isSafePublicUrl } from "@/lib/safeUrl";
+import { offerOfListLink } from "@/lib/ingest/computrabajo";
 import { limitedShared } from "@/lib/rateLimit";
 import { describe, factsOf, JOB_LIST_ERROR, looksLikeJobList, readPosting, str } from "@/lib/jobDigest";
 import { cleanListing, type JobListing } from "@/lib/jobSearch";
@@ -17,12 +18,14 @@ export async function POST(req: Request) {
   try {
     await authUid(req);
     const body = (await req.json().catch(() => ({}))) as { url?: unknown; text?: unknown };
-    const url = str(body.url, 1000);
+    let url = str(body.url, 1000);
     let text = str(body.text, 20000);
 
     if (!url && text.length < 80) throw new HttpError(400, "Paste a link to the job, or the text of the posting.");
     if (url) {
       if (!/^https?:\/\//i.test(url) || !isSafePublicUrl(url)) throw new HttpError(400, "That link can't be opened. Check it, or paste the text of the posting instead.");
+      // a link copied from a company page of Computrabajo with one offer open names that offer after the "#": the offer itself is read, not the list
+      url = (await offerOfListLink(url)) ?? url;
       if (!text) {
         text = (await fetchJobAdText(url, true)) ?? "";
         if (!text) throw new HttpError(422, JOB_AD_LINK_ERROR);
