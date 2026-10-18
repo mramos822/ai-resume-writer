@@ -572,17 +572,17 @@ export default function ResumeReview({
 
   return (
     <div className="min-w-0">
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-500">{tr("AI resume review")}</p>
-          <h1 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl">{tr("How strong is your resume?")}</h1>
+          <h1 className="mt-1 text-2xl font-extrabold leading-tight sm:text-4xl">{tr("How strong is your resume?")}</h1>
           {checkedAt && phase === "ready" && <p className="mt-1 text-sm text-muted-foreground">{tr("Last checked at")}{" "}{checkedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</p>}
         </div>
         {/* the main action of this panel, always at the top */}
         <Button
           onClick={checkAgain}
           disabled={phase === "loading" || applying || working.length > 0 || queued.length > 0}
-          className="h-12 gap-2.5 bg-blue-600 px-6 text-base font-bold shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/35"
+          className="h-12 w-full gap-2.5 bg-blue-600 px-6 text-base sm:w-auto font-bold shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/35"
         >
           <RotateCcw className={`h-5 w-5 ${phase === "loading" ? "animate-spin" : ""}`} />
           {phase === "loading" ? tr("Checking…") : history.length > 0 ? tr("Check my new score") : tr("Check again")}
@@ -646,18 +646,18 @@ export default function ResumeReview({
 
         {phase === "ready" && review && (
           <motion.div key="ready" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6">
-            <div className="flex flex-wrap items-center gap-x-10 gap-y-5 rounded-lg border bg-card p-6">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-4 rounded-xl border bg-card p-4 sm:gap-x-10 sm:gap-y-5 sm:rounded-lg sm:p-6">
               <div className="flex shrink-0 flex-col items-center gap-1.5">
                 <ScoreRing score={review.score} />
                 {/* how well the resume is written, for any job: the fit with one job is another number, the one of the jobs */}
                 <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr("Resume score")}</span>
               </div>
-              <div className="min-w-0 flex-1 basis-60">
+              <div className="min-w-0 flex-1 basis-40 sm:basis-60">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{tr("Your level")}</p>
-                <p className="mt-1 text-2xl font-extrabold">{tr(scoreLabel(review.score))}</p>
+                <p className="mt-1 text-xl font-extrabold sm:text-2xl">{tr(scoreLabel(review.score))}</p>
                 <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{trd(review.headline)}</p>
                 {review.strengths.length > 0 && (
-                  <ul className="mt-4 space-y-1.5 border-t pt-4">
+                  <ul className="mt-3 space-y-1.5 border-t pt-3 sm:mt-4 sm:pt-4">
                     {review.strengths.map((st) => (
                       <li key={st} className="flex items-start gap-2.5 text-sm">
                         <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" strokeWidth={3} /> {trd(st)}
@@ -680,8 +680,8 @@ export default function ResumeReview({
               <p className="mt-3 text-xs text-muted-foreground">{tr("The AI is busy right now, so this is a quick automatic check. Try again in a moment for personalized tips.")}</p>
             )}
 
-            <div className="mb-3 mt-8 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-extrabold">
+            <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:mt-8">
+              <h2 className="text-base font-extrabold sm:text-lg">
                 {visibleIssues.length === 0 ? tr("Nothing to fix. Nice work.") : tr("{length} thing{v1} to improve", { length: visibleIssues.length, v1: visibleIssues.length > 1 ? "s" : "" })}
               </h2>
               <Dialog open={!!lengthAsk} onOpenChange={(o) => !o && setLengthAsk(null)}>
@@ -715,14 +715,14 @@ export default function ResumeReview({
             </div>
 
             {visibleIssues.length > 0 && (
-              <ul className="divide-y overflow-hidden rounded-lg border bg-card">
+              <ul className="divide-y overflow-hidden rounded-xl border bg-card sm:rounded-lg">
                 {visibleIssues.map((issue) => {
                   const done = isApplied(issue.id);
                   return (
-                    <motion.li key={issue.id} layout="position" className={`relative py-4 pl-6 pr-4 transition-colors ${done ? "bg-green-500/5" : ""}`}>
+                    <motion.li key={issue.id} layout="position" className={`relative py-4 pl-5 pr-3 transition-colors sm:pl-6 sm:pr-4 ${done ? "bg-green-500/5" : ""}`}>
                       <span className={`absolute inset-y-0 left-0 w-1.5 ${done ? "bg-green-500" : IMPACT_STRIPE[issue.impact]}`} aria-hidden />
-                      <div className="flex items-start gap-4">
-                        <div className="min-w-0 flex-1">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-3 sm:flex sm:items-start sm:gap-4">
+                        <div className="col-start-1 row-start-1 min-w-0 flex-1">
                           <p className={`text-[11px] font-bold uppercase tracking-[0.14em] ${done ? "text-green-500" : IMPACT_TEXT[issue.impact]}`}>
                             {done ? tr("Done") : IMPACT_LABEL[issue.impact]}
                           </p>
@@ -731,23 +731,23 @@ export default function ResumeReview({
                           {issue.fix && <FixPreview fix={issue.fix} jobLabel={issue.fix.type === "bullets" || issue.fix.type === "removeJob" ? removedLabels[issue.id] || jobLabel(issue.fix.jobId) : ""} />}
                         </div>
                         {done ? (
-                          <div className="flex shrink-0 flex-col items-end gap-1">
+                          <div className="col-span-2 row-start-2 flex shrink-0 items-center justify-between gap-1 sm:flex-col sm:items-end sm:justify-start">
                             <span className="inline-flex items-center gap-1 text-sm font-semibold text-green-500">
                               <Check className="h-4 w-4" />{" "}{tr("Applied")}</span>
                             <button onClick={() => undo(issue.id)} disabled={applying} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40">
                               <Undo2 className="h-3 w-3" />{" "}{tr("Undo")}</button>
                           </div>
                         ) : !issue.fix && NEEDS_YOU.has(issue.criterionId ?? "") ? (
-                          <Button size="sm" variant="outline" onClick={() => goTo(issue.criterionId ?? "")} className="shrink-0 gap-1.5">
+                          <Button size="sm" variant="outline" onClick={() => goTo(issue.criterionId ?? "")} className="col-span-2 row-start-2 h-10 shrink-0 gap-1.5 sm:h-9">
                             <Pencil className="h-3.5 w-3.5" />{" "}{tr("Add it")}</Button>
                         ) : (
-                          <div className="flex shrink-0 flex-col items-stretch gap-1.5">
-                            <Button size="sm" onClick={() => enqueue([issue])} disabled={working.includes(issue.id) || queued.includes(issue.id)} className="gap-1.5">
+                          <div className="col-span-2 row-start-2 flex shrink-0 gap-2 sm:flex-col sm:items-stretch sm:gap-1.5">
+                            <Button size="sm" onClick={() => enqueue([issue])} disabled={working.includes(issue.id) || queued.includes(issue.id)} className="h-10 flex-1 gap-1.5 sm:h-9 sm:flex-none">
                               {working.includes(issue.id) || queued.includes(issue.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                               {working.includes(issue.id) ? tr("Writing…") : queued.includes(issue.id) ? tr("Waiting…") : tr("Fix it for me")}
                             </Button>
                             {issue.alt && (
-                              <Button size="sm" variant="outline" onClick={() => enqueue([{ ...issue, fix: issue.alt!, fixes: undefined }])} disabled={working.includes(issue.id) || queued.includes(issue.id)} className="gap-1.5">
+                              <Button size="sm" variant="outline" onClick={() => enqueue([{ ...issue, fix: issue.alt!, fixes: undefined }])} disabled={working.includes(issue.id) || queued.includes(issue.id)} className="h-10 flex-1 gap-1.5 sm:h-9 sm:flex-none">
                                 {tr("Keep it all: use two pages")}
                               </Button>
                             )}
@@ -760,7 +760,7 @@ export default function ResumeReview({
                             disabled={working.includes(issue.id) || queued.includes(issue.id)}
                             title={tr("Dismiss this suggestion")}
                             aria-label={tr("Dismiss this suggestion")}
-                            className="-mr-1 -mt-1 shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+                            className="col-start-2 row-start-1 -mr-1 -mt-1 h-8 w-8 shrink-0 self-start rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
