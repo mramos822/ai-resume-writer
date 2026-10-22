@@ -241,6 +241,8 @@ export const PART1: Record<string, string> = {
   "Add a detail if you want: where, how long, how much…": "Añade un detalle si quieres: dónde, cuánto tiempo, cuánto…",
   "Detail": "Detalle",
   "Check it before we write it": "Revísalo antes de escribirlo",
+  "The resume and the letter for this job will be written in Spanish, the language of the job. Your saved profile does not change.": "El currículum y la carta para este empleo se escribirán en español, el idioma del empleo. Tu perfil guardado no cambia.",
+  "The resume and the letter for this job will be written in English, the language of the job. Your saved profile does not change.": "El currículum y la carta para este empleo se escribirán en inglés, el idioma del empleo. Tu perfil guardado no cambia.",
   "This is what the resume starts from. The preview is your profile with what you confirmed; the final resume is then tailored to the job.": "Esto es de lo que parte el currículum. La vista previa es tu perfil con lo que confirmaste; después el currículum final se adapta al empleo.",
   "How it reads for this job": "Cómo se lee para este empleo",
   "Checking the requirements, the ATS and your achievements…": "Revisando los requisitos, el ATS y tus logros…",

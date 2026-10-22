@@ -42,6 +42,8 @@ import { PAGE_MIN_SCALE } from "@/lib/pageRules";
 import { cleanSkillGroups, hasSkillGroups } from "@/lib/skillGroups";
 import { autoGroupSkills, suggestedGroup } from "@/lib/skillCategories";
 import { motion } from "framer-motion";
+import { resumeLangForJob } from "@/lib/resumeLang";
+import { useHidePageScrollbar } from "@/lib/useHidePageScrollbar";
 import { useT } from "@/i18n/provider";
 
 interface Question {
@@ -79,6 +81,7 @@ const CREATING = ["Reading the job posting", "Tailoring your resume to it", "Wri
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function ApplyWorkspace({ job, profileId }: { job: JobListing; profileId: string }) {
+  useHidePageScrollbar(); // the scrollbar of the whole page is not drawn here (the page still scrolls)
   const { tr, locale } = useT();
   const router = useRouter();
   const toast = useToast();
@@ -1214,6 +1217,11 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
               <div>
                 <h2 className="text-lg font-extrabold">{tr("Check it before we write it")}</h2>
                 <p className="text-sm text-muted-foreground">{tr("This is what the resume starts from. The preview is your profile with what you confirmed; the final resume is then tailored to the job.")}</p>
+                <p className="mt-1 text-xs font-semibold text-foreground">
+                  {resumeLangForJob(job, locale) === "es"
+                    ? tr("The resume and the letter for this job will be written in Spanish, the language of the job. Your saved profile does not change.")
+                    : tr("The resume and the letter for this job will be written in English, the language of the job. Your saved profile does not change.")}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">{tr("The questions, the check and the final resume and letter are written with AI. It can make mistakes: read everything before you send it.")}</p>
               </div>
 

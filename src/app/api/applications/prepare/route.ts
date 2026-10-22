@@ -199,7 +199,9 @@ export async function POST(req: Request) {
     // The resume of THIS job is in the language of the job: whatever the AI left in the person's language (titles, skills, degrees) is translated
     // here, in this copy only. The saved profile is not touched. If the translation fails, the resume goes out as it was.
     let tailored = made.tailored;
-    const writtenIn = detectResumeLanguage(tailored);
+    // (it is the language of the person's own resume that tells: the AI has already written the objective and the bullets in the job's language,
+    // so the tailored copy looks like it is in it while the titles, the skills and the studies are still in the other one)
+    const writtenIn = detectResumeLanguage(base) ?? detectResumeLanguage(tailored);
     if (writtenIn && writtenIn !== lang) {
       try {
         tailored = applyTexts(tailored, await translateTexts(translatableTexts(tailored), lang)) as typeof tailored;
