@@ -1058,10 +1058,10 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   // the main action of the step, always within thumb reach (the bar at the bottom of a phone)
   const mainAction =
     step === "fit"
-      ? { label: tr("Edit for this job"), onClick: () => { setStep("edit"); setMobilePane("edit"); }, disabled: false }
+      ? { label: tr("Continue"), onClick: () => { setStep("edit"); setMobilePane("edit"); }, disabled: false }
       : step === "edit"
-        ? { label: tr("Review and create"), onClick: () => { setMobilePane("edit"); goReview(); }, disabled: false }
-        : { label: tr("Create my resume for this job"), onClick: () => void create(), disabled: evaluating || !!fixing || (needsOath && !truthful) };
+        ? { label: tr("Review"), onClick: () => { setMobilePane("edit"); goReview(); }, disabled: false }
+        : { label: tr("Create resume"), onClick: () => void create(), disabled: evaluating || !!fixing || (needsOath && !truthful) };
   const phoneBar =
     typeof document !== "undefined"
       ? createPortal(
@@ -1076,7 +1076,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                 {mobilePane === "edit" ? <Eye className="h-5 w-5" /> : <Pencil className="h-5 w-5" />}
                 {mobilePane === "edit" ? tr("Preview") : tr("Edit")}
               </button>
-              <Button onClick={mainAction.onClick} disabled={mainAction.disabled} className="h-12 min-w-0 flex-1 rounded-full text-base font-bold">
+              <Button onClick={mainAction.onClick} disabled={mainAction.disabled} className="h-12 min-w-0 flex-1 rounded-full px-3 text-sm font-bold sm:text-base">
                 <span className="truncate">{mainAction.label}</span>
               </Button>
             </div>
