@@ -12,7 +12,7 @@ import { renderResumeDetailed } from '@/lib/pdfResume';
 import { authUid, ownedProfile, ownedJobAd, assertResumeOwner, errorResponse } from '@/lib/apiAuth';
 
 export async function POST(req: NextRequest) {
-  const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 60, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);

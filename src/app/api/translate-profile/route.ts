@@ -8,7 +8,7 @@ const MAX_CHARS = 60000;
 
 /** Translates the texts of a resume (a list of strings) into English or neutral Latin American Spanish, same order and length. */
 export async function POST(req: Request) {
-  const tooMany = await limitedShared(req, "ai", 30, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 60, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     await authUid(req);

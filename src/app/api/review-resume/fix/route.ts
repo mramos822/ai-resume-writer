@@ -36,7 +36,7 @@ function languageRule(data: ProfileData, siteLang?: string): string {
 }
 
 export async function POST(req: Request) {
-  const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 60, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);

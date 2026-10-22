@@ -64,7 +64,7 @@ const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice
 const sanitize = (x: string) => (x || "").replace(/[^a-z0-9\-_]+/gi, "_").replace(/^_+|_+$/g, "");
 
 export async function POST(req: Request) {
-  const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 60, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);

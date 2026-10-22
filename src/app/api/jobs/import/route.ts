@@ -15,7 +15,7 @@ import { addComputrabajoOffer } from "@/lib/ingest/addOffer";
 // The AI only reads out the facts (title, company, place...). The description is the posting's own text, not a rewrite.
 
 export async function POST(req: Request) {
-  const tooMany = await limitedShared(req, "ai", 40, 10 * 60 * 1000);
+  const tooMany = await limitedShared(req, "ai", 60, 10 * 60 * 1000);
   if (tooMany) return tooMany;
   try {
     const uid = await authUid(req);
