@@ -956,10 +956,10 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
       )}
 
       {reviewNow.length > 0 && pageInfo && (
-        <div className="overflow-hidden rounded-xl border border-amber-500/30 bg-amber-500/5">
+        <div className="overflow-hidden rounded-xl border border-blue-500/30 bg-blue-500/5">
           <div className="flex items-start gap-3 px-4 py-3.5">
-            <span aria-hidden className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
-              <TriangleAlert className="h-4 w-4" />
+            <span aria-hidden className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-blue-500">
+              <Scissors className="h-4 w-4" />
             </span>
             <div className="min-w-0">
               <p className="text-base font-bold">{tr("Worth a second look")}</p>
@@ -968,14 +968,14 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
               </p>
             </div>
           </div>
-          <ul className="grid gap-px border-t border-amber-500/20 bg-amber-500/20 sm:grid-cols-2">
+          <ul className="grid gap-px border-t border-blue-500/20 bg-blue-500/20 sm:grid-cols-2">
             {reviewNow.map((r) => (
               <li key={r.skill} className={`bg-card transition-all duration-200 ease-out ${leaving.includes(r.skill.toLowerCase()) ? "scale-95 opacity-0" : ""}`}>
                 <button
                   type="button"
                   onClick={() => cutNowSkill(r.skill)}
                   title={tr("Remove from this resume")}
-                  className="group flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-red-500/5"
+                  className="group relative flex w-full items-center overflow-hidden py-2.5 pl-4 pr-24 text-left transition-colors"
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold">{r.skill}</span>
@@ -983,10 +983,10 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                       {r.why === "repeats" ? tr("repeats {skill}", { skill: r.of ?? "" }) : r.why === "generic" ? tr("generic") : tr("not asked")}
                     </span>
                   </span>
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors group-hover:border-red-500 group-hover:text-red-500">
-                    <X className="h-3.5 w-3.5" />
-                    {tr("Remove")}
-                  </span>
+                  {/* the way out: a red line on the right edge that fades into the row, with "Remove" over it */}
+                  <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-28 bg-gradient-to-l from-red-500/30 via-red-500/10 to-transparent transition-opacity group-hover:from-red-500/45 group-active:from-red-500/60" />
+                  <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-[3px] bg-red-500" />
+                  <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-400">{tr("Remove")}</span>
                 </button>
               </li>
             ))}
