@@ -1,13 +1,13 @@
 import { db } from "@/lib/mongodb";
 
-// How many resumes Kaizo has created, kept as one number that only goes up (deleting a resume does not lower it).
+// How many resumes Kaizo has created (the ones made for a job count too), kept as one number that only goes up (deleting a resume does not lower it).
 // The first time it is read it starts from the resumes already made.
 const counters = () => db.collection<{ _id: string; n: number }>("counters");
 
 export async function readResumeCount(): Promise<number> {
   const found = await counters().findOne({ _id: "resumes" });
   if (found) return found.n;
-  const existing = await db.collection("uploads.files").countDocuments({ "metadata.isGenerated": true, "metadata.origin": { $ne: "application" } });
+  const existing = await db.collection("uploads.files").countDocuments({ "metadata.isGenerated": true });
   await counters().updateOne({ _id: "resumes" }, { $setOnInsert: { n: existing } }, { upsert: true });
   return (await counters().findOne({ _id: "resumes" }))?.n ?? existing;
 }
@@ -31,7 +31,7 @@ async function seedTemplateCounts(): Promise<boolean> {
   const rows = await db
     .collection("uploads.files")
     .aggregate<{ _id: string; n: number }>([
-      { $match: { "metadata.isGenerated": true, "metadata.origin": { $ne: "application" }, "metadata.template": { $type: "string" } } },
+      { $match: { "metadata.isGenerated": true, "metadata.template": { $type: "string" } } },
       { $group: { _id: "$metadata.template", n: { $sum: 1 } } },
     ])
     .toArray();

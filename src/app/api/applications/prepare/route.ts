@@ -1,6 +1,7 @@
 import { fromShouting } from "@/lib/nameCase";
 import { namesEmployer, withoutEmployer } from "@/lib/employerMention";
 import { langRule, resumeLangForJob } from "@/lib/resumeLang";
+import { bumpResumeCount, bumpTemplateCount } from "@/lib/resumeCounter";
 import { applyTexts, detectResumeLanguage, translatableTexts } from "@/lib/resumeTranslate";
 import { translateTexts } from "@/lib/translateTexts";
 import { asLevel, LEVEL_LABEL } from "@/lib/experienceLevel";
@@ -244,6 +245,11 @@ export async function POST(req: Request) {
       { $set: { userId: uid, profileId, job, fileId, coverLetter, template, updatedAt: new Date(), ...(extraSkills.length > 0 || confirmed.length > 0 ? { truthDeclaredAt: new Date(), confirmedSkills: extraSkills, confirmedFacts: confirmed } : { truthDeclaredAt: null, confirmedSkills: [], confirmedFacts: [] }) }, $setOnInsert: { status: "prepared", createdAt: new Date() } },
       { upsert: true }
     );
+    // a resume for a job counts like any other resume (preparing the same job again replaces the earlier one: it is not counted twice)
+    if (!previous) {
+      await bumpResumeCount().catch((e) => console.error("Could not update the resume counter", e));
+      if (!uid.startsWith("guest-")) await bumpTemplateCount(String(template)).catch((e) => console.error("Could not update the look counter", e));
+    }
     if (previous?.fileId && previous.fileId !== fileId) {
       try {
         const { ObjectId } = await import("mongodb");
