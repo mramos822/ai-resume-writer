@@ -17,6 +17,22 @@ export function jobLang(text: string): ResumeLang | null {
   return es >= en * 1.5 ? "es" : en >= es * 1.5 ? "en" : null;
 }
 
+/** Countries where the job postings are written in Spanish or in English (the two languages a resume can be written in here). */
+const ES_COUNTRIES = new Set(["es", "mx", "ar", "cl", "co", "pe", "ec", "uy", "ve", "cr", "pa", "do", "bo", "py", "gt", "hn", "ni", "sv", "cu", "pr"]);
+const EN_COUNTRIES = new Set(["us", "gb", "uk", "ie", "ca", "au", "nz", "sg", "za", "in"]);
+/** The language of the postings of a country, when it is Spanish or English; null for any other (the resume cannot be written in it yet). */
+export const langOfCountry = (country?: string): ResumeLang | null => {
+  const c = (country ?? "").toLowerCase();
+  return ES_COUNTRIES.has(c) ? "es" : EN_COUNTRIES.has(c) ? "en" : null;
+};
+
+/**
+ * The language of the resume made for ONE job: the one the posting is written in (read from its text), else the one of its country, else the
+ * one the person uses the app in. The profile itself is not changed: only this resume is written (and translated) in that language.
+ */
+export const resumeLangForJob = (job: { title: string; description?: string; snippet: string; country?: string }, appLang: unknown): ResumeLang =>
+  jobLang(`${job.title}. ${job.description || job.snippet}`) ?? langOfCountry(job.country) ?? asResumeLang(appLang);
+
 /** What the AI is told when the person uses Kaizo in Spanish: the text it writes for the person is in neutral Spanish. */
 export const langRule = (lang: ResumeLang, what: string, translate = false) =>
   lang === "en" && translate

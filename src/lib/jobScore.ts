@@ -121,8 +121,10 @@ export function jobScore(profile: ProfileData, job: JobListing, extra: string[] 
   // what the resume says (not only lists): the job's keywords that the person has, plus the ones the review asked to work in
   const narrativeNow = narrativeText(profile);
   // (a skill the person just confirmed for this job is not held against the number for not being in a bullet yet: confirming can only raise it)
-  const keywords = Array.from(new Set([...gap.matched.filter((m) => weight(m) === 1 && !extra.some((e) => covers(e, m))), ...targets].map((t) => t.trim()).filter(Boolean)));
-  const narrative = keywords.length === 0 ? 0.5 : keywords.filter((t) => saysTerm(narrativeNow, t)).length / keywords.length;
+  const unique = (list: string[]) => Array.from(new Set(list.map((t) => t.trim()).filter(Boolean)));
+  const ownKeywords = unique(gap.matched.filter((m) => weight(m) === 1 && !extra.some((e) => covers(e, m))));
+  const withTargets = unique([...ownKeywords, ...targets]);
+  const narrativeOf = (kw: string[]) => (kw.length === 0 ? 0.5 : kw.filter((t) => saysTerm(narrativeNow, t)).length / kw.length);
 
   // (the look the person chose is not part of how well they fit a job: the same number whatever the look)
   const basics = basicsKnown ?? profileBasics(profile);
@@ -138,7 +140,15 @@ export function jobScore(profile: ProfileData, job: JobListing, extra: string[] 
   //  - the education and how well the resume is written only adjust the result (a missing degree the job asks for, a resume that can improve),
   //    they are not points every job gets.
   const coverageNow = wTotal === 0 ? 0.5 * role : coverage;
-  const core = (0.45 * role + 0.4 * coverageNow + (keywords.length > 0 ? 0.15 * narrative : 0)) / (keywords.length > 0 ? 1 : 0.85);
+  // The keywords the review asked for can only HELP: they are counted when the resume says them, and when it does not yet the number is the
+  // one without them. (Counting them as missing made the number drop the moment a review came back, with nothing changed in the resume.)
+  const coreOf = (kw: string[]) => {
+    const narrative = narrativeOf(kw);
+    return { narrative, core: (0.45 * role + 0.4 * coverageNow + (kw.length > 0 ? 0.15 * narrative : 0)) / (kw.length > 0 ? 1 : 0.85) };
+  };
+  const plain = coreOf(ownKeywords);
+  const helped = coreOf(withTargets);
+  const { core, narrative } = helped.core > plain.core ? helped : plain;
   const base = core * (0.7 + 0.3 * education) * (0.85 + 0.15 * (basics / 100));
   // A job far BELOW the person is not a good fit either: an internship or an entry level job for someone with years of experience.
   const myYears = yearsFor(profile);

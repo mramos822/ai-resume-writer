@@ -38,6 +38,8 @@ export interface JobListing {
   facts?: JobFacts;
   /** in a search by place: how far the job is from it. Only search results have it. */
   reach?: Reach;
+  /** ISO 3166 code (lower case) of the country the job was searched in, for the boards that search by country: it tells the language of the posting */
+  country?: string;
 }
 
 const reachRank = (j: JobListing) => (j.reach ? REACH_ORDER.indexOf(j.reach) : 0);
@@ -345,7 +347,8 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: S
   }
 
   const loc = q.location.toLowerCase().trim();
-  let out = jobs.filter((j) => j.title && j.url);
+  const searchedIn = q.country.toLowerCase();
+  let out = jobs.filter((j) => j.title && j.url).map((j) => (j.source === "adzuna" || j.source === "careerjet" ? { ...j, country: searchedIn } : j));
   if (q.q.trim()) out = out.filter((j) => j.source === "adzuna" || j.source === "careerjet" || matchesQuery(j, q.q));
   if (q.remoteOnly) out = out.filter((j) => j.remote);
   else if (loc) {
@@ -524,5 +527,6 @@ export function cleanListing(j: Partial<JobListing> | null | undefined): JobList
     logo: typeof j.logo === "string" && /^https?:\/\//.test(j.logo) ? j.logo.slice(0, 500) : undefined,
     description: typeof j.description === "string" ? j.description.slice(0, 6000) : undefined,
     facts: cleanFacts(j.facts),
+    country: typeof j.country === "string" && /^[a-z]{2}$/i.test(j.country) ? j.country.toLowerCase() : undefined,
   };
 }

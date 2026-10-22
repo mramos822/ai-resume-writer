@@ -1,6 +1,8 @@
 import { fromShouting } from "@/lib/nameCase";
 import { namesEmployer, withoutEmployer } from "@/lib/employerMention";
-import { asResumeLang, jobLang, langRule } from "@/lib/resumeLang";
+import { langRule, resumeLangForJob } from "@/lib/resumeLang";
+import { applyTexts, detectResumeLanguage, translatableTexts } from "@/lib/resumeTranslate";
+import { translateTexts } from "@/lib/translateTexts";
 import { asLevel, LEVEL_LABEL } from "@/lib/experienceLevel";
 import { limitedShared } from "@/lib/rateLimit";
 import { asTemplateId } from "@/lib/templates";
@@ -82,8 +84,8 @@ export async function POST(req: Request) {
     // what the person chose about skills: keep all of them or only the ones that fit this job, and extra skills they confirmed
     // they really have (the posting asks for them). Extras are never added unless the person ticked them.
     const relevantOnly = body.skillMode === "relevant";
-    // the resume and the letter are written in the language of the job posting; if that is not clear, in the language of the app
-    const lang = jobLang(`${job.title}. ${job.description || job.snippet}`) ?? asResumeLang(body.lang);
+    // the resume and the letter are written in the language of the job posting; if that is not clear, in the one of its country, else the language of the app
+    const lang = resumeLangForJob(job, body.lang);
     const extraSkills = Array.from(new Set((Array.isArray(body.extraSkills) ? body.extraSkills : []).map((x) => str(x, 60)).filter(Boolean))).slice(0, 12);
 
     // what the person answered "yes" to in the questions before this step, and what the review of the draft asked for
@@ -193,7 +195,18 @@ export async function POST(req: Request) {
         /* the first version is still good: it is kept */
       }
     }
-    const { tailored, coverLetter } = made;
+    const { coverLetter } = made;
+    // The resume of THIS job is in the language of the job: whatever the AI left in the person's language (titles, skills, degrees) is translated
+    // here, in this copy only. The saved profile is not touched. If the translation fails, the resume goes out as it was.
+    let tailored = made.tailored;
+    const writtenIn = detectResumeLanguage(tailored);
+    if (writtenIn && writtenIn !== lang) {
+      try {
+        tailored = applyTexts(tailored, await translateTexts(translatableTexts(tailored), lang)) as typeof tailored;
+      } catch {
+        /* kept as it was */
+      }
+    }
 
     // 3) the tailored resume becomes a PDF kept with the person's other resumes
     // the page filter of a recruiter always has to be passed: if it does not fit on one page at a readable size, the least useful for

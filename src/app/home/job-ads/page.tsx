@@ -34,6 +34,8 @@ import { useT } from "@/i18n/provider";
 
 type Saved = JobListing & { savedAt?: string };
 const PAGE = 15;
+/** where the search box, the place and the filters are kept (in the tab) so they survive a change of language */
+const SEARCH_STATE_KEY = "kaizo_job_search_state";
 
 const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", careerjet: "Careerjet", greenhouse: "the company's careers page", lever: "the company's careers page", ashby: "the company's careers page", smartrecruiters: "the company's careers page", workable: "the company's careers page", recruitee: "the company's careers page", teamtailor: "the company's careers page", computrabajo: "Computrabajo", getonboard: "Get on Board", remoteok: "Remote OK", jobicy: "Jobicy", usajobs: "USAJOBS", link: "a link a person added" };
 
@@ -190,6 +192,50 @@ export default function JobSearchPage() {
   const [saved, setSaved] = useState<Saved[]>([]);
   const filled = useRef(false);
   const [adding, setAdding] = useState(false); // the "Add a job" window
+
+  // What the person typed and chose survives changing the language of the app (the page opens again then) and coming back to the page in the
+  // same tab: it is kept in the tab's storage and put back, and the search is run again so the results are there too.
+  const [rerun, setRerun] = useState(false);
+  const saveReady = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SEARCH_STATE_KEY);
+      const s = raw ? (JSON.parse(raw) as Partial<{ q: string; where: string; filters: JobFilters; country: string | null; filtersOpen: boolean; searched: boolean }>) : null;
+      if (s && (s.q || s.where || s.searched)) {
+        filled.current = true; // what was kept wins over the defaults of the profile
+        setQ(String(s.q ?? "").slice(0, 120));
+        setWhere(String(s.where ?? "").slice(0, 120));
+        if (s.filters && typeof s.filters === "object") {
+          const f = { ...NO_FILTERS, ...s.filters };
+          langMode.current = f.lang;
+          setFilters(f);
+        }
+        if (typeof s.country === "string") setPickedCountry(s.country.slice(0, 2));
+        setFiltersOpen(Boolean(s.filtersOpen));
+        if (s.searched && !openSaved.current) setRerun(true);
+      }
+    } catch {
+      /* storage unavailable: it starts from the profile */
+    }
+  }, []);
+  useEffect(() => {
+    if (rerun) {
+      setRerun(false);
+      void search();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rerun]);
+  useEffect(() => {
+    if (!saveReady.current) {
+      saveReady.current = true; // the first pass still holds the initial values: it must not overwrite what was kept
+      return;
+    }
+    try {
+      sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify({ q, where, filters, country: pickedCountry, filtersOpen, searched }));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [q, where, filters, pickedCountry, filtersOpen, searched]);
 
   // start from what the profile says: the role they want and where they live
   useEffect(() => {
