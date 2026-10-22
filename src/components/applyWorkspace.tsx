@@ -562,13 +562,20 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   const FIELD_NAME: Record<LookField, string> = { tech: "technology", creative: "creative", business: "business", health: "healthcare", academic: "academic", general: "general" };
 
   const cutSkills = (list: string[]) => updateSkills((draftRef.current.skills ?? []).filter((x) => !list.some((y) => y.toLowerCase() === x.toLowerCase())));
-  // a skill taken out of the list of "worth a second look" leaves it at once; the measure of the page (a request) catches up afterwards
+  // A skill taken out of the "worth a second look" list is taken out of the resume at once; its row fades and leaves, and the measure of the
+  // page (a request) catches up afterwards.
   const [cutNow, setCutNow] = useState<string[]>([]);
-  useEffect(() => setCutNow([]), [pageInfo]);
+  const [leaving, setLeaving] = useState<string[]>([]);
+  useEffect(() => {
+    setCutNow([]);
+    setLeaving([]);
+  }, [pageInfo]);
   const reviewNow = (pageInfo?.cut.review ?? []).filter((r) => !cutNow.includes(r.skill.toLowerCase()));
   const cutNowSkill = (skill: string) => {
-    setCutNow((c) => [...c, skill.toLowerCase()]);
+    const k = skill.toLowerCase();
+    setLeaving((l) => [...l, k]);
     cutSkills([skill]);
+    setTimeout(() => setCutNow((c) => [...c, k]), 200);
   };
   const cutJobs = (ids: string[]) => setJobHistory((draftRef.current.jobHistory ?? []).filter((j) => !ids.includes(j.id)));
 
@@ -948,33 +955,36 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
       )}
 
       {reviewNow.length > 0 && pageInfo && (
-        <div className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
-          <div className="flex items-start gap-3">
-            <span aria-hidden className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <Scissors className="h-4 w-4" />
+        <div className="overflow-hidden rounded-xl border border-amber-500/30 bg-amber-500/5">
+          <div className="flex items-start gap-3 px-4 py-3.5">
+            <span aria-hidden className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
+              <TriangleAlert className="h-4 w-4" />
             </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold">{tr("Worth a second look")}</p>
-              <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+            <div className="min-w-0">
+              <p className="text-base font-bold">{tr("Worth a second look")}</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                 {tr("Your list has {n} skills and the page is {state}. These are the least necessary or the ones that repeat another. Remove the ones you do not need; it depends on your case.", { n: (draft.skills ?? []).length, state: pageInfo.crowded ? tr("crowded") : tr("tight") })}
               </p>
             </div>
           </div>
-          <ul className="mt-4 flex flex-wrap gap-2">
+          <ul className="grid gap-px border-t border-amber-500/20 bg-amber-500/20 sm:grid-cols-2">
             {reviewNow.map((r) => (
-              <li key={r.skill}>
+              <li key={r.skill} className={`bg-card transition-all duration-200 ease-out ${leaving.includes(r.skill.toLowerCase()) ? "scale-95 opacity-0" : ""}`}>
                 <button
                   type="button"
                   onClick={() => cutNowSkill(r.skill)}
-                  aria-label={`${tr("Remove from this resume")}: ${r.skill}`}
-                  className="group inline-flex max-w-full items-center gap-2 rounded-full border bg-background py-1.5 pl-3.5 pr-1.5 text-sm font-medium transition active:scale-95 hover:border-foreground/30"
+                  title={tr("Remove from this resume")}
+                  className="group flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-red-500/5"
                 >
-                  <span className="truncate">{r.skill}</span>
-                  <span className="hidden shrink-0 text-xs font-normal text-muted-foreground sm:inline">
-                    {r.why === "repeats" ? tr("repeats {skill}", { skill: r.of ?? "" }) : r.why === "generic" ? tr("generic") : tr("not asked")}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold">{r.skill}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {r.why === "repeats" ? tr("repeats {skill}", { skill: r.of ?? "" }) : r.why === "generic" ? tr("generic") : tr("not asked")}
+                    </span>
                   </span>
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors group-hover:bg-foreground group-hover:text-background">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors group-hover:border-red-500 group-hover:text-red-500">
                     <X className="h-3.5 w-3.5" />
+                    {tr("Remove")}
                   </span>
                 </button>
               </li>
