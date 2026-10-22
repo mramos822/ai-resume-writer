@@ -32,12 +32,13 @@ function GeneratedLogo({ company, size }: { company: string; size: number }) {
 }
 
 /**
- * The company's logo: the one the job board gives, else the icon of its website (guessed from its name), else a logo
+ * The company's logo: the one the job board gives, else the icon of its website (guessed from its name; it comes through /api/logo, which never
+ * answers an error), else a logo
  * made for it. A tiny image (16 px) is the generic icon the icon service gives to sites without one, so it is skipped.
  */
 export default function CompanyLogo({ company, logo, size = 48 }: { company: string; logo?: string; size?: number }) {
   const guess = domainGuess(company);
-  const sources = [logo, guess ? `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${guess}&size=128` : ""].filter(Boolean) as string[];
+  const sources = [logo, guess ? `/api/logo?d=${guess}` : ""].filter(Boolean) as string[];
   const [stage, setStage] = useState(0);
   const src = sources[stage];
   return (
