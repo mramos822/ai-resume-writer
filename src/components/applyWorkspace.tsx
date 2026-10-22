@@ -733,8 +733,9 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
         d={preview}
         template={template}
         active={null}
-        inline
-        large
+        // while choosing a look the whole sheet is in view at once, fitted to the screen, as in the resume builder; otherwise it uses the width and scrolls
+        inline={!customizing}
+        large={!customizing}
         overlay={customizing ? <AccentPicker template={template} value={draft.accentColor} onChange={(id) => accentRef.current(id)} fill={draft.fillPage} onFill={(on) => fillRef.current(on)} /> : undefined}
       />
     ),
