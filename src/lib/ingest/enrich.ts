@@ -6,6 +6,7 @@ import { index } from "@/lib/ingest/run";
 import { db } from "@/lib/mongodb";
 import { MIN_TEXT, readOnce, takeReading } from "@/lib/jobFactsStore";
 import type { JobListing } from "@/lib/jobSearch";
+import { unpackDescription } from "@/lib/ingest/pack";
 
 const reads = () => db.collection<{ key: string }>("job_reads");
 
@@ -22,7 +23,7 @@ export async function pickUnread(limit: number): Promise<JobListing[]> {
         .skip(skip)
         .limit(100)
         .project({ _id: 0, board: 0, active: 0, firstSeenAt: 0, lastSeenAt: 0, closedAt: 0, expiresAt: 0, lang: 0, country: 0 })
-        .toArray()) as unknown as JobListing[];
+        .toArray()).map((d) => unpackDescription(d)) as unknown as JobListing[];
       if (docs.length === 0) break;
       const done = new Set((await reads().find({ key: { $in: docs.map((d) => d.key) } }).project({ key: 1 }).toArray()).map((d) => String(d.key)));
       for (const d of docs) {

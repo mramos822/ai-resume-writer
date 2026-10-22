@@ -5,6 +5,7 @@ import { fetchBoard, fetchSmartRecruiters, type IndexedJob } from "@/lib/ingest/
 import { fetchComputrabajo } from "@/lib/ingest/computrabajo";
 import type { Board } from "@/lib/ingest/boards";
 import { detectLanguage, type PostingLang } from "@/lib/ingest/language";
+import { packDescription } from "@/lib/ingest/pack";
 
 export const CLOSED_KEPT_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -62,10 +63,12 @@ export async function ingestBoard(b: Board, now = new Date()): Promise<BoardResu
           // a field with no value (the pay or the country, when the posting says none) is taken out, not saved as null
           const empty = Object.keys(doc).filter((k) => doc[k] === undefined);
           empty.forEach((k) => delete doc[k]);
+          const packed = packDescription(doc); // the description is kept compressed (descZ): see ingest/pack
           return {
             updateOne: {
               filter: { key: j.key },
-              update: { $set: doc, $setOnInsert: { firstSeenAt: now }, $unset: { closedAt: "", expiresAt: "", ...Object.fromEntries(empty.map((k) => [k, ""])) } },
+              // (a text of the other form saved before is taken out, so the two never disagree)
+              update: { $set: packed, $setOnInsert: { firstSeenAt: now }, $unset: { closedAt: "", expiresAt: "", ...("descZ" in packed ? { description: "" } : { descZ: "" }), ...Object.fromEntries(empty.map((k) => [k, ""])) } },
               upsert: true,
             },
           };

@@ -2,6 +2,7 @@
 import type { JobListing, JobQuery } from "@/lib/jobSearch";
 import { index } from "@/lib/ingest/run";
 import { payFromText } from "@/lib/ingest/pay";
+import { unpackDescription } from "@/lib/ingest/pack";
 
 const STOP = new Set(["the", "and", "for", "with", "a", "an", "of", "in", "at", "to", "job", "jobs"]);
 
@@ -26,7 +27,7 @@ export async function searchIndex(q: JobQuery, limit = 150): Promise<JobListing[
   const cursor = index().find(filter as never, { projection: { _id: 0, board: 0, active: 0, firstSeenAt: 0, lastSeenAt: 0, closedAt: 0, expiresAt: 0, ...(words.length ? { score: { $meta: "textScore" } } : {}) } as never });
   const rows = words.length ? await cursor.sort({ score: { $meta: "textScore" }, postedAt: -1 } as never).limit(limit).toArray() : await cursor.sort({ postedAt: -1 }).limit(limit).toArray();
   return rows.map((r) => {
-    const { score: _score, ...job } = r as unknown as JobListing & { score?: number };
+    const { score: _score, ...job } = unpackDescription(r) as unknown as JobListing & { score?: number };
     void _score;
     // the pay the system did not give is read from the text, so a job indexed before the reader learned a format shows it too
     return job.salary ? job : { ...job, salary: payFromText(job.description ?? "", (job as { country?: string }).country) };

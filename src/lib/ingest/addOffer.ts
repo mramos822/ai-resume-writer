@@ -8,6 +8,7 @@ import { allowed, CT_SITES, fromComputrabajo } from "@/lib/ingest/computrabajo";
 import { get } from "@/lib/ingest/computrabajo";
 import { detectLanguage } from "@/lib/ingest/language";
 import type { IndexedJob } from "@/lib/ingest/ats";
+import { packDescription, unpackDescription } from "@/lib/ingest/pack";
 
 /** how long a posting that a person added stays in the search if nothing else keeps it */
 export const ADDED_KEPT_MS = 14 * 24 * 60 * 60 * 1000;
@@ -30,9 +31,10 @@ export async function putInIndex(job: IndexedJob, now = new Date()): Promise<voi
   const doc: Record<string, unknown> = { ...job, lang: detectLanguage(`${job.title} ${job.description ?? ""}`), active: true, lastSeenAt: now };
   const empty = Object.keys(doc).filter((k) => doc[k] === undefined);
   empty.forEach((k) => delete doc[k]);
+  const packed = packDescription(doc); // the description is kept compressed (descZ): see ingest/pack
   await index().updateOne(
     { key: job.key } as never,
-    { $set: { ...doc, expiresAt: new Date(+now + ADDED_KEPT_MS) }, $setOnInsert: { firstSeenAt: now }, $unset: { closedAt: "", ...Object.fromEntries(empty.map((k) => [k, ""])) } } as never,
+    { $set: { ...packed, expiresAt: new Date(+now + ADDED_KEPT_MS) }, $setOnInsert: { firstSeenAt: now }, $unset: { closedAt: "", ...("descZ" in packed ? { description: "" } : { descZ: "" }), ...Object.fromEntries(empty.map((k) => [k, ""])) } } as never,
     { upsert: true }
   );
 }
@@ -48,7 +50,7 @@ export async function addComputrabajoOffer(link: string): Promise<IndexedJob | n
   try {
     const have = await index().findOne({ key, active: true });
     if (have) {
-      const { _id, ...job } = have as unknown as IndexedJob & { _id?: unknown };
+      const { _id, ...job } = unpackDescription(have) as unknown as IndexedJob & { _id?: unknown };
       void _id;
       return job;
     }

@@ -13,6 +13,7 @@ import { putInIndex } from "@/lib/ingest/addOffer";
 import { countryOf } from "@/lib/ingest/country";
 import { runMigrations } from "@/lib/migrations";
 import { cleanListing, type JobListing } from "@/lib/jobSearch";
+import { unpackDescription } from "@/lib/ingest/pack";
 
 /** how long a posting added by link is kept */
 export const IMPORT_KEPT_MS = 14 * 24 * 60 * 60 * 1000;
@@ -120,7 +121,7 @@ export async function jobByKey(key: string): Promise<JobListing | null> {
       return doc && +new Date(doc.expiresAt) > Date.now() ? cleanListing(doc.job as never) : null;
     }
     const doc = await index().findOne({ key, active: true }, { projection: { _id: 0, board: 0, active: 0, firstSeenAt: 0, lastSeenAt: 0, closedAt: 0, expiresAt: 0 } });
-    return doc ? cleanListing(doc as never) : null;
+    return doc ? cleanListing(unpackDescription(doc) as never) : null;
   } catch {
     return null;
   }
