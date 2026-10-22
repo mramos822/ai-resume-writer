@@ -4,8 +4,9 @@
 // live preview next to you, see how it reads for the job, and then it is created. Everything you edit here is a copy for this job:
 // the saved profile never changes.
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "@/i18n/navigation";
-import { ArrowLeft, Check, ChevronDown, Languages, LayoutTemplate, Loader2, Palette, Scissors, Sparkles, Trash2, TriangleAlert, Undo2, Wand2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Eye, Languages, LayoutTemplate, Loader2, Palette, Pencil, Scissors, Sparkles, Trash2, TriangleAlert, Undo2, Wand2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LivePreview from "@/components/livePreview";
 import CompanyLogo from "@/components/companyLogo";
@@ -90,6 +91,8 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   const { activeProfile: draft, updateSkills, updateSkillGroups: setSkillGroups, updateCertifications, updateLanguages, updateAccentColor, updateFillPage, updatePageGoal, updateCareerObjective, updateJobTitle, setJobHistory, updateSkillLevels, updateSkillGroups, setEducation, updateInterests, updateProjectEntry, updateInternshipEntry } = useProfile();
 
   const [step, setStep] = useState<"fit" | "edit" | "review">("fit");
+  // on a phone the page shows ONE of its two sides at a time, like the resume builder: what is being edited, or the live preview
+  const [mobilePane, setMobilePane] = useState<"edit" | "preview">("edit");
   const [section, setSection] = useState<Section>("objective");
   const [skillMode, setSkillMode] = useState<"relevant" | "all">("relevant");
   const [skillAnswer, setSkillAnswer] = useState<Record<string, boolean>>({});
@@ -998,9 +1001,9 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   );
 
   const STEPS = [
-    { id: "fit" as const, label: "Your fit" },
-    { id: "edit" as const, label: "Edit for this job" },
-    { id: "review" as const, label: "Review and create" },
+    { id: "fit" as const, label: "Your fit", short: "Your fit" },
+    { id: "edit" as const, label: "Edit for this job", short: "Edit" },
+    { id: "review" as const, label: "Review and create", short: "Review" },
   ];
 
   const scoreBlock = (
@@ -1031,6 +1034,56 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
       ))}
     </div>
   );
+  // the same steps on a phone: one row, each one a third of the width, with the short names
+  const stepTabsPhone = (
+    <div role="tablist" className="flex w-full min-w-0 rounded-full border bg-card p-1 shadow-sm">
+      {STEPS.map((s, i) => (
+        <button
+          key={s.id}
+          role="tab"
+          aria-selected={step === s.id && !customizing}
+          onClick={() => {
+            setCustomizing(false);
+            setMobilePane("edit");
+            if (s.id === "review") goReview();
+            else setStep(s.id);
+          }}
+          className={`min-w-0 flex-1 truncate rounded-full px-2 py-2 text-sm font-semibold transition-all ${step === s.id && !customizing ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "text-muted-foreground"}`}
+        >
+          {i + 1}. {tr(s.short)}
+        </button>
+      ))}
+    </div>
+  );
+  // the main action of the step, always within thumb reach (the bar at the bottom of a phone)
+  const mainAction =
+    step === "fit"
+      ? { label: tr("Edit for this job"), onClick: () => { setStep("edit"); setMobilePane("edit"); }, disabled: false }
+      : step === "edit"
+        ? { label: tr("Review and create"), onClick: () => { setMobilePane("edit"); goReview(); }, disabled: false }
+        : { label: tr("Create my resume for this job"), onClick: () => void create(), disabled: evaluating || !!fixing || (needsOath && !truthful) };
+  const phoneBar =
+    typeof document !== "undefined"
+      ? createPortal(
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur [transform:translateZ(0)] lg:hidden">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMobilePane((p) => (p === "edit" ? "preview" : "edit"))}
+                aria-label={mobilePane === "edit" ? tr("Preview") : tr("Edit")}
+                className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full border bg-card px-4 text-sm font-semibold shadow-sm"
+              >
+                {mobilePane === "edit" ? <Eye className="h-5 w-5" /> : <Pencil className="h-5 w-5" />}
+                {mobilePane === "edit" ? tr("Preview") : tr("Edit")}
+              </button>
+              <Button onClick={mainAction.onClick} disabled={mainAction.disabled} className="h-12 min-w-0 flex-1 rounded-full text-base font-bold">
+                <span className="truncate">{mainAction.label}</span>
+              </Button>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
   const customizeButton = (
     <button
       type="button"
@@ -1044,14 +1097,35 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   );
 
   return (
-    <div className="mx-auto max-w-[1600px]">
+    <div className="mx-auto max-w-[1600px] max-lg:pb-24">
+      {phoneBar}
       {/* two columns from the top: the live preview is pinned over the right one, so nothing else may sit there */}
       <div className="grid gap-8 lg:grid-cols-2">
-        <div className="min-w-0 space-y-7">
+        <div className={`min-w-0 space-y-7 ${mobilePane === "preview" ? "max-lg:hidden" : ""}`}>
+          {/* on a phone: a compact header (back, job, score) and the steps in one row, instead of the big banner below */}
+          <div className="sticky top-16 z-30 -mx-4 border-b bg-background/95 px-4 pb-2 pt-2 backdrop-blur sm:-mx-5 sm:px-5 lg:hidden">
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => router.push("/home/job-ads")} aria-label={tr("Back to the jobs")} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-card text-muted-foreground">
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <CompanyLogo company={job.company} logo={job.logo} size={36} />
+              <div className="min-w-0 flex-1">
+                <h1 className="truncate text-base font-extrabold leading-tight">{tr(job.title)}</h1>
+                <p className="truncate text-xs text-muted-foreground">{job.company}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2" role="status" aria-label={`${tr("Your fit for this job")}: ${now}`}>
+                <Ring value={now} size={44} />
+                <button type="button" aria-pressed={customizing} aria-label={tr("Customize")} onClick={() => setCustomizing((v) => !v)} className={`inline-flex h-9 w-9 items-center justify-center rounded-full border ${customizing ? "border-blue-600 bg-blue-600 text-white" : "bg-card text-muted-foreground"}`}>
+                  <Palette className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="mt-2">{stepTabsPhone}</div>
+          </div>
           {/* the banner: the job, the score and the steps. It stays at the top while the page scrolls and shrinks in place. The content is only
               scaled and the background is its own layer, so its width and the space it takes in the page never change: nothing jumps. The
               score does not shrink. */}
-          <div className="pointer-events-none sticky top-16 z-30 -ml-4 sm:-ml-5 lg:-ml-6">
+          <div className="pointer-events-none sticky top-16 z-30 -ml-4 hidden sm:-ml-5 lg:-ml-6 lg:block">
             <div className="relative pl-4 pt-2 sm:pl-5 lg:pl-6">
               <div
                 aria-hidden
@@ -1479,7 +1553,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                 </label>
               )}
 
-              <div className="flex justify-end border-t pt-5">
+              <div className="flex justify-end border-t pt-5 max-lg:hidden">
                 <Button onClick={create} disabled={evaluating || !!fixing || (needsOath && !truthful)} className="gap-2">{tr("Create my resume for this job")}</Button>
               </div>
             </>
@@ -1488,7 +1562,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
 
         {/* the live preview, next to you as in the resume builder; a line divides it from everything else. It stays in place while the page
             scrolls on the left, and if you scroll with the cursor over it, it is the sheet that scrolls (to see what is below) */}
-        <div className="min-w-0 lg:-ml-4 lg:border-l lg:pl-4">
+        <div className={`min-w-0 lg:-ml-4 lg:border-l lg:pl-4 ${mobilePane === "edit" ? "max-lg:hidden" : ""}`}>
           <div className="no-scrollbar [contain:layout_paint] lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain">
             {previewNode}
           </div>

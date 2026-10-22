@@ -352,6 +352,7 @@ export const PART1: Record<string, string> = {
   "Easy on the eyes": "Cómodo para la vista",
   "Easy to read": "Fácil de leer",
   "Edit": "Editar",
+  "Review": "Revisar",
   "Edit Internship": "Editar prácticas",
   "Edit my details": "Editar mis datos",
   "Edit project": "Editar proyecto",
