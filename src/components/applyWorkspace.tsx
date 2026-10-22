@@ -6,7 +6,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "@/i18n/navigation";
-import { ArrowLeft, Check, ChevronDown, Eye, Languages, LayoutTemplate, Loader2, Palette, Pencil, Scissors, Sparkles, Trash2, TriangleAlert, Undo2, Wand2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Eye, Languages, LayoutTemplate, Loader2, Palette, Pencil, RefreshCw, Scissors, Trash2, TriangleAlert, Undo2, Wand2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LivePreview from "@/components/livePreview";
 import CompanyLogo from "@/components/companyLogo";
@@ -42,7 +42,6 @@ import type { LookAdvice, LookField } from "@/lib/templateAdvice";
 import { PAGE_MIN_SCALE } from "@/lib/pageRules";
 import { cleanSkillGroups, hasSkillGroups } from "@/lib/skillGroups";
 import { autoGroupSkills, suggestedGroup } from "@/lib/skillCategories";
-import { motion } from "framer-motion";
 import { resumeLangForJob } from "@/lib/resumeLang";
 import { detectResumeLanguage } from "@/lib/resumeTranslate";
 import { translateProfile } from "@/utils/translateClient";
@@ -468,11 +467,6 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
 
   // ----- the size of the page: measured for this job's resume with the look chosen, and what could go out when it is crowded
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
-  // the gauge animates when it first appears; coming back to it from another step it is already in place (no replay)
-  const gaugeSeen = useRef(false);
-  useEffect(() => {
-    if (pageInfo) gaugeSeen.current = true;
-  }, [pageInfo]);
   const [measuring, setMeasuring] = useState(false);
   const measureKey = JSON.stringify(draftPayload()) + template;
   useEffect(() => {
@@ -797,7 +791,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
           </defs>
           <rect x="2" y="2" width="30" height="40" rx="3" fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.5" />
           <g clipPath="url(#page-fill)">
-            <rect x="2" y={42 - 40 * (tone === "idle" ? 0.15 : tone === "ok" ? (textSize >= 100 ? 0.7 : 0.82) : 1)} width="30" height={40} fill={toneColor} fillOpacity="0.22" style={{ transition: "all 400ms ease" }} />
+            <rect x="2" y="2" width="30" height="40" fill={toneColor} fillOpacity="0.22" style={{ transformBox: "fill-box", transformOrigin: "bottom", transform: `scaleY(${tone === "idle" ? 0.15 : tone === "ok" ? (textSize >= 100 ? 0.7 : 0.82) : 1})`, transition: "transform 600ms cubic-bezier(0.22, 1, 0.36, 1), fill 300ms ease" }} />
           </g>
           {[12, 18, 24, 30].map((y) => (
             <line key={y} x1="8" x2={y === 30 ? 20 : 26} y1={y} y2={y} stroke="currentColor" strokeOpacity="0.28" strokeWidth="2" strokeLinecap="round" />
@@ -807,30 +801,26 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-sm font-bold">{tr("Page")}</p>
-            <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: toneColor }}>
+            <p className="flex min-h-[1.25rem] items-center gap-1.5 text-sm font-semibold transition-colors duration-300" style={{ color: toneColor }}>
               {measuring && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               {tone === "idle" ? (measuring ? tr("Measuring the page…") : tr("We couldn't measure the page.")) : tone === "ok" ? (pageCount > 1 ? tr("It fits on {pages} pages.", { pages: pageCount }) : tr("It fits on one page.")) : tone === "tight" ? tr("Tight, but it fits") : pageCount > 1 ? tr("This resume takes {pages} pages.", { pages: pageCount }) : tr("It is crowded")}
             </p>
           </div>
+          {/* The bar: red (too much for the page), amber (tight) and green (fits). The marker is moved by a CSS transition, so a new measure slides
+              it smoothly to its place (no spring, no delay); while the page is being measured a light runs along the bar and the marker stays put. */}
           {pageInfo ? (
-            <motion.div
-              key="gauge"
-              className="relative mt-2.5 h-2 rounded-full"
-              style={{ background: "linear-gradient(to right, #ef4444 0%, #ef4444 60%, #f59e0b 65%, #f59e0b 72%, #22c55e 78%, #22c55e 100%)", transformOrigin: "left" }}
-              initial={gaugeSeen.current ? false : { opacity: 0, scaleX: 0.55 }}
-              animate={{ opacity: 1, scaleX: 1 }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-              aria-hidden
-            >
-              <motion.span
-                className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-foreground shadow"
-                initial={gaugeSeen.current ? false : { left: "0%", opacity: 0, scale: 0.4 }}
-                animate={{ left: `${markerAt}%`, opacity: 1, scale: 1 }}
-                transition={{ type: "spring", stiffness: 140, damping: 18, delay: 0.25 }}
-              />
-            </motion.div>
+            <div className="relative mt-3 h-2 rounded-full" style={{ background: "linear-gradient(to right, #ef4444 0%, #ef4444 60%, #f59e0b 65%, #f59e0b 72%, #22c55e 78%, #22c55e 100%)" }} aria-hidden>
+              {measuring && (
+                <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
+                  <span className="translate-bar block h-full w-1/3 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+                </span>
+              )}
+              <span className="absolute top-1/2 -translate-y-1/2" style={{ left: `${markerAt}%`, transition: "left 700ms cubic-bezier(0.22, 1, 0.36, 1)" }}>
+                <span className="block h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-foreground shadow motion-safe:animate-[pop-in_0.4s_ease-out_both]" />
+              </span>
+            </div>
           ) : (
-            <div className="shimmer mt-2.5 h-2 rounded-full bg-muted" aria-hidden />
+            <div className="shimmer mt-3 h-2 rounded-full bg-muted" aria-hidden />
           )}
           {pageInfo && (
             <p className="mt-1.5 text-xs text-muted-foreground">
@@ -1441,98 +1431,123 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
 
               {pageSize}
 
-              <section className="rounded-xl border p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="flex items-center gap-2 text-sm font-bold">
-                    <Sparkles className="h-4 w-4 text-blue-500" />
-                    {tr("How it reads for this job")}
-                  </p>
-                  <Button variant="ghost" size="sm" onClick={() => check(true)} disabled={evaluating || !!fixing}>{tr("Check again")}</Button>
+              <section className="overflow-hidden rounded-2xl border bg-card">
+                <div className="flex items-center justify-between gap-3 border-b px-5 py-3.5">
+                  <h3 className="text-sm font-bold">{tr("How it reads for this job")}</h3>
+                  <button
+                    type="button"
+                    onClick={() => check(true)}
+                    disabled={evaluating || !!fixing}
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${evaluating ? "animate-spin" : ""}`} />
+                    {tr("Check again")}
+                  </button>
                 </div>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex shrink-0 flex-col items-center gap-1">
-                      <Ring value={reviewScore} size={72} loading={evaluating || !!fixing || (!evaluation && !evalError)} />
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr("Your fit")}</span>
+
+                <div className="space-y-6 p-5">
+                  {/* the number and what it says */}
+                  <div className="flex items-start gap-5">
+                    <div className="flex shrink-0 flex-col items-center gap-2">
+                      <Ring value={reviewScore} size={84} loading={evaluating || !!fixing || (!evaluation && !evalError)} />
                       {scoreBefore !== null && scoreBefore !== reviewScore && !evaluating && !fixing && applied.length > 0 && (
-                        <span className={`text-[11px] font-bold tabular-nums ${reviewScore > scoreBefore ? "text-green-500" : "text-muted-foreground"}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${reviewScore > scoreBefore ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>
                           {scoreBefore} → {reviewScore}
                         </span>
                       )}
                     </div>
-                    <p className="text-sm leading-relaxed">
-                      {evaluating ? tr("Checking the requirements, the ATS and your achievements…") : evaluation?.headline || (evalError ? tr("We couldn't check the draft this time. You can still create the resume.") : "")}
-                    </p>
+                    <div className="min-w-0 flex-1 pt-1">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{tr("Your fit")}</p>
+                      {evaluating ? (
+                        <div className="mt-2 space-y-2" role="status" aria-label={tr("Checking the requirements, the ATS and your achievements…")}>
+                          {[100, 86, 60].map((w, i) => <div key={i} className="shimmer h-3.5 rounded bg-muted" style={{ width: `${w}%` }} />)}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[15px] leading-relaxed">{evaluation?.headline || (evalError ? tr("We couldn't check the draft this time. You can still create the resume.") : "")}</p>
+                      )}
+                    </div>
                   </div>
-                  {evaluating ? (
-                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {tr("Checking the requirements, the ATS and your achievements…")}
-                    </p>
-                  ) : (
-                    evaluation && (
-                      <>
-                        {evaluation.strengths.length > 0 && (
-                          <ul className="space-y-1.5">
-                            {evaluation.strengths.map((s) => (
-                              <li key={s} className="flex gap-2 text-sm">
-                                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" strokeWidth={3} />
-                                {s}
+
+                  {!evaluating && evaluation && (
+                    <>
+                      {evaluation.strengths.length > 0 && (
+                        <div>
+                          <p className="mb-2.5 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">{tr("What already works")}</p>
+                          <ul className="space-y-2">
+                            {evaluation.strengths.map((st) => (
+                              <li key={st} className="flex items-start gap-3 rounded-xl bg-green-500/[0.06] px-3.5 py-2.5 text-sm leading-relaxed">
+                                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-500/15 text-green-600 dark:text-green-400">
+                                  <Check className="h-3 w-3" strokeWidth={3.5} />
+                                </span>
+                                <span>{st}</span>
                               </li>
                             ))}
                           </ul>
-                        )}
-                        {evaluation.improvements.length > 0 && (
-                          <div>
-                            <div className="mb-1.5 flex items-center justify-between gap-3">
-                              <p className="text-sm font-bold">{tr("The resume will work on")}</p>
-                              <Button size="sm" onClick={fixAll} disabled={!!fixing} className="gap-1.5">
-                                {fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                                {fixing ? (fixing.total ? tr("Applying {done} of {total}…", { done: fixing.done, total: fixing.total }) : tr("Writing the fixes…")) : tr("Fix all")}
-                              </Button>
+                        </div>
+                      )}
+
+                      {evaluation.improvements.length > 0 && (
+                        <div>
+                          <p className="mb-2.5 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">{tr("What to improve")}</p>
+                          <ol className="space-y-2">
+                            {evaluation.improvements.map((im, i) => (
+                              <li key={im} className="flex items-start gap-3 rounded-xl border px-3.5 py-2.5 text-sm leading-relaxed">
+                                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[11px] font-bold text-blue-600 dark:text-blue-400">{i + 1}</span>
+                                <span>{im}</span>
+                              </li>
+                            ))}
+                          </ol>
+                          <Button onClick={fixAll} disabled={!!fixing} className="mt-3 w-full gap-2 rounded-full sm:w-auto">
+                            {fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                            {fixing ? (fixing.total ? tr("Applying {done} of {total}…", { done: fixing.done, total: fixing.total }) : tr("Writing the fixes…")) : tr("Fix all")}
+                          </Button>
+                          {fixing && (
+                            <div className="mt-3 h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+                              {fixing.total ? (
+                                <div className="h-full rounded-full bg-blue-600 transition-[width] duration-500 ease-out" style={{ width: `${Math.max(8, Math.round((fixing.done / fixing.total) * 100))}%` }} />
+                              ) : (
+                                <div className="translate-bar h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-blue-600 to-transparent" />
+                              )}
                             </div>
-                            <ul className="space-y-1.5">
-                              {evaluation.improvements.map((s) => (
-                                <li key={s} className="flex gap-2 text-sm">
-                                  <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                                  {s}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </>
-                    )
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
+
+                  {/* what was changed, with a way back */}
                   {applied.length > 0 && (
-                    <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3">
-                      <div className="mb-1.5 flex items-center justify-between gap-3">
-                        <p className="text-sm font-bold">{tr("Changes made to this resume")}</p>
+                    <div className="overflow-hidden rounded-xl border border-green-500/25 bg-green-500/[0.04]">
+                      <div className="flex items-center justify-between gap-3 px-4 py-3">
+                        <p className="flex items-center gap-2 text-sm font-bold">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
+                            <Check className="h-3 w-3" strokeWidth={3.5} />
+                          </span>
+                          {tr("Changes applied")}
+                          <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-[11px] font-bold tabular-nums text-green-700 dark:text-green-400">{applied.length}</span>
+                        </p>
                         {!fixing && (
-                          <button type="button" onClick={undoFix} className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground">
+                          <button type="button" onClick={undoFix} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-background hover:text-foreground">
                             <Undo2 className="h-3.5 w-3.5" />
                             {tr("Undo")}
                           </button>
                         )}
                       </div>
-                      <ul className="space-y-1">
+                      <ul className="divide-y divide-green-500/15 border-t border-green-500/15">
                         {applied.map((a) => (
-                          <li key={a.title} className="text-sm">
-                            <span className="flex gap-2">
-                              <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" strokeWidth={3} />
-                              {a.title}
-                            </span>
+                          <li key={a.title} className="px-4 py-3 text-sm">
+                            <p className="font-semibold leading-snug">{a.title}</p>
                             {a.now.length > 0 && (
-                              <ul className="ml-6 mt-1 space-y-1 border-l-2 border-green-500/40 pl-3 text-muted-foreground">
+                              <ul className="mt-2 space-y-1.5 border-l-2 border-green-500/40 pl-3 leading-relaxed text-foreground/90">
                                 {a.now.map((t) => (
-                                  <li key={t} className="text-foreground">{t}</li>
+                                  <li key={t}>{t}</li>
                                 ))}
                               </ul>
                             )}
                             {a.now.length > 0 && a.was.length > 0 && (
-                              <details className="ml-6 mt-1 text-xs text-muted-foreground">
-                                <summary className="cursor-pointer font-semibold">{tr("Before")}</summary>
-                                <ul className="mt-1 space-y-1 border-l-2 border-muted pl-3">
+                              <details className="mt-2 text-xs text-muted-foreground">
+                                <summary className="cursor-pointer select-none font-semibold transition-colors hover:text-foreground">{tr("Before")}</summary>
+                                <ul className="mt-1.5 space-y-1.5 border-l-2 border-muted pl-3 leading-relaxed">
                                   {a.was.map((t) => (
                                     <li key={t}>{t}</li>
                                   ))}
