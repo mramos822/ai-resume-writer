@@ -47,9 +47,9 @@ export function narrativeText(p: ProfileData): string {
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** True when the narrative says the term (a skill as a whole word, or a phrase as it is written). */
 export const saysTerm = (narrative: string, term: string): boolean => {
-  const t = term.trim().toLowerCase();
+  const t = term.trim().toLowerCase().replace(/[-‐-―_]+/g, " ");
   if (!t) return true;
-  return new RegExp(`(^|[^a-z0-9+#])${esc(t)}($|[^a-z0-9+#])`).test(narrative);
+  return new RegExp(`(^|[^a-z0-9+#])${esc(t)}($|[^a-z0-9+#])`).test(narrative.replace(/[-‐-―_]+/g, " ")); // ("Full-Stack" and "full stack" are the same)
 };
 
 const DEGREE = /\b(bachelor'?s?|master'?s?|ph\.?d|doctorate|b\.?s\.?c?|m\.?s\.?c?|university degree|college degree|degree in|licenciatura|ingenier[ií]a|grado)\b/i;

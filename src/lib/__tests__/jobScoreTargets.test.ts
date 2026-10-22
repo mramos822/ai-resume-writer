@@ -36,3 +36,14 @@ describe("the language of the resume made for a job", () => {
     expect(resumeLangForJob(ad({ country: "mx", description: text }), "es")).toBe("en");
   });
 });
+
+describe("a job posted in Spanish", () => {
+  const es: JobListing = { ...job, title: "Desarrollador Full Stack e IA Aplicada", description: "", snippet: "Desarrollo de software full stack con inteligencia artificial aplicada.", facts: { required: ["Full Stack", "Inteligencia Artificial"], preferred: [], years: 0 } as never };
+  it("is the same kind of work as the role in English, and a full-stack developer has 'Full Stack'", () => {
+    const withAi = { ...(me as object), skills: ["TypeScript", "React", "Node.js", "AI"] } as never;
+    const s = jobScore(withAi, es, [], "classic", [], 90);
+    expect(s.role).toBe(100);
+    expect(s.skills.have).toBe(2);
+    expect(s.score).toBeGreaterThan(70);
+  });
+});

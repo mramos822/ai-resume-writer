@@ -5,6 +5,9 @@ const ALIAS: Record<string, string> = {
   js: "javascript", ecmascript: "javascript", ts: "typescript", node: "node.js", nodejs: "node.js", "node js": "node.js",
   "react.js": "react", reactjs: "react", "react js": "react", "vue.js": "vue", vuejs: "vue", "angular.js": "angularjs",
   postgres: "postgresql", psql: "postgresql", mongo: "mongodb", k8s: "kubernetes", golang: "go", "c sharp": "c#", "c plus plus": "c++",
+  // the same skill in Spanish (postings in Spanish name them so)
+  "inteligencia artificial": "ai", "artificial intelligence": "ai", ia: "ai", "aprendizaje automatico": "machine learning", "aprendizaje automático": "machine learning",
+  "bases de datos": "databases", "base de datos": "databases", "desarrollo web": "web development", "ciencia de datos": "data science", "analisis de datos": "data analysis", "análisis de datos": "data analysis",
   "ms excel": "excel", "microsoft excel": "excel", "ms word": "word", "microsoft word": "word", "ms office": "microsoft office", gh: "github", py: "python",
 };
 const canon = (s: string) => {

@@ -18,12 +18,17 @@ export function levelFactor(job: Pick<JobListing, "title" | "description" | "sni
 const KNOWN_SKILLS = new Set(ALL_SKILLS.map((s) => s.toLowerCase()));
 
 // Words of a job title that say the level or the place, not the kind of work, and the words that mean the same kind of work.
-const LEVEL_WORDS = new Set(["senior", "sr", "junior", "jr", "lead", "principal", "staff", "intern", "internship", "associate", "early", "career", "entry", "level", "new", "grad", "graduate", "university", "campus", "remote", "hybrid", "full", "time", "part", "contract", "i", "ii", "iii", "iv", "1", "2", "3", "the", "and", "of", "for", "a", "an", "in", "at", "to", "with"]);
-const SAME_WORK: Record<string, string> = { developer: "engineer", engineer: "engineer", programmer: "engineer", swe: "engineer", sde: "engineer", coder: "engineer", engineering: "engineer", development: "engineer", software: "software", web: "software", application: "software", applications: "software", platform: "software", mobile: "software", app: "software" };
+const LEVEL_WORDS = new Set(["senior", "sr", "junior", "jr", "lead", "principal", "staff", "intern", "internship", "associate", "early", "career", "entry", "level", "new", "grad", "graduate", "university", "campus", "remote", "hybrid", "full", "time", "part", "contract", "i", "ii", "iii", "iv", "1", "2", "3", "the", "and", "of", "for", "a", "an", "in", "at", "to", "with",
+  // words that only join the others in Spanish and Portuguese titles
+  "de", "del", "la", "el", "los", "las", "y", "e", "en", "para", "con", "un", "una", "o", "da", "do", "em", "com", "semi", "pleno"]);
+const SAME_WORK: Record<string, string> = { developer: "engineer", engineer: "engineer", programmer: "engineer", swe: "engineer", sde: "engineer", coder: "engineer", engineering: "engineer", development: "engineer", software: "software", web: "software", application: "software", applications: "software", platform: "software", mobile: "software", app: "software",
+  // the same words in Spanish and Portuguese (a job posted in Spanish is the same work as one in English)
+  desarrollador: "engineer", desarrolladora: "engineer", programador: "engineer", programadora: "engineer", ingeniero: "engineer", ingeniera: "engineer", ingenieria: "engineer", desarrollo: "engineer",
+  desenvolvedor: "engineer", desenvolvedora: "engineer", engenheiro: "engineer", engenheira: "engineer", aplicaciones: "software", aplicacion: "software", aplicativos: "software", movil: "software", moviles: "software", sistemas: "software" };
 
 /** The kind of work a title says, as a set of words ("Full Stack Developer" and "Software Engineer" are the same: software, engineer). */
 function workWords(title: string): Set<string> {
-  const t = title.toLowerCase().replace(/full[\s-]?stack|front[\s-]?end|back[\s-]?end/g, " software ");
+  const t = title.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/full[\s-]?stack|front[\s-]?end|back[\s-]?end/g, " software ");
   const out = new Set<string>();
   for (const w of t.split(/[^a-z0-9+#]+/)) {
     if (w.length < 1 || LEVEL_WORDS.has(w)) continue;
