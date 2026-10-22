@@ -69,6 +69,9 @@ export const CUT_POSTING_ERROR = "We couldn't read the whole job posting, and a 
  */
 export async function wholeJob(job: JobListing): Promise<JobListing> {
   if (!isPartialPosting(job)) return job;
+  // Careerjet shares only the first lines of a posting and its page cannot be read: the work goes on with those lines (the AI is told they are all
+  // there is, see postingText), instead of stopping with an error nobody can fix
+  if (job.source === "careerjet") return job;
   const [read] = await enrichListings([job], 1, 8000);
   if (isPartialPosting(read)) throw new HttpError(422, CUT_POSTING_ERROR);
   return read;

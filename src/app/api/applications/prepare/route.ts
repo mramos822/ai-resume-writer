@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     const statedLevel = lv && body.mentionLevel === true ? LEVEL_LABEL[lv] : "";
 
     // 1) the AI tailors the resume and writes the letter
-    const posting = [`Title: ${job.title}`, `Company: ${job.company}`, job.location ? `Location: ${job.location}` : "", job.tags.length ? `Tags: ${job.tags.join(", ")}` : "", `Description: ${job.description || job.snippet}`]
+    const posting = [`Title: ${job.title}`, `Company: ${job.company}`, job.location ? `Location: ${job.location}` : "", job.tags.length ? `Tags: ${job.tags.join(", ")}` : "", `Description: ${job.description || job.snippet}`, job.source === "careerjet" ? "Note: only the first lines of this posting are available. Use only what is written here: do not assume or invent other requirements, tools or duties." : ""]
       .filter(Boolean)
       .join("\n");
     const pageRule = maxPagesFor(base, template) > 1
