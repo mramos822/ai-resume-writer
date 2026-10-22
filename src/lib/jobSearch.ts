@@ -352,7 +352,7 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: S
     // keep jobs in that place, plus remote ones (they can be done from there)
     const lw = words(loc);
     out = out
-      .filter((j) => j.reach || j.remote || lw.some((w) => j.location.toLowerCase().includes(w)))
+      .filter((j) => j.reach || j.remote || j.source === "careerjet" || lw.some((w) => j.location.toLowerCase().includes(w))) // Careerjet already searched by the place (in the local language: "Αθήνα" is "Athens")
       .map((j) => (j.reach ? j : { ...j, reach: j.remote ? ("remote" as const) : ("here" as const) }));
   }
   const seen = new Set<string>();

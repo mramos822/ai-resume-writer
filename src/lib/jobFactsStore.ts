@@ -15,6 +15,8 @@ export const readsPerDay = () => {
 };
 /** the shortest text worth reading: below it there is nothing to find */
 export const MIN_TEXT = 300;
+/** Careerjet only shares a couple of lines of each posting (its page cannot be read), so for its jobs a shorter text is worth reading, as the page of a job does */
+export const minTextOf = (job: Pick<JobListing, "source">) => (job.source === "careerjet" ? 80 : MIN_TEXT);
 
 interface ReadDoc {
   key: string;
@@ -61,7 +63,7 @@ export async function takeReading(now = new Date()): Promise<boolean> {
 /** Reads one job with the AI and keeps what it found. Returns the facts, or null when there was nothing to read. Throws what the AI throws. */
 export async function readOnce(job: JobListing): Promise<JobFacts | null> {
   const source = (job.description || job.snippet || "").trim();
-  if (source.length < MIN_TEXT) return null;
+  if (source.length < minTextOf(job)) return null;
   const raw = await readPosting(`Title: ${job.title}\nCompany: ${job.company}\nLocation: ${job.location}\n\n${source}`);
   const text = describe(raw);
   const facts = factsOf(raw);
@@ -83,7 +85,7 @@ export async function warm(jobs: JobListing[], pauseMs = 3000): Promise<{ read: 
   const done = new Set(keyed.map((d) => String(d.key)));
   let read = 0;
   for (const job of jobs) {
-    if (done.has(job.key) || inflight.has(job.key) || (job.description || job.snippet || "").trim().length < MIN_TEXT) continue;
+    if (done.has(job.key) || inflight.has(job.key) || (job.description || job.snippet || "").trim().length < minTextOf(job)) continue;
     if (!(await takeReading())) return { read, stopped: "budget" };
     inflight.add(job.key);
     try {

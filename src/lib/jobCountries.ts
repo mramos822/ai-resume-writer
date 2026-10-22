@@ -1,9 +1,13 @@
 /** The countries where the job board (Adzuna) has local jobs. For any other country the live board is not asked. */
 export const ADZUNA_COUNTRIES = ["at", "au", "be", "br", "ca", "ch", "de", "es", "fr", "gb", "in", "it", "mx", "nl", "nz", "pl", "sg", "us", "za"];
 
-/** Careerjet's locale for each country where it is asked (Latin America, where Adzuna has no jobs; Mexico and Brazil are Adzuna's). A country it does not know just answers with an error, which the search ignores. */
+/**
+ * Careerjet's locale for each country where it is asked: Latin America and the European countries where Adzuna has no jobs (Mexico, Brazil and the
+ * big European countries are Adzuna's). Every locale here was checked to answer. A country it does not know just answers with an error, which the search ignores.
+ */
 export const CAREERJET_LOCALES: Record<string, string> = {
   pe: "es_PE", cl: "es_CL", co: "es_CO", ar: "es_AR", ec: "es_EC", uy: "es_UY", ve: "es_VE", cr: "es_CR", pa: "es_PA", do: "es_DO", bo: "es_BO", py: "es_PY", gt: "es_GT", hn: "es_HN", ni: "es_NI", sv: "es_SV",
+  pt: "pt_PT", ie: "en_IE", se: "sv_SE", dk: "da_DK", no: "no_NO", fi: "fi_FI", cz: "cs_CZ", hu: "hu_HU", ro: "ro_RO", gr: "el_GR",
 };
 
 /**
