@@ -270,36 +270,38 @@ export default function JobDetail({
 
               {/* middle: what we found */}
               <div className="no-scrollbar flex-1 space-y-8 overflow-y-auto px-6 py-6">
-                <section className="flex items-center gap-5 rounded-2xl border bg-card p-5">
-                  <span className="text-5xl font-black leading-none tabular-nums" style={{ color }}>
-                    {pct}
-                    <span className="text-xl text-muted-foreground">%</span>
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold">{tr("Fit with your profile")}</p>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%`, background: color }} />
+                <section className="relative overflow-hidden rounded-2xl border p-5" style={{ background: `linear-gradient(120deg, ${color}1f, transparent 65%)` }}>
+                  <div className="flex items-center gap-5">
+                    <div className="relative h-20 w-20 shrink-0">
+                      <svg viewBox="0 0 36 36" className="h-20 w-20 -rotate-90">
+                        <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" className="stroke-muted" />
+                        <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" stroke={color} strokeDasharray={`${(pct / 100) * 97.4} 97.4`} className="transition-[stroke-dasharray] duration-700" />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-xl font-black tabular-nums" style={{ color }}>{pct}<span className="text-xs text-muted-foreground">%</span></span>
                     </div>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {analysis.matched.length > 0 ? tr("{length} of the skills this job mentions are already in your profile.", { length: analysis.matched.length }) : tr("We found no skills of yours in this posting.")}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-lg font-extrabold leading-tight">{pct >= 75 ? tr("A very good fit") : pct >= 55 ? tr("A good fit") : pct >= 35 ? tr("A partial fit") : tr("A low fit")}</p>
+                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                        {analysis.matched.length > 0 ? tr("{length} of the skills this job mentions are already in your profile.", { length: analysis.matched.length }) : tr("We found no skills of yours in this posting.")}
+                      </p>
+                    </div>
                   </div>
                 </section>
 
                 {(analysis.matched.length > 0 || analysis.missing.length > 0) && (
                   <section className="grid gap-5 sm:grid-cols-2">
                     <div>
-                      <h3 className="mb-2.5 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("You have")}</h3>
+                      <h3 className="mb-2.5 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{tr("You have")}</h3>
                       <div className="flex flex-wrap gap-1.5">
                         {analysis.matched.length === 0 ? <span className="text-sm text-muted-foreground">{tr("None yet")}</span> : analysis.matched.map((s) => (
-                          <span key={s} className="rounded-full bg-green-500/10 px-3 py-1 text-sm font-medium text-green-500">
+                          <span key={s} className="rounded-full border border-green-500/25 bg-green-500/10 px-3 py-1 text-sm font-medium text-green-600 dark:text-green-400">
                             {s}
                           </span>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <h3 className="mb-2.5 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("They also ask for")}</h3>
+                      <h3 className="mb-2.5 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{tr("They also ask for")}</h3>
                       <div className="flex flex-wrap gap-1.5">
                         {analysis.missing.length === 0 ? <span className="text-sm text-muted-foreground">{tr("Nothing else")}</span> : analysis.missing.map((s) => (
                           <span key={s} className="rounded-full border px-3 py-1 text-sm text-muted-foreground">
@@ -318,28 +320,44 @@ export default function JobDetail({
                 )}
 
                 <section>
-                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">{tr("About the job")}{!reading && analysis.blocks && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium normal-case tracking-normal text-muted-foreground">{analysis.fromDigest || !analysis.complete ? tr("Written with AI") : tr("From the original posting")}</span>}</h3>
-                  {!reading && analysis.blocks && (analysis.fromDigest || !analysis.complete) && <p className="-mt-1.5 mb-3 text-xs text-muted-foreground">{tr("Summary made with AI from the posting. It can leave out details: check the original posting before you apply.")}</p>}
+                  <h3 className="mb-4 flex items-center gap-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                    {tr("About the job")}
+                    <span aria-hidden className="h-px flex-1 bg-border" />
+                  </h3>
                   {aiReading && (
                     <p role="status" className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-blue-500" />{" "}{tr("Reading it with AI to get your exact fit…")}</p>
                   )}
                   {/* while the full posting is being read, only the loading line shows: the first lines the job board shares would appear and then be replaced */}
-                  <div className="space-y-3.5 leading-relaxed">
+                  <div className="max-w-prose space-y-3 text-[15px] leading-7 text-foreground/90">
                     {reading
                       ? [92, 100, 78, 96, 60].map((w, i) => <div key={i} className="shimmer h-3.5 rounded bg-muted" style={{ width: `${w}%` }} />)
                       : analysis.blocks
                       ? analysis.blocks.map((b, i) =>
                           b.kind === "h" ? (
-                            <h4 key={i} className="pt-2 text-sm font-bold">{analysis.fromDigest || !analysis.complete ? tr(b.text) : b.text}</h4>
+                            <h4 key={i} className="flex items-center gap-2.5 pt-5 text-[13px] font-bold uppercase tracking-[0.12em] text-foreground first:pt-0">
+                              <span aria-hidden className="h-0.5 w-4 rounded-full bg-blue-500" />
+                              {analysis.fromDigest || !analysis.complete ? tr(b.text) : b.text}
+                            </h4>
                           ) : b.kind === "li" ? (
-                            <p key={i} className="flex gap-2.5 pl-1"><span aria-hidden className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />{b.text}</p>
+                            <p key={i} className="flex gap-3"><span aria-hidden className="mt-3 h-1 w-1 shrink-0 rounded-full bg-blue-500" /><span>{b.text}</span></p>
                           ) : (
-                            <p key={i}>{b.text}</p>
+                            // the first paragraph is the lead of the posting: a little larger
+                            <p key={i} className={i === analysis.blocks!.findIndex((x) => x.kind === "p") ? "text-base leading-7 text-foreground" : ""}>{b.text}</p>
                           )
                         )
                       : analysis.body.length === 0 ? <p className="text-muted-foreground">{tr("The source did not share more about this job. The original posting has the full text.")}</p> : analysis.body.map((p, i) => <p key={i}>{p}</p>)}
                   </div>
+                  {/* the AI is a footnote, not a badge and a warning */}
+                  {!reading && analysis.blocks && (analysis.fromDigest || !analysis.complete) && (
+                    <p className="mt-6 flex items-start gap-2 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
+                      <Wand2 aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        {tr("Summarized from the original posting so it reads faster. It can leave out details:")}{" "}
+                        <a href={job.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-foreground underline-offset-4 hover:underline">{tr("check the original before you apply")}</a>.
+                      </span>
+                    </p>
+                  )}
                   {reading && (
                     <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-blue-500" />{" "}{tr("Loading the full description…")}</p>
