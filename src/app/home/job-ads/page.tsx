@@ -185,6 +185,8 @@ export default function JobSearchPage() {
   const langMode = useRef<JobFilters["lang"]>("auto"); // read by the search: "all" asks for every language
   const [searchedPlace, setSearchedPlace] = useState(""); // the place the results are about, as the search understood it
   const [searchedRemote, setSearchedRemote] = useState(false); // the search was for remote work
+  // the role the results were searched with: the list is ranked by it, not by what is being typed (typing must not rank every job again at each key)
+  const [searchedQ, setSearchedQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
@@ -251,6 +253,7 @@ export default function JobSearchPage() {
       const id = ++searchId.current;
       setLoading(true);
       setLoadingMore(false);
+      setSearchedQ(query);
       setError("");
       if (openSaved.current) openSaved.current = false;
       else setTab("results");
@@ -414,7 +417,7 @@ export default function JobSearchPage() {
   const ranked = useMemo(() => {
     const visible = tab === "results" ? pool.filter((j) => matchesFilters(j, filters)) : pool;
     // the percentage is the number of the job (see lib/jobScore); the skills it matches come from the quick reading of the posting
-    const withFit = visible.map((j) => ({ job: j, fit: { ...fitOf(j, skills, defaultRole || q, myYears), pct: jobScore(profile, j, [], template, [], basics).score, estimate: isPartialPosting(j) || !j.facts } }));
+    const withFit = visible.map((j) => ({ job: j, fit: { ...fitOf(j, skills, defaultRole || searchedQ, myYears), pct: jobScore(profile, j, [], template, [], basics).score, estimate: isPartialPosting(j) || !j.facts } }));
     // best fit first, newest among equals (the saved tab keeps the order they were saved in)
     // (a search by place keeps its groups: in the place, near it, remote, the rest)
     const group = (j: JobListing) => (j.reach ? REACH_ORDER.indexOf(j.reach) : 0);
@@ -428,7 +431,7 @@ export default function JobSearchPage() {
     // so the most recent of them goes first
     const restricted = (j: JobListing) => ((j.countryFit ?? 0) >= 2 ? 1 : 0);
     return tab !== "results" ? withFit : withFit.sort((a, b) => group(a.job) - group(b.job) || restricted(a.job) - restricted(b.job) || order(a, b));
-  }, [pool, filters, skills, q, defaultRole, tab, myYears, profile, basics, template]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pool, filters, skills, searchedQ, defaultRole, tab, myYears, profile, basics, template]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The jobs on screen (the first ten) are read in the background by the server, slowly, so their number becomes the exact one without
   // opening them. What comes back is shown in place: the order of the list does not move while somebody looks at it.

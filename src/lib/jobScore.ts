@@ -147,7 +147,7 @@ export function jobScore(profile: ProfileData, job: JobListing, extra: string[] 
     return { narrative, core: (0.45 * role + 0.4 * coverageNow + (kw.length > 0 ? 0.15 * narrative : 0)) / (kw.length > 0 ? 1 : 0.85) };
   };
   const plain = coreOf(ownKeywords);
-  const helped = coreOf(withTargets);
+  const helped = targets.length > 0 ? coreOf(withTargets) : plain; // (without targets there is nothing to work out twice)
   const { core, narrative } = helped.core > plain.core ? helped : plain;
   const base = core * (0.7 + 0.3 * education) * (0.85 + 0.15 * (basics / 100));
   // A job far BELOW the person is not a good fit either: an internship or an entry level job for someone with years of experience.
