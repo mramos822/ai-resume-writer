@@ -95,7 +95,8 @@ export async function GET(req: Request) {
     t.mark("read");
     const found = { jobs, sources: result.sources, bigCity: result.bigCity };
     // remembered after the answer has gone: nobody waits for the database to write it down
-    after(() => rememberSearch(qkey, found, ttl));
+    // (a search in which a board failed is not remembered for hours: the next one asks that board again)
+    if (!result.failed?.length) after(() => rememberSearch(qkey, found, ttl));
     const withFacts = await withStoredFacts(await withKnownPay(found.jobs));
     t.mark("facts");
     return NextResponse.json({ ...found, jobs: withFacts, place: place?.label ?? null, more: moreToCome(found.jobs.length) }, { headers: t.header() });

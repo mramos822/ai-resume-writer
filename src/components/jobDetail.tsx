@@ -4,7 +4,7 @@
 // Applying on the company's site is the last step, not the first thing a click does.
 import React, { useEffect, useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Bookmark, BookmarkCheck, Briefcase, Clock, ExternalLink, Globe2, Link2, MapPin, Wallet, Wand2, X } from "lucide-react";
+import { Bookmark, BookmarkCheck, Briefcase, Check, Clock, ExternalLink, Globe2, Link2, MapPin, Wallet, Wand2, X } from "lucide-react";
 import CompanyLogo from "@/components/companyLogo";
 import { Button } from "@/components/ui/button";
 import { useProfile } from "@/context/profileContext";
@@ -16,7 +16,7 @@ import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 import { yearsFor } from "@/lib/experienceLevel";
 import { levelOf } from "@/lib/jobLevel";
 import { askedSkills, covers } from "@/lib/jobSkills";
-import { isPartialPosting } from "@/lib/jobSearch";
+import { isPartialPosting, sharesFirstLinesOnly } from "@/lib/jobSearch";
 import type { JobListing } from "@/lib/jobSearch";
 import { useT } from "@/i18n/provider";
 
@@ -90,7 +90,7 @@ function structure(text: string): Block[] {
 const CUT = /(\.\.\.|…)\s*$/;
 
 export default function JobDetail({
-  job,
+  job: jobIn,
   saved,
   prepared,
   onClose,
@@ -112,6 +112,35 @@ export default function JobDetail({
   const { activeProfile: profile } = useProfile();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  // Some boards (Jooble, Careerjet) share only the first lines of a job and their pages cannot be read by a program. The person can paste the text
+  // of the original posting: the job is then worked with that text (the fit and the skills are exact), here and when its resume is prepared.
+  // It stays in this browser, per job.
+  const [pasted, setPasted] = useState<string>("");
+  const [pasting, setPasting] = useState(false);
+  const [draftText, setDraftText] = useState("");
+  useEffect(() => {
+    setPasting(false);
+    setDraftText("");
+    try {
+      setPasted(jobIn ? localStorage.getItem(`kaizo_pasted:${jobIn.key}`) ?? "" : "");
+    } catch {
+      setPasted("");
+    }
+  }, [jobIn?.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const job = useMemo<JobListing | null>(() => (jobIn && pasted ? { ...jobIn, description: pasted.slice(0, 6000), snippet: pasted.slice(0, 400) } : jobIn), [jobIn, pasted]);
+  const onlyFirstLines = !!jobIn && sharesFirstLinesOnly(jobIn) && !pasted;
+  const savePasted = (text: string) => {
+    const t = text.trim();
+    try {
+      if (t) localStorage.setItem(`kaizo_pasted:${jobIn?.key}`, t.slice(0, 6000));
+      else localStorage.removeItem(`kaizo_pasted:${jobIn?.key}`);
+    } catch {
+      /* storage unavailable: it applies until the panel is closed */
+    }
+    setPasted(t.slice(0, 6000));
+    setPasting(false);
+    setDraftText("");
+  };
   // job boards only share the first lines of a posting: we read the whole posting and show it as a summary and its sections
   const [full, setFull] = useState<{ key: string; text: string | null; facts?: JobFacts; pay?: string | null } | null>(null);
   // The text of the posting is shown ONCE, already final: a short loading state first, then either the AI's ordered version (when it is ready,
@@ -125,7 +154,7 @@ export default function JobDetail({
     const have = job.description || job.snippet || "";
     if (sections(have)) return; // a job that was added already comes as a summary and sections
     let off = false;
-    authFetch("/api/jobs/detail", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job }) })
+    authFetch("/api/jobs/detail", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: pasted ? { ...job, key: `${job.key}:p${pasted.length}-${pasted.charCodeAt(0)}-${pasted.charCodeAt(pasted.length - 1)}` } : job }) })
       .then((r) => (r.ok ? r.json() : { text: null }))
       .then((d) => !off && setFull({ key: job.key, text: typeof d.text === "string" ? d.text : null, facts: cleanFacts(d.facts), pay: typeof d.pay === "string" ? d.pay : null }))
       .catch(() => !off && setFull({ key: job.key, text: null }));
@@ -141,7 +170,7 @@ export default function JobDetail({
     const t = setTimeout(() => setFrozen((f) => (f?.key === job.key ? f : { key: job.key, digest: null })), isPartialPosting(job) ? 8000 : 3500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job?.key]);
+  }, [job?.key, pasted]); // (pasting the posting reads it again)
   useEffect(() => {
     if (job && full?.key === job.key) setFrozen((f) => (f?.key === job.key ? f : { key: job.key, digest: full.text }));
   }, [full, job]);
@@ -186,7 +215,7 @@ export default function JobDetail({
   const readKey = full?.text ? full.key : null;
   const readPct = analysis?.fit.pct;
   useEffect(() => {
-    if (job && readKey === job.key && readPct !== undefined) onScore?.(job.key, readPct, full?.facts);
+    if (job && readKey === job.key && readPct !== undefined) onScore?.(jobIn?.key ?? job.key, readPct, full?.facts);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.key, readKey, readPct]);
 
@@ -280,9 +309,9 @@ export default function JobDetail({
                       <span className="absolute inset-0 flex items-center justify-center text-xl font-black tabular-nums" style={{ color }}>{pct}<span className="text-xs text-muted-foreground">%</span></span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-lg font-extrabold leading-tight">{pct >= 75 ? tr("A very good fit") : pct >= 55 ? tr("A good fit") : pct >= 35 ? tr("A partial fit") : tr("A low fit")}</p>
+                      <p className="text-lg font-extrabold leading-tight">{onlyFirstLines ? tr("An estimated fit") : pct >= 75 ? tr("A very good fit") : pct >= 55 ? tr("A good fit") : pct >= 35 ? tr("A partial fit") : tr("A low fit")}</p>
                       <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                        {analysis.matched.length > 0 ? tr("{length} of the skills this job mentions are already in your profile.", { length: analysis.matched.length }) : tr("We found no skills of yours in this posting.")}
+                        {analysis.matched.length > 0 ? tr("{length} of the skills this job mentions are already in your profile.", { length: analysis.matched.length }) : onlyFirstLines ? tr("There is not enough of the posting yet to compare your skills.") : tr("We found no skills of yours in this posting.")}
                       </p>
                     </div>
                   </div>
@@ -369,6 +398,50 @@ export default function JobDetail({
                         <a href={job.url} target="_blank" rel="noopener noreferrer">{tr("Read the full posting")}{" "}<ExternalLink className="h-3.5 w-3.5" />
                         </a>
                       </Button>
+                    </div>
+                  )}
+                  {(onlyFirstLines || pasted) && jobIn && !reading && (
+                    <div className="mt-6 rounded-2xl border border-dashed p-4">
+                      {pasted ? (
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <p className="flex items-center gap-2 font-semibold">
+                            <Check className="h-4 w-4 shrink-0 text-green-500" strokeWidth={3} />
+                            {tr("Using the text you pasted. Your fit is exact.")}
+                          </p>
+                          <button type="button" onClick={() => savePasted("")} className="shrink-0 text-xs font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{tr("Remove")}</button>
+                        </div>
+                      ) : pasting ? (
+                        <div>
+                          <textarea
+                            value={draftText}
+                            onChange={(e) => setDraftText(e.target.value)}
+                            rows={8}
+                            autoFocus
+                            placeholder={tr("Paste the text of the job here…")}
+                            className="w-full resize-y rounded-xl border bg-background p-3 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+                          />
+                          {draftText.trim().length > 0 && draftText.trim().length < 200 && <p className="mt-1.5 text-xs text-muted-foreground">{tr("Paste the whole posting: at least a few lines.")}</p>}
+                          <div className="mt-3 flex justify-end gap-2">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => { setPasting(false); setDraftText(""); }}>{tr("Cancel")}</Button>
+                            <Button type="button" size="sm" disabled={draftText.trim().length < 200} onClick={() => savePasted(draftText)}>{tr("Calculate my fit")}</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1 basis-56">
+                            <p className="text-sm font-bold">{tr("Want an exact fit?")}</p>
+                            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                              {SOURCE[jobIn.source]} {tr("shares only the first lines of this job. The responsibilities, requirements and benefits are in the full posting.")} {tr("Copy the text of the original posting and paste it here to get your exact fit.")}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <Button asChild variant="outline" size="sm" className="gap-1.5">
+                              <a href={jobIn.url} target="_blank" rel="noopener noreferrer">{tr("Read the full posting")}<ExternalLink className="h-3.5 w-3.5" /></a>
+                            </Button>
+                            <Button type="button" size="sm" onClick={() => setPasting(true)}>{tr("Paste the full posting")}</Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {job.tags.length > 0 && (

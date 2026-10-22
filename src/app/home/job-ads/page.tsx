@@ -165,7 +165,16 @@ export default function JobSearchPage() {
   }, []);
   // what was read from a posting goes with the job into the application, so its screens show the same number as the page of the job
   const [readFacts, setReadFacts] = useState<Record<string, JobFacts>>({});
-  const withRead = (j: JobListing): JobListing => (readFacts[j.key] && !j.facts ? { ...j, facts: readFacts[j.key] } : j);
+  // (a job of a board that shares only its first lines goes to its application with the text the person pasted for it, when they did)
+  const withRead = (j: JobListing): JobListing => {
+    const out = readFacts[j.key] && !j.facts ? { ...j, facts: readFacts[j.key] } : j;
+    try {
+      const pasted = localStorage.getItem(`kaizo_pasted:${j.key}`);
+      return pasted ? { ...out, description: pasted.slice(0, 6000), snippet: pasted.slice(0, 400) } : out;
+    } catch {
+      return out;
+    }
+  };
   const [preparing, setPreparing] = useState<{ done: number; total: number } | null>(null);
   const template = (() => {
     try {

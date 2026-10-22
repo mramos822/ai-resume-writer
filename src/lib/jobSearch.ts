@@ -249,7 +249,8 @@ async function careerjet(q: JobQuery): Promise<JobListing[]> {
       cache: "no-store",
     });
     if (!res.ok) throw new Error(`${res.status}`);
-    const data = (await res.json()) as { jobs?: CareerjetRow[] };
+    const data = (await res.json()) as { type?: string; error?: string; jobs?: CareerjetRow[] };
+    if (data.type === "ERROR" || data.error) throw new Error(`Careerjet: ${data.error ?? "error"}`); // (it answers an error with a normal reply: that is not "no jobs")
     return (data.jobs ?? []).map((j) => ({
       key: `careerjet:${createHash("sha1").update(String(j.url)).digest("hex").slice(0, 20)}`, // the link is long: the key is made from it
       source: "careerjet" as const,
@@ -307,7 +308,8 @@ async function jooble(q: JobQuery): Promise<JobListing[]> {
       cache: "no-store",
     });
     if (!res.ok) throw new Error(`${res.status}`);
-    const data = (await res.json()) as { jobs?: JoobleRow[] };
+    const data = (await res.json()) as { error?: string; jobs?: JoobleRow[] };
+    if (data.error) throw new Error(`Jooble: ${data.error}`);
     return (data.jobs ?? []).map((j) => ({
       key: `jooble:${j.id ?? createHash("sha1").update(String(j.link)).digest("hex").slice(0, 20)}`,
       source: "jooble" as const,
@@ -371,12 +373,13 @@ export const ENOUGH_OWN = 30;
 /** A source added by the caller (the server adds our own index): its name and how it searches. */
 export type ExtraSource = [name: string, search: (q: JobQuery) => Promise<JobListing[]>];
 
-export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: SearchOpts = {}): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
+export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: SearchOpts = {}): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string; failed?: string[] }> {
   const cacheKey = JSON.stringify([q.q.toLowerCase().trim(), q.location.toLowerCase().trim(), q.remoteOnly, q.country.toLowerCase(), opts.live ?? "auto", opts.boards ?? "all"]);
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < TTL) return hit;
 
   const sources: string[] = [];
+  const failed: string[] = [];
   const jobs: JobListing[] = [];
   const info: { city?: string } = {};
   // our own index answers first: it is complete and instant. When it already holds plenty of jobs for what was typed (and no place was
@@ -402,6 +405,10 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: S
       if (r.status === "fulfilled") {
         sources.push(tasks[i][0]);
         jobs.push(...r.value);
+      } else {
+        // a board that failed is said (the logs show why) and the answer is not remembered as if it were complete
+        failed.push(tasks[i][0]);
+        console.error(`[jobs] ${tasks[i][0]} failed:`, r.reason instanceof Error ? r.reason.message : r.reason);
       }
     });
   }
@@ -437,8 +444,8 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: S
     const fitting = ranked.filter((r) => r.f < 2).length;
     out = ranked.filter((r) => r.f < 2 || fitting < 10).map((r) => r.j);
   }
-  const result = { jobs: out.slice(0, 80), sources, bigCity: info.city };
-  cache.set(cacheKey, { at: Date.now(), ...result });
+  const result = { jobs: out.slice(0, 80), sources, bigCity: info.city, failed };
+  if (failed.length === 0) cache.set(cacheKey, { at: Date.now(), jobs: result.jobs, sources, bigCity: info.city });
   return result;
 }
 
@@ -517,7 +524,7 @@ export function relatedQueries(role: string, skills: string[] = []): string[] {
 }
 
 /** A wider search: several related searches at once, joined and without repeats. */
-export async function searchJobsWide(q: JobQuery, skills: string[] = [], extra: ExtraSource[] = [], opts: SearchOpts = {}): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string }> {
+export async function searchJobsWide(q: JobQuery, skills: string[] = [], extra: ExtraSource[] = [], opts: SearchOpts = {}): Promise<{ jobs: JobListing[]; sources: string[]; bigCity?: string; failed?: string[] }> {
   const queries = q.q.trim() ? relatedQueries(q.q, skills) : [q.q];
   // A wide search asks for several titles. Our own index answers all of them first; when together they already give plenty (and no place
   // was asked for), the other boards are not asked for ANY of them: one short title must not make the whole search wait for them.
@@ -538,14 +545,16 @@ export async function searchJobsWide(q: JobQuery, skills: string[] = [], extra: 
 }
 
 /** The answers of several searches as one: repeats left out, newest first. */
-function mergeWide(results: PromiseSettledResult<{ jobs: JobListing[]; sources: string[]; bigCity?: string }>[]): { jobs: JobListing[]; sources: string[]; bigCity?: string } {
+function mergeWide(results: PromiseSettledResult<{ jobs: JobListing[]; sources: string[]; bigCity?: string; failed?: string[] }>[]): { jobs: JobListing[]; sources: string[]; bigCity?: string; failed?: string[] } {
   const jobs: JobListing[] = [];
   const sources = new Set<string>();
+  const failed = new Set<string>();
   let bigCity: string | undefined;
   const seen = new Set<string>();
   for (const r of results) {
     if (r.status !== "fulfilled") continue;
     r.value.sources.forEach((x) => sources.add(x));
+    (r.value.failed ?? []).forEach((x) => failed.add(x));
     bigCity = bigCity ?? r.value.bigCity;
     for (const j of r.value.jobs) {
       const k = `${j.title}|${j.company}`.toLowerCase();
@@ -556,7 +565,7 @@ function mergeWide(results: PromiseSettledResult<{ jobs: JobListing[]; sources: 
     }
   }
   jobs.sort(byReachThenDate);
-  return { jobs: jobs.slice(0, 150), sources: Array.from(sources), bigCity };
+  return { jobs: jobs.slice(0, 150), sources: Array.from(sources), bigCity, failed: Array.from(failed) };
 }
 
 /** Checks a listing that comes from the browser (to save it or to prepare an application) and keeps only known fields. */

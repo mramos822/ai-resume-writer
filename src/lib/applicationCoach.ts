@@ -15,7 +15,7 @@ import { passesPage } from "@/lib/pageRules";
 import { layoutFacts } from "@/lib/layoutFacts";
 import { fieldFromText, type LookField } from "@/lib/jobField";
 import { suggestedGroup } from "@/lib/skillCategories";
-import { sharesFirstLinesOnly, type JobListing } from "@/lib/jobSearch";
+import { isPartialPosting, sharesFirstLinesOnly, type JobListing } from "@/lib/jobSearch";
 import type { ProfileData } from "@/context/profileContext";
 
 export const clip = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -155,7 +155,7 @@ export const pageNote = (fit: PageFit | null, p?: ProfileData, template?: string
 export type PageNote = NonNullable<ReturnType<typeof pageNote>>;
 
 export const postingText = (job: JobListing) =>
-  [`Title: ${job.title}`, `Company: ${job.company}`, job.location ? `Location: ${job.location}` : "", job.tags.length ? `Tags: ${job.tags.join(", ")}` : "", `Description: ${job.description || job.snippet}`, sharesFirstLinesOnly(job) ? "Note: only the first lines of this posting are available. Use only what is written here: do not assume or invent other requirements, tools or duties." : ""].filter(Boolean).join("\n");
+  [`Title: ${job.title}`, `Company: ${job.company}`, job.location ? `Location: ${job.location}` : "", job.tags.length ? `Tags: ${job.tags.join(", ")}` : "", `Description: ${job.description || job.snippet}`, sharesFirstLinesOnly(job) && isPartialPosting(job) ? "Note: only the first lines of this posting are available. Use only what is written here: do not assume or invent other requirements, tools or duties." : ""].filter(Boolean).join("\n");
 
 /** The language the person reads these in: the app's language. */
 export const speak = (lang: ResumeLang) => (lang === "es" ? "Write everything in neutral Latin American Spanish (use tú)." : "Write everything in English.");
