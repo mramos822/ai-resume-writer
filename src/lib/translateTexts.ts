@@ -20,7 +20,7 @@ export async function translateTexts(texts: string[], target: "en" | "es"): Prom
         {
           role: "system",
           content: `You translate the texts of a resume into ${language}. You receive a JSON array of objects {"id": number, "text": string} and answer with ONLY a JSON array of objects {"id": number, "text": string}: one for each item received, with the SAME id and the text translated. Never change, skip, repeat or invent an id.
-Your job is ONLY to translate: a faithful, literal translation, item by item. Do NOT rewrite, improve, shorten, expand, summarise, reorder, merge or split anything, and never add or remove information. Each answer must say exactly what its original says, with about the same length and the same structure (a skill stays a short skill, a bullet stays a bullet, a title stays a title). Keep the resume voice only as far as the original already has it. Keep unchanged: PROPER names (companies, named schools and universities, products), software, tools, frameworks, libraries, platforms, protocols and programming languages (Excel, MS-Office, Python, React, Node.js, SQL, Git, Docker, AWS, Agile, Scrum...), acronyms, numbers, percentages, currency and dates. Translate everything else, even a single word or a short label: general skills ("Problem solving" becomes its usual equivalent), the names of spoken languages, hobbies, degrees and fields of study, group names, certificate names, job titles. If an item is already in the target language, or is a name that should not be translated, answer with it unchanged.`,
+Your job is ONLY to translate: a faithful, literal translation, item by item. Do NOT rewrite, improve, shorten, expand, summarise, reorder, merge or split anything, and never add or remove information. Each answer must say exactly what its original says, with about the same length and the same structure (a skill stays a short skill, a bullet stays a bullet, a title stays a title). Keep the resume voice only as far as the original already has it. Keep unchanged: PROPER names (companies, named schools and universities, products), software, tools, frameworks, libraries, platforms, protocols and programming languages (Excel, MS-Office, Python, React, Node.js, SQL, Git, Docker, AWS, Agile, Scrum...), acronyms, numbers, percentages, currency and dates. Translate everything else, even a single word or a short label: general skills ("Problem solving" becomes its usual equivalent), the names of spoken languages, hobbies, degrees and fields of study, group names, certificate names, job titles. A short item (a skill, a language, a hobby, a title, a label of one to four words) is a NAME, not a sentence: translate it to a short name with at most one word more than the original, and NEVER to a sentence, an explanation, a clarification or a text in parentheses (do not add context that the original does not have). If an item is already in the target language, or is a name that should not be translated, answer with it unchanged.`,
         },
         { role: "user", content: JSON.stringify(group.map((i) => ({ id: i, text: texts[i] }))) },
       ],
@@ -36,7 +36,13 @@ Your job is ONLY to translate: a faithful, literal translation, item by item. Do
       const o = texts[i].trim();
       // a translation says what the original says with about the same length: one that grew or shrank a lot is the AI writing something else
       // (a rewritten skill, an invented sentence), so the original is kept for that item
-      const drifted = t.length > o.length * 2 + 15 || (o.length > 12 && t.length < o.length * 0.35);
+      const words = (x: string) => x.split(/\s+/).filter(Boolean).length;
+      const isLabel = words(o) <= 4 && !/[.;:!?]/.test(o); // a skill, a language, a hobby, a title: a name, not a sentence
+      const drifted =
+        t.length > o.length * 2 + 15 ||
+        (o.length > 12 && t.length < o.length * 0.35) ||
+        // a name has to stay a name: about as many words, and without the punctuation of a sentence or an aside that the original does not have
+        (isLabel && (words(t) > words(o) + 2 || t.length > o.length * 2 + 6 || (/[.;:!?()]/.test(t) && !/[.;:!?()]/.test(o)) || (t.includes(",") && !o.includes(","))));
       if (!drifted) out[i] = t;
     }
     }));
