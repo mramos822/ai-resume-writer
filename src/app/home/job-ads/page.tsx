@@ -37,7 +37,7 @@ const PAGE = 15;
 /** where the search box, the place and the filters are kept (in the tab) so they survive a change of language */
 const SEARCH_STATE_KEY = "kaizo_job_search_state";
 
-const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", careerjet: "Careerjet", greenhouse: "the company's careers page", lever: "the company's careers page", ashby: "the company's careers page", smartrecruiters: "the company's careers page", workable: "the company's careers page", recruitee: "the company's careers page", teamtailor: "the company's careers page", computrabajo: "Computrabajo", getonboard: "Get on Board", remoteok: "Remote OK", jobicy: "Jobicy", usajobs: "USAJOBS", link: "a link a person added" };
+const SOURCE_NAME: Record<JobListing["source"], string> = { remotive: "Remotive", arbeitnow: "Arbeitnow", adzuna: "Adzuna", careerjet: "Careerjet", jooble: "Jooble", greenhouse: "the company's careers page", lever: "the company's careers page", ashby: "the company's careers page", smartrecruiters: "the company's careers page", workable: "the company's careers page", recruitee: "the company's careers page", teamtailor: "the company's careers page", computrabajo: "Computrabajo", getonboard: "Get on Board", remoteok: "Remote OK", jobicy: "Jobicy", usajobs: "USAJOBS", link: "a link a person added" };
 
 function Fit({ pct, estimate, partial }: { pct: number; estimate?: boolean; partial?: boolean }) {
   const { tr } = useT();

@@ -3,7 +3,7 @@
 // the number in the list is the same one the page of the job (and "Add a job") gives.
 import { HttpError } from "@/lib/apiAuth";
 import { fetchJobAdText } from "@/lib/jobAdText";
-import { isPartialPosting, type JobListing } from "@/lib/jobSearch";
+import { isPartialPosting, sharesFirstLinesOnly, type JobListing } from "@/lib/jobSearch";
 import { isSafePublicUrl } from "@/lib/safeUrl";
 import { payFromText } from "@/lib/ingest/pay";
 
@@ -40,7 +40,7 @@ export async function readPay(job: JobListing): Promise<string | null | undefine
  */
 export async function enrichListings(jobs: JobListing[], max = 40, budgetMs = 4500): Promise<JobListing[]> {
   // Careerjet's links go through its own redirect page, which cannot be read: trying only spends the time budget of the whole search
-  const todo = jobs.filter((j) => isPartialPosting(j) && j.source !== "careerjet").slice(0, max);
+  const todo = jobs.filter((j) => isPartialPosting(j) && !sharesFirstLinesOnly(j)).slice(0, max);
   if (todo.length === 0) return jobs;
   const whole = new Map<string, string>();
   const pays = new Map<string, string>();
@@ -71,7 +71,7 @@ export async function wholeJob(job: JobListing): Promise<JobListing> {
   if (!isPartialPosting(job)) return job;
   // Careerjet shares only the first lines of a posting and its page cannot be read: the work goes on with those lines (the AI is told they are all
   // there is, see postingText), instead of stopping with an error nobody can fix
-  if (job.source === "careerjet") return job;
+  if (sharesFirstLinesOnly(job)) return job;
   const [read] = await enrichListings([job], 1, 8000);
   if (isPartialPosting(read)) throw new HttpError(422, CUT_POSTING_ERROR);
   return read;

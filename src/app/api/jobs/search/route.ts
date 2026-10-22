@@ -1,6 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { authUid, errorResponse, HttpError } from "@/lib/apiAuth";
-import { ENOUGH_OWN, isPartialPosting, searchJobs, searchJobsWide, type ExtraSource } from "@/lib/jobSearch";
+import { ENOUGH_OWN, isPartialPosting, searchJobs, sharesFirstLinesOnly, searchJobsWide, type ExtraSource } from "@/lib/jobSearch";
 import { readPlace } from "@/lib/jobPlaces";
 import { enrichListings } from "@/lib/jobEnrich";
 import { ADZUNA_TTL, cachedSearch, QUERY_TTL, rememberSearch, searchKey, withKnownPay, withKnownText } from "@/lib/jobCatalog";
@@ -20,7 +20,7 @@ const OWN: ExtraSource[] = [["Company career pages", (q) => searchIndex(q)]];
 /** Jobs whose posting could not be read whole are left out (a resume for them would be written from half of it); if that leaves nothing, they stay. */
 const withoutCut = <T extends Parameters<typeof isPartialPosting>[0]>(jobs: T[]): T[] => {
   // Careerjet's postings always come cut (its link goes through its own page): they stay in the list, and the resume for one asks to paste its text
-  const whole = jobs.filter((j) => !isPartialPosting(j) || j.source === "careerjet");
+  const whole = jobs.filter((j) => !isPartialPosting(j) || sharesFirstLinesOnly(j));
   return whole.length > 0 ? whole : jobs;
 };
 

@@ -6,7 +6,7 @@
 import { db } from "@/lib/mongodb";
 import { describe, factsOf, readPosting } from "@/lib/jobDigest";
 import type { JobFacts } from "@/lib/jobFacts";
-import type { JobListing } from "@/lib/jobSearch";
+import { sharesFirstLinesOnly, type JobListing } from "@/lib/jobSearch";
 
 /** readings of the AI per day for this (override with JOB_FACTS_PER_DAY): the free key of Gemini is small */
 export const readsPerDay = () => {
@@ -16,7 +16,7 @@ export const readsPerDay = () => {
 /** the shortest text worth reading: below it there is nothing to find */
 export const MIN_TEXT = 300;
 /** Careerjet only shares a couple of lines of each posting (its page cannot be read), so for its jobs a shorter text is worth reading, as the page of a job does */
-export const minTextOf = (job: Pick<JobListing, "source">) => (job.source === "careerjet" ? 80 : MIN_TEXT);
+export const minTextOf = (job: Pick<JobListing, "source">) => (sharesFirstLinesOnly(job) ? 80 : MIN_TEXT);
 
 interface ReadDoc {
   key: string;

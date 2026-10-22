@@ -3,6 +3,7 @@
 //  - Arbeitnow: jobs, many in Europe + remote (no key)  https://www.arbeitnow.com/api/job-board-api
 //  - Adzuna: jobs by city in many countries, when ADZUNA_APP_ID and ADZUNA_APP_KEY are set  https://developer.adzuna.com
 //  - Careerjet: jobs in Latin America (Peru and others), when CAREERJET_API_KEY is set  https://www.careerjet.com/partners/api
+//  - Jooble: jobs of the countries it gave a key for (JOOBLE_API_KEY is the one of the USA, JOOBLE_API_KEY_PE and so on for the others)  https://jooble.org/api/about
 // Every listing keeps its own link, so people apply on the original site.
 import { createHash } from "crypto";
 import { ADZUNA_COUNTRIES, CAREERJET_LOCALES } from "@/lib/jobCountries";
@@ -16,7 +17,7 @@ import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 export interface JobListing {
   /** stable id: "source:id" */
   key: string;
-  source: "remotive" | "arbeitnow" | "adzuna" | "careerjet" | "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "computrabajo" | "getonboard" | "remoteok" | "jobicy" | "usajobs" | "link";
+  source: "remotive" | "arbeitnow" | "adzuna" | "careerjet" | "jooble" | "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "computrabajo" | "getonboard" | "remoteok" | "jobicy" | "usajobs" | "link";
   title: string;
   company: string;
   location: string;
@@ -268,6 +269,64 @@ async function careerjet(q: JobQuery): Promise<JobListing[]> {
   }
 }
 
+/* ---------- Jooble (a free key for each country) ---------- */
+/** The key Jooble gave for a country: JOOBLE_API_KEY_<CC> (JOOBLE_API_KEY_PE...), and JOOBLE_API_KEY is the one of the USA. A key only answers on its own country's host. */
+const joobleKey = (country: string): string | undefined => {
+  const cc = country.toLowerCase();
+  return process.env[`JOOBLE_API_KEY_${cc.toUpperCase()}`] || (cc === "us" ? process.env.JOOBLE_API_KEY : undefined);
+};
+
+/** Jooble shares only the first lines of each posting, and its link goes through a page that cannot be read by a program: the same as Careerjet. */
+export const sharesFirstLinesOnly = (job: Pick<JobListing, "source">) => job.source === "careerjet" || job.source === "jooble";
+
+interface JoobleRow {
+  id?: string | number;
+  title?: string;
+  location?: string;
+  snippet?: string;
+  salary?: string;
+  source?: string;
+  type?: string;
+  link?: string;
+  company?: string;
+  updated?: string;
+}
+
+async function jooble(q: JobQuery): Promise<JobListing[]> {
+  const cc = q.country.toLowerCase();
+  const key = joobleKey(cc);
+  if (!key) return [];
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 9000);
+  try {
+    const res = await fetch(`https://${cc}.jooble.org/api/${key}`, {
+      method: "POST",
+      signal: ctrl.signal,
+      headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": "Kaizo-Resume-Builder/1.0" },
+      body: JSON.stringify({ keywords: q.remoteOnly ? `${q.q} remote`.trim() : q.q, location: q.remoteOnly ? "" : q.location, page: "1" }),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = (await res.json()) as { jobs?: JoobleRow[] };
+    return (data.jobs ?? []).map((j) => ({
+      key: `jooble:${j.id ?? createHash("sha1").update(String(j.link)).digest("hex").slice(0, 20)}`,
+      source: "jooble" as const,
+      title: strip(String(j.title ?? "")),
+      company: String(j.company ?? ""),
+      location: String(j.location ?? ""),
+      remote: /remote|remoto|teletrabajo|work from home/i.test(`${j.title} ${j.location} ${j.type} ${j.snippet}`),
+      url: String(j.link ?? ""),
+      postedAt: Number.isNaN(Date.parse(String(j.updated))) ? "" : new Date(String(j.updated)).toISOString(),
+      salary: j.salary ? String(j.salary).slice(0, 80) : payFromText(String(j.snippet ?? "")),
+      tags: [String(j.type ?? "")].filter(Boolean),
+      snippet: snippetOf(String(j.snippet ?? "")),
+      description: descriptionOf(String(j.snippet ?? "")),
+    }));
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /** How far a big city can be to be offered to a person who lives in a small town. */
 const BIG_CITY_MAX_KM = 200;
 
@@ -337,6 +396,7 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: S
     if (opts.boards !== "adzuna" && !indexAnswered) tasks.push(["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()]);
     if (opts.boards !== "fast" && process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY && adzunaCountry(q.country)) tasks.push(["Adzuna", adzunaAround(q, info)]);
     if (opts.boards !== "fast" && process.env.CAREERJET_API_KEY && CAREERJET_LOCALES[q.country.toLowerCase()]) tasks.push(["Careerjet", careerjet(q)]);
+    if (opts.boards !== "fast" && joobleKey(q.country)) tasks.push(["Jooble", jooble(q)]);
     const settled = await Promise.allSettled(tasks.map(([, p]) => p));
     settled.forEach((r, i) => {
       if (r.status === "fulfilled") {
@@ -348,14 +408,14 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: S
 
   const loc = q.location.toLowerCase().trim();
   const searchedIn = q.country.toLowerCase();
-  let out = jobs.filter((j) => j.title && j.url).map((j) => (j.source === "adzuna" || j.source === "careerjet" ? { ...j, country: searchedIn } : j));
-  if (q.q.trim()) out = out.filter((j) => j.source === "adzuna" || j.source === "careerjet" || matchesQuery(j, q.q));
+  let out = jobs.filter((j) => j.title && j.url).map((j) => (j.source === "adzuna" || j.source === "careerjet" || j.source === "jooble" ? { ...j, country: searchedIn } : j));
+  if (q.q.trim()) out = out.filter((j) => j.source === "adzuna" || sharesFirstLinesOnly(j) || matchesQuery(j, q.q));
   if (q.remoteOnly) out = out.filter((j) => j.remote);
   else if (loc) {
     // keep jobs in that place, plus remote ones (they can be done from there)
     const lw = words(loc);
     out = out
-      .filter((j) => j.reach || j.remote || j.source === "careerjet" || lw.some((w) => j.location.toLowerCase().includes(w))) // Careerjet already searched by the place (in the local language: "Αθήνα" is "Athens")
+      .filter((j) => j.reach || j.remote || sharesFirstLinesOnly(j) || lw.some((w) => j.location.toLowerCase().includes(w))) // Careerjet already searched by the place (in the local language: "Αθήνα" is "Athens")
       .map((j) => (j.reach ? j : { ...j, reach: j.remote ? ("remote" as const) : ("here" as const) }));
   }
   const seen = new Set<string>();
@@ -514,7 +574,7 @@ export function cleanListing(j: Partial<JobListing> | null | undefined): JobList
   if (!/^https?:\/\//.test(j.url) && !(j.source === "link" && j.url === "")) return null;
   return {
     key: j.key.slice(0, 120),
-    source: (["remotive", "arbeitnow", "adzuna", "careerjet", "greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee", "teamtailor", "computrabajo", "getonboard", "remoteok", "jobicy", "usajobs", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
+    source: (["remotive", "arbeitnow", "adzuna", "careerjet", "jooble", "greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee", "teamtailor", "computrabajo", "getonboard", "remoteok", "jobicy", "usajobs", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
     title: j.title.slice(0, 200),
     company: String(j.company ?? "").slice(0, 200),
     location: String(j.location ?? "").slice(0, 200),

@@ -92,7 +92,7 @@ const sections: LegalSection[] = [
     title: "Job listings from other sources",
     body: (
       <>
-        <p>Job listings come from third-party sources such as Adzuna, Careerjet, Remotive and Arbeitnow. We do not write, verify or endorse them, and they can be out of date or removed. Applying always happens on the employer&apos;s or the source&apos;s own site, under their terms and privacy practices.</p>
+        <p>Job listings come from third-party sources such as Adzuna, Careerjet, Jooble, Remotive and Arbeitnow. We do not write, verify or endorse them, and they can be out of date or removed. Applying always happens on the employer&apos;s or the source&apos;s own site, under their terms and privacy practices.</p>
         <p>To make a listing easier to read, Kaizo may read the public page of the posting and use AI to summarize it in sections. A summary can leave out or misstate details, so check the original posting before you apply. Distances, nearby places and the &ldquo;nearest big city&rdquo; are approximations.</p>
         <p>If you add a job by pasting a link or text, you confirm that you may use that content and that you are not using content you reached with someone else&apos;s login. Kaizo is not affiliated with the sites the postings come from, such as LinkedIn.</p>
       </>

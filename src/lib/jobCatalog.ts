@@ -9,7 +9,7 @@ import { isPartialPosting, type JobListing } from "@/lib/jobSearch";
 
 const HOUR = 60 * 60 * 1000;
 /** how long a job of each source stays in the catalog */
-export const KEEP: Record<JobListing["source"], number> = { adzuna: 24 * HOUR, careerjet: 24 * HOUR, remotive: 72 * HOUR, arbeitnow: 72 * HOUR, greenhouse: 72 * HOUR, lever: 72 * HOUR, ashby: 72 * HOUR, smartrecruiters: 72 * HOUR, workable: 72 * HOUR, recruitee: 72 * HOUR, teamtailor: 72 * HOUR, computrabajo: 72 * HOUR, getonboard: 72 * HOUR, remoteok: 72 * HOUR, jobicy: 72 * HOUR, usajobs: 72 * HOUR, link: 24 * HOUR };
+export const KEEP: Record<JobListing["source"], number> = { adzuna: 24 * HOUR, careerjet: 24 * HOUR, jooble: 24 * HOUR, remotive: 72 * HOUR, arbeitnow: 72 * HOUR, greenhouse: 72 * HOUR, lever: 72 * HOUR, ashby: 72 * HOUR, smartrecruiters: 72 * HOUR, workable: 72 * HOUR, recruitee: 72 * HOUR, teamtailor: 72 * HOUR, computrabajo: 72 * HOUR, getonboard: 72 * HOUR, remoteok: 72 * HOUR, jobicy: 72 * HOUR, usajobs: 72 * HOUR, link: 24 * HOUR };
 /** how long the answer to one search is served as it is */
 export const QUERY_TTL = 30 * 60 * 1000;
 /** Adzuna's part of a search (the slowest: its postings are read one by one) is remembered longer: a person who comes back, or the dashboard that asked first, gets it at once */
