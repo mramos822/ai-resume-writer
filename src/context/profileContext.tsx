@@ -169,6 +169,15 @@ const EMPTY_PROFILE: ProfileData = {
   projects: [],
 };
 
+// same marker and 10-minute window as the signup window (signupGate CLAIMING_KEY) and /build
+const isClaiming = () => {
+  try {
+    return Date.now() - Number(sessionStorage.getItem("kaizo_claiming") || 0) < 10 * 60 * 1000;
+  } catch {
+    return false;
+  }
+};
+
 const ProfileContext = createContext<ProfileContextType | undefined>(
   undefined
 );
@@ -345,6 +354,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       },
       body: JSON.stringify({ data: profileData }),
     });
+    if (res.status === 404 && isClaiming()) return; // the guest's resume just moved to the account under a new id: this autosave was for the old one
     if (!res.ok) throw new Error(tr("Save failed"));
     setHasUnsavedChanges(false);
     await loadProfiles();
@@ -410,6 +420,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ data: merged }),
       });
+      if (res.status === 404 && isClaiming()) return;
       if (!res.ok) throw new Error(tr("Save failed"));
       setHasUnsavedChanges(false);
     },

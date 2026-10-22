@@ -2,8 +2,10 @@
 //  - Remotive: remote jobs (no key)            https://remotive.com/api/remote-jobs
 //  - Arbeitnow: jobs, many in Europe + remote (no key)  https://www.arbeitnow.com/api/job-board-api
 //  - Adzuna: jobs by city in many countries, when ADZUNA_APP_ID and ADZUNA_APP_KEY are set  https://developer.adzuna.com
+//  - Careerjet: jobs in Latin America (Peru and others), when CAREERJET_API_KEY is set  https://www.careerjet.com/partners/api
 // Every listing keeps its own link, so people apply on the original site.
-import { ADZUNA_COUNTRIES } from "@/lib/jobCountries";
+import { createHash } from "crypto";
+import { ADZUNA_COUNTRIES, CAREERJET_LOCALES } from "@/lib/jobCountries";
 import { payFromText } from "@/lib/ingest/pay";
 import { remoteCountryFit } from "@/lib/remotePlace";
 import { kmBetween, type Origin } from "@/lib/jobPlaces";
@@ -14,7 +16,7 @@ import { cleanFacts, type JobFacts } from "@/lib/jobFacts";
 export interface JobListing {
   /** stable id: "source:id" */
   key: string;
-  source: "remotive" | "arbeitnow" | "adzuna" | "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "computrabajo" | "getonboard" | "remoteok" | "jobicy" | "usajobs" | "link";
+  source: "remotive" | "arbeitnow" | "adzuna" | "careerjet" | "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "workable" | "recruitee" | "teamtailor" | "computrabajo" | "getonboard" | "remoteok" | "jobicy" | "usajobs" | "link";
   title: string;
   company: string;
   location: string;
@@ -55,6 +57,8 @@ export interface JobQuery {
   origin?: Origin;
   /** the languages the person reads (the index leaves out postings in any other); English when not said */
   langs?: string[];
+  /** the person's address and browser, which Careerjet's API asks for with every search */
+  client?: { ip: string; ua: string };
 }
 
 const strip = (html: string) =>
@@ -210,6 +214,58 @@ async function adzuna(q: JobQuery, km = 0): Promise<JobListing[]> {
   });
 }
 
+/* ---------- Careerjet (needs a free key) ---------- */
+interface CareerjetRow {
+  url?: string;
+  title?: string;
+  company?: string;
+  date?: string;
+  description?: string;
+  locations?: string;
+  salary?: string;
+  site?: string;
+}
+
+async function careerjet(q: JobQuery): Promise<JobListing[]> {
+  const key = process.env.CAREERJET_API_KEY;
+  const locale = CAREERJET_LOCALES[q.country.toLowerCase()];
+  if (!key || !locale) return [];
+  const params = new URLSearchParams({ locale_code: locale, page_size: "40", sort: "date", user_ip: q.client?.ip || "127.0.0.1", user_agent: q.client?.ua || "Kaizo-Resume-Builder/1.0" });
+  if (q.q) params.set("keywords", q.q);
+  if (q.location && !q.remoteOnly) params.set("location", q.location);
+  if (q.remoteOnly) params.set("keywords", `${q.q} remoto`.trim());
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 9000);
+  try {
+    // Careerjet only answers from an IP declared in its panel and Vercel's change, so when CAREERJET_PROXY_URL is set the call goes through
+    // a small server with a fixed IP (scripts/careerjet-proxy.mjs, see docs/CAREERJET-PROXY.md); without it the call goes direct
+    const proxy = process.env.CAREERJET_PROXY_URL?.replace(/\/+$/, "");
+    const res = await fetch(`${proxy ?? "https://search.api.careerjet.net"}/v4/query?${params}`, {
+      signal: ctrl.signal,
+      headers: { ...(proxy ? { "X-Proxy-Secret": process.env.CAREERJET_PROXY_SECRET ?? "" } : {}), Accept: "application/json", Authorization: `Basic ${Buffer.from(`${key}:`).toString("base64")}`, Referer: "https://kaizoresumebuilder.vercel.app/" }, // Careerjet only answers a site declared in its partner panel
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = (await res.json()) as { jobs?: CareerjetRow[] };
+    return (data.jobs ?? []).map((j) => ({
+      key: `careerjet:${createHash("sha1").update(String(j.url)).digest("hex").slice(0, 20)}`, // the link is long: the key is made from it
+      source: "careerjet" as const,
+      title: strip(String(j.title ?? "")),
+      company: String(j.company ?? ""),
+      location: String(j.locations ?? ""),
+      remote: /remot[oa]|remote|teletrabajo|home office/i.test(`${j.title} ${j.locations} ${j.description}`),
+      url: String(j.url ?? ""),
+      postedAt: Number.isNaN(Date.parse(String(j.date))) ? "" : new Date(String(j.date)).toISOString(),
+      salary: j.salary ? String(j.salary).slice(0, 80) : payFromText(String(j.description ?? "")),
+      tags: [],
+      snippet: snippetOf(String(j.description ?? "")),
+      description: descriptionOf(String(j.description ?? "")),
+    }));
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /** How far a big city can be to be offered to a person who lives in a small town. */
 const BIG_CITY_MAX_KM = 200;
 
@@ -278,6 +334,7 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: S
     const indexAnswered = own.some((r) => r.status === "fulfilled");
     if (opts.boards !== "adzuna" && !indexAnswered) tasks.push(["Remotive", remotive(q)], ["Arbeitnow", arbeitnow()]);
     if (opts.boards !== "fast" && process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY && adzunaCountry(q.country)) tasks.push(["Adzuna", adzunaAround(q, info)]);
+    if (opts.boards !== "fast" && process.env.CAREERJET_API_KEY && CAREERJET_LOCALES[q.country.toLowerCase()]) tasks.push(["Careerjet", careerjet(q)]);
     const settled = await Promise.allSettled(tasks.map(([, p]) => p));
     settled.forEach((r, i) => {
       if (r.status === "fulfilled") {
@@ -289,7 +346,7 @@ export async function searchJobs(q: JobQuery, extra: ExtraSource[] = [], opts: S
 
   const loc = q.location.toLowerCase().trim();
   let out = jobs.filter((j) => j.title && j.url);
-  if (q.q.trim()) out = out.filter((j) => j.source === "adzuna" || matchesQuery(j, q.q));
+  if (q.q.trim()) out = out.filter((j) => j.source === "adzuna" || j.source === "careerjet" || matchesQuery(j, q.q));
   if (q.remoteOnly) out = out.filter((j) => j.remote);
   else if (loc) {
     // keep jobs in that place, plus remote ones (they can be done from there)
@@ -454,7 +511,7 @@ export function cleanListing(j: Partial<JobListing> | null | undefined): JobList
   if (!/^https?:\/\//.test(j.url) && !(j.source === "link" && j.url === "")) return null;
   return {
     key: j.key.slice(0, 120),
-    source: (["remotive", "arbeitnow", "adzuna", "greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee", "teamtailor", "computrabajo", "getonboard", "remoteok", "jobicy", "usajobs", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
+    source: (["remotive", "arbeitnow", "adzuna", "careerjet", "greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee", "teamtailor", "computrabajo", "getonboard", "remoteok", "jobicy", "usajobs", "link"] as const).includes(j.source as "remotive") ? (j.source as JobListing["source"]) : "remotive",
     title: j.title.slice(0, 200),
     company: String(j.company ?? "").slice(0, 200),
     location: String(j.location ?? "").slice(0, 200),

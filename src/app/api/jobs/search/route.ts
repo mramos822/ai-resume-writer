@@ -10,7 +10,7 @@ import { withStoredFacts } from "@/lib/jobFactsStore";
 
 // Job search for signed-in people. It answers in two parts so the person waits as little as possible:
 //  - ?phase=own: our own index (complete postings, found at once),
-//  - ?phase=live: Remotive and Arbeitnow (other sites, whole postings), and ?phase=adzuna: Adzuna (its postings come cut and are read
+//  - ?phase=live: Remotive and Arbeitnow (other sites, whole postings), and ?phase=adzuna: Adzuna and Careerjet (their postings come cut and are read
 //    one by one: the slowest), each added to the list when it arrives.
 // Without a phase it does both, as before. Every answer says where its time went in the Server-Timing header.
 
@@ -19,7 +19,8 @@ const OWN: ExtraSource[] = [["Company career pages", (q) => searchIndex(q)]];
 
 /** Jobs whose posting could not be read whole are left out (a resume for them would be written from half of it); if that leaves nothing, they stay. */
 const withoutCut = <T extends Parameters<typeof isPartialPosting>[0]>(jobs: T[]): T[] => {
-  const whole = jobs.filter((j) => !isPartialPosting(j));
+  // Careerjet's postings always come cut (its link goes through its own page): they stay in the list, and the resume for one asks to paste its text
+  const whole = jobs.filter((j) => !isPartialPosting(j) || j.source === "careerjet");
   return whole.length > 0 ? whole : jobs;
 };
 
@@ -60,6 +61,8 @@ export async function GET(req: Request) {
       remoteOnly: sp.get("remote") === "1",
       country,
       origin: place?.at,
+      // Careerjet's API asks for the person's address and browser with every search
+      client: { ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "127.0.0.1", ua: req.headers.get("user-agent") ?? "" },
       // English always; Spanish too for someone who uses Kaizo in Spanish (jobs of Latin America)
       // (or every language, when the person chose "All languages")
       langs: sp.get("lang") === "all" ? ["en", "es", "fr", "de", "pt", "it"] : sp.get("lang") === "es" ? ["en", "es"] : ["en"],

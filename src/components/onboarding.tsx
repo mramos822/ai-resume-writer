@@ -666,17 +666,20 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
       setOpen(true);
       return;
     }
+    // an account that already has its details saved is set up: that is known from the account itself, not from this browser (a browser
+    // that was cleaned, or a new one, has no mark, and a draft left here by a guest session must not bring the wizard back over an account)
+    if (getProfileProgress(profile).doneCount > 0) {
+      remember(ONBOARDING_KEY);
+      return;
+    }
     try {
       if (localStorage.getItem(ONBOARDING_KEY)) return;
     } catch {
       return;
     }
-    // a saved draft means the person was in the middle of it, even if the profile already has some data
-    if (readDraft()) {
-      restore();
-      setOpen(true);
-    } else if (getProfileProgress(profile).doneCount === 0) setOpen(true);
-    else remember(ONBOARDING_KEY);
+    // a saved draft means the person was in the middle of it (their profile is still empty)
+    if (readDraft()) restore();
+    setOpen(true);
   }, [profiles.length, activeProfileId, profile, isGuest, buildMode, onBuildPath]);
 
   /** Loads everything saved in the profile into the wizard forms. */
@@ -1722,10 +1725,17 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
     showBottomBar && typeof document !== "undefined"
       ? createPortal(
           <div className={`fixed inset-x-0 bottom-0 ${embedded ? "z-40" : "z-[60]"} border-t bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur [transform:translateZ(0)] will-change-transform sm:hidden`}>
-            <Button onClick={generate} disabled={working} className="h-12 w-full gap-2 rounded-full text-base font-bold">
+            <div className="flex items-center gap-3">
+            {/* on the review screen Back shares this bar, so the desktop banner is hidden on phones */}
+            {reviewing && !embedded && (
+              <Button variant="ghost" onClick={back} disabled={working} className="h-12 shrink-0 rounded-full px-4 text-muted-foreground">
+                <ArrowLeft className="h-5 w-5" />{" "}{tr("Back")}</Button>
+            )}
+            <Button onClick={generate} disabled={working} className="h-12 min-w-0 flex-1 gap-2 rounded-full text-base font-bold">
               {working ? <Loader2 className="h-5 w-5 animate-spin" /> : embedded || buildMode ? editingId ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" /> : <Download className="h-5 w-5" />}
               {working ? tr("Making your resume…") : embedded || buildMode ? (editingId ? tr("Save changes") : tr("Create resume")) : tr("Download")}
             </Button>
+            </div>
           </div>,
           document.body
         )
@@ -2084,10 +2094,21 @@ export default function Onboarding({ embedded = false, opened }: { embedded?: bo
 
       {/* final screen: Back stays at the bottom left, like in every other step */}
       {reviewing && !embedded && (
-        <div className="sticky bottom-0 z-20 border-t bg-background/90 backdrop-blur">
-          <div className="mx-auto flex h-[3.75rem] w-full max-w-[1840px] items-center px-5 lg:px-10">
-            <Button variant="ghost" onClick={back} disabled={working}>
+        <div className="sticky bottom-0 z-20 border-t bg-background/90 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-md max-sm:hidden">
+          <div className="mx-auto flex h-[4.25rem] w-full max-w-[1840px] items-center justify-between gap-4 px-5 lg:px-10">
+            <Button variant="ghost" onClick={back} disabled={working} className="text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4" />{" "}{tr("Back")}</Button>
+            {/* phones have their own bar (above), so this one is for sm and up */}
+            <div className="flex items-center gap-4 max-sm:hidden">
+              <Button
+                onClick={generate}
+                disabled={working}
+                className="h-11 min-w-56 gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-12 text-base font-bold text-white shadow-lg shadow-blue-600/30 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl hover:shadow-blue-600/40 disabled:translate-y-0 disabled:shadow-none"
+              >
+                {working ? <Loader2 className="h-5 w-5 animate-spin" /> : buildMode ? <Plus className="h-5 w-5" /> : <Download className="h-5 w-5" />}
+                {working ? tr("Making your resume…") : buildMode ? (editingId ? tr("Save changes") : tr("Create resume")) : tr("Download")}
+              </Button>
+            </div>
           </div>
         </div>
       )}

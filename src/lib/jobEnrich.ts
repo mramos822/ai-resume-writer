@@ -39,7 +39,8 @@ export async function readPay(job: JobListing): Promise<string | null | undefine
  * stays as it was (the list then shows its number as an estimate, and the page of the job reads it when opened).
  */
 export async function enrichListings(jobs: JobListing[], max = 40, budgetMs = 4500): Promise<JobListing[]> {
-  const todo = jobs.filter(isPartialPosting).slice(0, max);
+  // Careerjet's links go through its own redirect page, which cannot be read: trying only spends the time budget of the whole search
+  const todo = jobs.filter((j) => isPartialPosting(j) && j.source !== "careerjet").slice(0, max);
   if (todo.length === 0) return jobs;
   const whole = new Map<string, string>();
   const pays = new Map<string, string>();

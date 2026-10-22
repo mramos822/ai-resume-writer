@@ -84,7 +84,7 @@ export const termsEs: LegalSection[] = [
     title: "Ofertas de empleo de otras fuentes",
     body: (
       <>
-        <p>Las ofertas de empleo provienen de fuentes de terceros como Adzuna, Remotive y Arbeitnow. No las escribimos, verificamos ni respaldamos, y pueden estar desactualizadas o haber sido retiradas. Postularse siempre ocurre en el sitio del empleador o de la fuente, bajo sus propios términos y prácticas de privacidad.</p>
+        <p>Las ofertas de empleo provienen de fuentes de terceros como Adzuna, Careerjet, Remotive y Arbeitnow. No las escribimos, verificamos ni respaldamos, y pueden estar desactualizadas o haber sido retiradas. Postularse siempre ocurre en el sitio del empleador o de la fuente, bajo sus propios términos y prácticas de privacidad.</p>
         <p>Para que una oferta sea más fácil de leer, Kaizo puede leer la página pública de la oferta y usar IA para resumirla en secciones. Un resumen puede omitir o malinterpretar detalles, así que revisa la oferta original antes de postularte. Las distancias, los lugares cercanos y la &laquo;ciudad grande más cercana&raquo; son aproximaciones.</p>
         <p>Si añades un empleo pegando un enlace o un texto, confirmas que puedes usar ese contenido y que no usas contenido al que accediste con la sesión de otra persona. Kaizo no está afiliado a los sitios de donde vienen las ofertas, como LinkedIn.</p>
       </>
