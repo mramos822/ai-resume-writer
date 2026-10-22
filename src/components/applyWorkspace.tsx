@@ -5,7 +5,7 @@
 // the saved profile never changes.
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
-import { ArrowLeft, Check, ChevronDown, LayoutTemplate, Loader2, Palette, Scissors, Sparkles, Trash2, TriangleAlert, Undo2, Wand2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Languages, LayoutTemplate, Loader2, Palette, Scissors, Sparkles, Trash2, TriangleAlert, Undo2, Wand2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LivePreview from "@/components/livePreview";
 import CompanyLogo from "@/components/companyLogo";
@@ -43,6 +43,8 @@ import { cleanSkillGroups, hasSkillGroups } from "@/lib/skillGroups";
 import { autoGroupSkills, suggestedGroup } from "@/lib/skillCategories";
 import { motion } from "framer-motion";
 import { resumeLangForJob } from "@/lib/resumeLang";
+import { detectResumeLanguage } from "@/lib/resumeTranslate";
+import { translateProfile } from "@/utils/translateClient";
 import { useHidePageScrollbar } from "@/lib/useHidePageScrollbar";
 import { useT } from "@/i18n/provider";
 
@@ -85,7 +87,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   const { tr, locale } = useT();
   const router = useRouter();
   const toast = useToast();
-  const { activeProfile: draft, updateSkills, updateSkillGroups: setSkillGroups, updateCertifications, updateLanguages, updateAccentColor, updateFillPage, updatePageGoal, updateCareerObjective, updateJobTitle, setJobHistory, updateSkillLevels, updateSkillGroups } = useProfile();
+  const { activeProfile: draft, updateSkills, updateSkillGroups: setSkillGroups, updateCertifications, updateLanguages, updateAccentColor, updateFillPage, updatePageGoal, updateCareerObjective, updateJobTitle, setJobHistory, updateSkillLevels, updateSkillGroups, setEducation, updateInterests, updateProjectEntry, updateInternshipEntry } = useProfile();
 
   const [step, setStep] = useState<"fit" | "edit" | "review">("fit");
   const [section, setSection] = useState<Section>("objective");
@@ -99,6 +101,71 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   const [truthful, setTruthful] = useState(false);
   const [creating, setCreating] = useState<number | null>(null); // the step of the creation, while it runs
   const [error, setError] = useState("");
+
+  // The language of this job (its text, else its country, else the app's) and the one the resume is in. When they differ the person can translate
+  // the resume to the job's language, for this resume only: what it was is kept to go back, and put back if the page is left.
+  const jobLanguage = resumeLangForJob(job, locale);
+  const draftLanguage = detectResumeLanguage(draft);
+  const [translation, setTranslation] = useState<{ original: Partial<ProfileData> } | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const translationRef = useRef(translation);
+  translationRef.current = translation;
+  const applyFields = (p: Partial<ProfileData>) => {
+    updateJobTitle(p.jobTitle ?? "");
+    updateCareerObjective(p.careerObjective ?? "");
+    setJobHistory(p.jobHistory ?? []);
+    setEducation(p.education ?? []);
+    updateSkills(p.skills ?? []);
+    if (p.skillGroups) setSkillGroups(p.skillGroups);
+    if (p.skillLevels) updateSkillLevels(p.skillLevels);
+    updateLanguages(p.languages ?? []);
+    updateInterests(p.interests ?? []);
+    updateCertifications(p.certifications ?? []);
+    (p.projects ?? []).forEach((x) => updateProjectEntry(x.id, x));
+    (p.internships ?? []).forEach((x) => updateInternshipEntry(x.id, x));
+  };
+  const applyFieldsRef = useRef(applyFields);
+  applyFieldsRef.current = applyFields;
+  const languageName = (code: string) => {
+    try {
+      return new Intl.DisplayNames([locale], { type: "language" }).of(code) ?? code;
+    } catch {
+      return code;
+    }
+  };
+  const placeName = (() => {
+    try {
+      return job.country ? new Intl.DisplayNames([locale], { type: "region" }).of(job.country.toUpperCase()) ?? "" : "";
+    } catch {
+      return "";
+    }
+  })();
+  const translateToJob = async () => {
+    setTranslating(true);
+    try {
+      const d = draftRef.current;
+      const original: Partial<ProfileData> = { jobTitle: d.jobTitle, careerObjective: d.careerObjective, jobHistory: d.jobHistory, internships: d.internships, education: d.education, projects: d.projects, skills: d.skills, skillGroups: d.skillGroups, skillLevels: d.skillLevels, languages: d.languages, interests: d.interests, certifications: d.certifications };
+      const translated = await translateProfile(JSON.parse(JSON.stringify(original)), jobLanguage);
+      applyFields(translated);
+      setTranslation({ original });
+      toast.success(tr("Your resume was translated to {language} for this job.", { language: languageName(jobLanguage) }));
+    } catch (e) {
+      toast.error((e as Error).message || tr("We couldn't translate your resume right now."));
+    } finally {
+      setTranslating(false);
+    }
+  };
+  const undoTranslation = () => {
+    if (translation) applyFields(translation.original);
+    setTranslation(null);
+  };
+  // leaving the page puts the resume back as it was: the translation is for this job only and never reaches the saved profile
+  useEffect(
+    () => () => {
+      if (translationRef.current) applyFieldsRef.current(translationRef.current.original);
+    },
+    []
+  );
 
   // the look of the resume: the one the person uses, and they can change it at any moment
   const [template, setTemplate] = useState(() => {
@@ -634,7 +701,8 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
     }
   };
 
-  const preview = useMemo(() => previewFromProfile(draft, locale === "es" ? "es" : "en"), [draft, locale]);
+  // (the preview is drawn in the language the final resume will be written in: the job's)
+  const preview = useMemo(() => previewFromProfile(draft, jobLanguage), [draft, jobLanguage]);
   // the color handlers are read through refs so the element below keeps the same identity: React then skips the whole sheet on the
   // renders that scrolling causes
   const accentRef = useRef(updateAccentColor);
@@ -1038,6 +1106,30 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
 
           {!customizing && step === "fit" && (
             <>
+              {/* the job is in another language than the resume: the person can translate it, for this resume only */}
+              {translation ? (
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/5 px-4 py-3 text-sm">
+                  <Languages className="h-4 w-4 shrink-0 text-green-600" />
+                  <span className="min-w-0 flex-1">{tr("Translated to {language} for this job. Your saved profile does not change.", { language: languageName(jobLanguage) })}</span>
+                  <button type="button" onClick={undoTranslation} className="font-semibold text-blue-500 underline-offset-4 hover:underline">{tr("Use my original")}</button>
+                </div>
+              ) : (
+                draftLanguage && draftLanguage !== jobLanguage && (
+                  <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-3 text-sm">
+                    <Languages className="h-4 w-4 shrink-0 text-blue-500" />
+                    <span className="min-w-0 flex-1">
+                      {placeName
+                        ? tr("This job is in {place}, where they speak {language}. Your resume is in {mine}. Do you want to translate it to {language} just for this job?", { place: placeName, language: languageName(jobLanguage), mine: languageName(draftLanguage) })
+                        : tr("This job is written in {language} and your resume is in {mine}. Do you want to translate it to {language} just for this job?", { language: languageName(jobLanguage), mine: languageName(draftLanguage) })}
+                    </span>
+                    <button type="button" onClick={() => void translateToJob()} disabled={translating} className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60">
+                      {translating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
+                      {translating ? tr("Translating…") : tr("Translate to {language}", { language: languageName(jobLanguage) })}
+                    </button>
+                  </div>
+                )
+              )}
+
               {level.years > years + 1 && (
                 <p className="flex gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
@@ -1177,6 +1269,20 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                     </ul>
                   </section>
                 )
+              )}
+
+              {/* nothing to ask: say so, instead of leaving the step looking empty */}
+              {!checking && !questionsFailed && questions !== null && questions.length === 0 && unrelated.length === 0 && related.length === 0 && foundList.length === 0 && (
+                <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed px-6 py-10 text-center">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-green-500/10 text-green-600">
+                    <Check className="h-6 w-6" strokeWidth={3} />
+                  </span>
+                  <h3 className="text-base font-extrabold">{tr("Nothing to ask you for this job")}</h3>
+                  <p className="max-w-md text-sm text-muted-foreground">{tr("Your profile already shows what the job asks for, so there are no questions. Go on to edit your resume for this job.")}</p>
+                  <button type="button" onClick={() => setStep("edit")} className="mt-1 inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
+                    {tr("Edit for this job")}
+                  </button>
+                </div>
               )}
             </>
           )}
