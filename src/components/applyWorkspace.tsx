@@ -1200,12 +1200,12 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                   one to go back. For this resume only. */}
               {(translation || translating || (draftLanguage && draftLanguage !== jobLanguage)) && (
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 border-b pb-4">
-                  <div className="min-w-0 flex-1 basis-56">
+                  <div className="min-h-[2.75rem] min-w-0 flex-1 basis-56">
                     <p className="flex items-center gap-2 text-sm font-semibold">
                       <Languages className="h-4 w-4 shrink-0 text-blue-500" />
                       <span className="min-w-0">{placeName ? tr("This job is in {place}, where they speak {language}.", { place: placeName, language: languageName(jobLanguage) }) : tr("This job is written in {language}.", { language: languageName(jobLanguage) })}</span>
                     </p>
-                    <p key={translation ? "on" : "off"} className="mt-0.5 pl-6 text-xs text-muted-foreground motion-safe:animate-[swap-in_0.35s_ease-out_both]">
+                    <p key={translation ? "on" : "off"} className="mt-0.5 line-clamp-2 min-h-[2rem] pl-6 text-xs text-muted-foreground motion-safe:animate-[swap-in_0.35s_ease-out_both]">
                       {translation ? tr("Only for this job. Your saved profile does not change.") : translating ? tr("Translating your resume to {language}…", { language: languageName(jobLanguage) }) : tr("Your resume is in {mine}. Switch it just for this job?", { mine: languageName(draftLanguage ?? "en") })}
                     </p>
                   </div>
@@ -1227,11 +1227,11 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                         disabled={translating || o.active}
                         aria-pressed={o.active}
                         onClick={o.onClick}
-                        className={`relative z-10 inline-flex min-w-[5.5rem] items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold capitalize transition-colors duration-300 ${o.active ? "text-white" : "text-muted-foreground hover:text-foreground"}`}
+                        className={`relative z-10 inline-flex w-28 items-center justify-center rounded-full py-1.5 text-sm font-semibold capitalize transition-colors duration-300 ${o.active ? "text-white" : "text-muted-foreground hover:text-foreground"}`}
                       >
-                        {i === 1 && translating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                        {i === 1 && o.done && <Check className="h-3.5 w-3.5 motion-safe:animate-[check-pop_0.5s_cubic-bezier(0.34,1.56,0.64,1)_both]" strokeWidth={3} />}
-                        {languageName(o.code)}
+                        {i === 1 && translating && <Loader2 className="absolute left-3.5 h-3.5 w-3.5 animate-spin" />}
+                        {i === 1 && o.done && <Check className="absolute left-3.5 h-3.5 w-3.5 motion-safe:animate-[check-pop_0.5s_cubic-bezier(0.34,1.56,0.64,1)_both]" strokeWidth={3} />}
+                        <span className="truncate">{languageName(o.code)}</span>
                       </button>
                     ))}
                   </div>
