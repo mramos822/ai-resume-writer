@@ -770,20 +770,24 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
       className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${looksOpen ? "border-blue-600 bg-blue-600 text-white" : "bg-card text-muted-foreground hover:text-foreground"}`}
     >
       <LayoutTemplate className="h-4 w-4" />
-      {tr("Looks that suit this job")}
+      <span className="max-sm:hidden">{tr("Looks that suit this job")}</span>
+      <span className="sm:hidden">{tr("Looks")}</span>
       <ChevronDown className={`h-4 w-4 transition-transform ${looksOpen ? "rotate-180" : ""}`} />
     </button>
   );
   const pageSize = (
     <section className="space-y-4 border-y py-4" aria-label={tr("Size of the page")}>
       <div>
-        <p className="mb-2 text-sm font-bold">{tr("How long should it be?")}</p>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-sm font-bold">{tr("How long should it be?")}</p>
+          <span className="sm:hidden">{looksTab}</span>
+        </div>
         <PageLengthPicker compact value={asPageGoal(draft.pageGoal)} template={template} onChange={(g) => updatePageGoal(g)} />
       </div>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
       <div className="flex min-w-0 flex-1 basis-72 items-center gap-4">
         {/* the sheet: it fills up as the resume takes more of the page */}
-        <svg width="34" height="44" viewBox="0 0 34 44" aria-hidden className="shrink-0">
+        <svg width="34" height="44" viewBox="0 0 34 44" aria-hidden className="shrink-0 max-sm:h-9 max-sm:w-7">
           <defs>
             <clipPath id="page-fill">
               <rect x="2" y="2" width="30" height="40" rx="3" />
@@ -800,7 +804,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
-            <p className="text-sm font-bold">{tr("Page")}</p>
+            <p className="text-sm font-bold max-sm:hidden">{tr("Page")}</p>
             <p className="flex min-h-[1.25rem] items-center gap-1.5 text-sm font-semibold transition-colors duration-300" style={{ color: toneColor }}>
               {measuring && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               {tone === "idle" ? (measuring ? tr("Measuring the page…") : tr("We couldn't measure the page.")) : tone === "ok" ? (pageCount > 1 ? tr("It fits on {pages} pages.", { pages: pageCount }) : tr("It fits on one page.")) : tone === "tight" ? tr("Tight, but it fits") : pageCount > 1 ? tr("This resume takes {pages} pages.", { pages: pageCount }) : tr("It is crowded")}
@@ -823,14 +827,14 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
             <div className="shimmer mt-3 h-2 rounded-full bg-muted" aria-hidden />
           )}
           {pageInfo && (
-            <p className="mt-1.5 text-xs text-muted-foreground">
+            <p className="mt-1.5 text-xs text-muted-foreground max-sm:hidden">
               {pageCount > 1 ? (acceptsPages > 1 ? tr("It is as long as you chose.") : tr("A recruiter reads one page.")) : textSize >= 100 ? tr("The text keeps its normal size.") : tr("The text is at {pct}% of its normal size.", { pct: textSize })}{" "}
               {tone === "full" || tone === "tight" ? tr("Below {min}% it is small print and gets skipped.", { min: minPct }) : ""}
             </p>
           )}
         </div>
       </div>
-      {looksTab}
+      <span className="max-sm:hidden">{looksTab}</span>
       </div>
 
       {/* the looks that suit this job and this resume (the tab is at the right of "Page"); the person decides */}
@@ -1006,7 +1010,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   );
 
   const STEPS = [
-    { id: "fit" as const, label: "Your fit", short: "Your fit" },
+    { id: "fit" as const, label: "Your fit", short: "Fit" },
     { id: "edit" as const, label: "Edit for this job", short: "Edit" },
     { id: "review" as const, label: "Review and create", short: "Review" },
   ];
@@ -1387,7 +1391,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
 
           {!customizing && step === "edit" && (
             <>
-              <p className="rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">{tr("These edits are only for this resume. Your saved profile stays the same.")}</p>
+              <p className="rounded-xl border bg-muted/30 px-3 py-2 text-xs text-muted-foreground sm:px-4 sm:py-3 sm:text-sm">{tr("These edits are only for this resume. Your saved profile stays the same.")}</p>
               {pageSize}
               <div role="tablist" className="flex flex-wrap gap-1.5">
                 {SECTIONS.map((s) => (
@@ -1602,8 +1606,22 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
                 </label>
               )}
 
-              <div className="flex justify-end border-t pt-5 max-lg:hidden">
-                <Button onClick={create} disabled={evaluating || !!fixing || (needsOath && !truthful)} className="gap-2">{tr("Create my resume for this job")}</Button>
+              {/* the action of this step stays in view at the bottom while the page scrolls (on a phone it is in the bar of the screen) */}
+              <div className="sticky bottom-0 z-30 -mx-4 hidden items-center justify-between gap-4 border-t bg-background/90 px-4 py-3.5 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] backdrop-blur-md sm:-mx-5 sm:px-5 lg:-mx-6 lg:flex lg:px-6">
+                <p className="min-w-0 text-sm text-muted-foreground">
+                  {needsOath && !truthful ? (
+                    <span className="font-semibold text-foreground">{tr("Confirm the declaration above to create the resume.")}</span>
+                  ) : (
+                    <>
+                      <span className="block truncate font-semibold text-foreground">{tr(job.title)}</span>
+                      <span className="block truncate text-xs">{job.company}</span>
+                    </>
+                  )}
+                </p>
+                <Button onClick={create} disabled={evaluating || !!fixing || (needsOath && !truthful)} className="h-11 shrink-0 gap-2 rounded-full px-7 text-base font-bold shadow-lg shadow-blue-600/25">
+                  {evaluating || fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                  {tr("Create my resume for this job")}
+                </Button>
               </div>
             </>
           )}

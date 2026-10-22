@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check } from "lucide-react";
+import { Check, FileText, Files, Sparkles } from "lucide-react";
 import { useT } from "@/i18n/provider";
 import { canRunTwoPages, type PageGoal } from "@/lib/pageGoal";
 
@@ -17,7 +17,30 @@ export default function PageLengthPicker({ value, template, onChange, compact = 
   const twoOk = canRunTwoPages(template);
   return (
     <div>
-      <div role="radiogroup" aria-label={tr("How long should your resume be?")} className={`grid gap-3 ${compact ? "sm:grid-cols-3" : "sm:grid-cols-3 sm:gap-4"}`}>
+      {/* on a phone (compact): the three choices in ONE row, each its own button with its symbol; the cards with their text are for larger screens */}
+      {compact && (
+        <div role="radiogroup" aria-label={tr("How long should your resume be?")} className="grid grid-cols-3 gap-2 sm:hidden">
+          {OPTIONS.map((o) => {
+            const active = value === o.id;
+            const Icon = o.id === "one" ? FileText : o.id === "two" ? Files : Sparkles;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => onChange(o.id)}
+                className={`relative flex min-h-[4.75rem] flex-col items-center justify-end gap-1.5 rounded-2xl border px-1.5 pb-2.5 pt-3 text-center transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${active ? "border-blue-600 bg-blue-600/10 shadow-sm" : "bg-card hover:border-muted-foreground/40"}`}
+              >
+                <span className={`absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full border transition-colors ${active ? "border-blue-600 bg-blue-600 text-white" : "border-muted-foreground/40"}`}>{active && <Check className="h-2.5 w-2.5" strokeWidth={3.5} />}</span>
+                <Icon className={`h-6 w-6 ${active ? "text-blue-600" : "text-muted-foreground"}`} strokeWidth={1.75} />
+                <span className="text-[13px] font-bold leading-tight">{tr(o.id === "any" ? "Auto" : o.title)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div role="radiogroup" aria-label={tr("How long should your resume be?")} className={`grid gap-3 ${compact ? "max-sm:hidden sm:grid-cols-3" : "sm:grid-cols-3 sm:gap-4"}`}>
         {OPTIONS.map((o) => {
           const active = value === o.id;
           return (
