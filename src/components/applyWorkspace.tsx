@@ -884,16 +884,16 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
 
       {pageInfo?.crowded && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 max-sm:flex-col max-sm:text-center">
             <p className="max-w-sm text-sm font-semibold">{acceptsPages > 1 ? tr("It has to fit on two pages at a readable size.") : tr("It has to fit on one page at a readable size.")}</p>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:justify-center">
               {/* the person decides: keep everything on a second page, or cut what is least useful for this job */}
               {canRunTwoPages(template) && asPageGoal(draft.pageGoal) === "one" && (
-                <Button size="sm" variant="outline" onClick={() => updatePageGoal("two")} className="gap-1.5">
+                <Button size="sm" variant="outline" onClick={() => updatePageGoal("two")} className="gap-1.5 max-sm:h-11 max-sm:w-full max-sm:max-w-xs max-sm:rounded-full">
                   {tr("Keep it all: use two pages")}
                 </Button>
               )}
-              <Button size="sm" onClick={trimIt} disabled={trimming} className="gap-1.5">
+              <Button size="sm" onClick={trimIt} disabled={trimming} className="gap-1.5 max-sm:h-11 max-sm:w-full max-sm:max-w-xs max-sm:rounded-full max-sm:text-base">
                 {trimming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
                 {tr("Trim it for me")}
               </Button>
