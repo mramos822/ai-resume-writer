@@ -109,7 +109,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
   // the resume to the job's language, for this resume only: what it was is kept to go back, and put back if the page is left.
   const jobLanguage = resumeLangForJob(job, locale);
   const draftLanguage = detectResumeLanguage(draft);
-  const [translation, setTranslation] = useState<{ original: Partial<ProfileData> } | null>(null);
+  const [translation, setTranslation] = useState<{ original: Partial<ProfileData>; from: string } | null>(null);
   const [translating, setTranslating] = useState(false);
   const translationRef = useRef(translation);
   translationRef.current = translation;
@@ -150,7 +150,7 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
       const original: Partial<ProfileData> = { jobTitle: d.jobTitle, careerObjective: d.careerObjective, jobHistory: d.jobHistory, internships: d.internships, education: d.education, projects: d.projects, skills: d.skills, skillGroups: d.skillGroups, skillLevels: d.skillLevels, languages: d.languages, interests: d.interests, certifications: d.certifications };
       const translated = await translateProfile(JSON.parse(JSON.stringify(original)), jobLanguage);
       applyFields(translated);
-      setTranslation({ original });
+      setTranslation({ original, from: draftLanguage ?? "en" });
     } catch (e) {
       toast.error((e as Error).message || tr("We couldn't translate your resume right now."));
     } finally {
@@ -1195,67 +1195,45 @@ export default function ApplyWorkspace({ job, profileId }: { job: JobListing; pr
 
           {!customizing && step === "fit" && (
             <>
-              {/* the job is in another language than the resume: the person can translate it, for this resume only. One card with three moments:
-                  the offer, the work (the button turns into a loader and a light runs along the bottom) and the result (it turns green, the check
-                  pops with a ripple and a few sparks) */}
+              {/* the job is in another language than the resume: a language switch. The sliding thumb is the whole interaction: pick the job's
+                  language and the thumb glides over, turns into a loader while the resume is translated, and lands with a check; pick the other
+                  one to go back. For this resume only. */}
               {(translation || translating || (draftLanguage && draftLanguage !== jobLanguage)) && (
-                <div className={`relative overflow-hidden rounded-xl border px-4 py-3 text-sm transition-colors duration-500 ${translation ? "border-green-500/30 bg-green-500/5" : "border-blue-500/30 bg-blue-500/5"}`}>
-                  {translating && (
-                    <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] overflow-hidden bg-blue-500/15">
-                      <span className="translate-bar block h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 border-b pb-4">
+                  <div className="min-w-0 flex-1 basis-56">
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <Languages className="h-4 w-4 shrink-0 text-blue-500" />
+                      <span className="min-w-0">{placeName ? tr("This job is in {place}, where they speak {language}.", { place: placeName, language: languageName(jobLanguage) }) : tr("This job is written in {language}.", { language: languageName(jobLanguage) })}</span>
+                    </p>
+                    <p key={translation ? "on" : "off"} className="mt-0.5 pl-6 text-xs text-muted-foreground motion-safe:animate-[swap-in_0.35s_ease-out_both]">
+                      {translation ? tr("Only for this job. Your saved profile does not change.") : translating ? tr("Translating your resume to {language}…", { language: languageName(jobLanguage) }) : tr("Your resume is in {mine}. Switch it just for this job?", { mine: languageName(draftLanguage ?? "en") })}
+                    </p>
+                  </div>
+                  <div role="group" aria-label={tr("Language of this resume")} className="relative inline-flex shrink-0 rounded-full border bg-card p-1 shadow-sm">
+                    {/* the thumb: glides between the two, shimmers while it works, and lands with a small bounce */}
+                    <span
+                      aria-hidden
+                      className={`absolute bottom-1 top-1 left-1 w-[calc(50%-4px)] overflow-hidden rounded-full bg-blue-600 shadow-md shadow-blue-600/30 transition-transform duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)] ${translation || translating ? "translate-x-full" : "translate-x-0"}`}
+                    >
+                      {translating && <span className="translate-bar absolute inset-y-0 left-0 block w-1/2 bg-gradient-to-r from-transparent via-white/40 to-transparent" />}
                     </span>
-                  )}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-                      {translation ? (
-                        <>
-                          <span aria-hidden className="absolute inset-0 rounded-full bg-green-500/30 motion-safe:animate-[ripple_0.9s_ease-out_both]" />
-                          {[[-26, -20], [24, -22], [30, 6], [-30, 8], [-6, -32], [8, 30]].map(([dx, dy], i) => (
-                            <span key={i} aria-hidden style={{ "--dx": `${dx}px`, "--dy": `${dy}px`, animationDelay: `${i * 40}ms` } as React.CSSProperties} className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-green-500 opacity-0 motion-safe:animate-[burst_0.8s_ease-out_both]" />
-                          ))}
-                          <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-green-500 text-white shadow-md shadow-green-500/30 motion-safe:animate-[check-pop_0.5s_cubic-bezier(0.34,1.56,0.64,1)_both]">
-                            <Check className="h-5 w-5" strokeWidth={3} />
-                          </span>
-                        </>
-                      ) : (
-                        <span className={`flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/10 text-blue-500 transition-transform duration-300 ${translating ? "scale-110 motion-safe:animate-pulse" : ""}`}>
-                          <Languages className="h-5 w-5" />
-                        </span>
-                      )}
-                    </span>
-                    <span key={translation ? "done" : translating ? "busy" : "idle"} className="min-w-0 flex-1 motion-safe:animate-[swap-in_0.35s_ease-out_both]">
-                      {translation ? (
-                        <>
-                          <span className="block font-bold text-green-700 dark:text-green-400">{tr("Translated to {language}", { language: languageName(jobLanguage) })}</span>
-                          <span className="block text-xs text-muted-foreground">{tr("Only for this job. Your saved profile does not change.")}</span>
-                        </>
-                      ) : translating ? (
-                        tr("Translating your resume to {language}…", { language: languageName(jobLanguage) })
-                      ) : placeName ? (
-                        tr("This job is in {place}, where they speak {language}. Your resume is in {mine}. Do you want to translate it to {language} just for this job?", { place: placeName, language: languageName(jobLanguage), mine: languageName(draftLanguage ?? "en") })
-                      ) : (
-                        tr("This job is written in {language} and your resume is in {mine}. Do you want to translate it to {language} just for this job?", { language: languageName(jobLanguage), mine: languageName(draftLanguage ?? "en") })
-                      )}
-                    </span>
-                    {translation ? (
-                      <button type="button" onClick={undoTranslation} className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground">
-                        <Undo2 className="h-3.5 w-3.5" />
-                        {tr("Use my original")}
-                      </button>
-                    ) : (
+                    {[
+                      { code: translation?.from ?? draftLanguage ?? "en", active: !translation && !translating, onClick: () => undoTranslation(), done: false },
+                      { code: jobLanguage, active: !!translation || translating, onClick: () => void translateToJob(), done: !!translation },
+                    ].map((o, i) => (
                       <button
+                        key={i}
                         type="button"
-                        onClick={() => void translateToJob()}
-                        disabled={translating}
-                        className={`inline-flex items-center justify-center gap-2 overflow-hidden rounded-full py-1.5 text-sm font-semibold transition-all duration-300 ${translating ? "bg-blue-500/15 px-3 text-blue-600 dark:text-blue-300" : "bg-blue-600 px-4 text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 active:scale-95"}`}
+                        disabled={translating || o.active}
+                        aria-pressed={o.active}
+                        onClick={o.onClick}
+                        className={`relative z-10 inline-flex min-w-[5.5rem] items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold capitalize transition-colors duration-300 ${o.active ? "text-white" : "text-muted-foreground hover:text-foreground"}`}
                       >
-                        <span className="relative flex h-4 w-4 items-center justify-center">
-                          <Languages className={`absolute h-4 w-4 transition-all duration-300 ${translating ? "scale-0 opacity-0" : "scale-100 opacity-100"}`} />
-                          <Loader2 className={`absolute h-4 w-4 animate-spin transition-all duration-300 ${translating ? "scale-100 opacity-100" : "scale-0 opacity-0"}`} />
-                        </span>
-                        <span key={translating ? "busy" : "idle"} className="motion-safe:animate-[swap-in_0.3s_ease-out_both]">{translating ? tr("Translating…") : tr("Translate to {language}", { language: languageName(jobLanguage) })}</span>
+                        {i === 1 && translating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        {i === 1 && o.done && <Check className="h-3.5 w-3.5 motion-safe:animate-[check-pop_0.5s_cubic-bezier(0.34,1.56,0.64,1)_both]" strokeWidth={3} />}
+                        {languageName(o.code)}
                       </button>
-                    )}
+                    ))}
                   </div>
                 </div>
               )}
