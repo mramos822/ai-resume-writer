@@ -20,8 +20,10 @@ export function translatableTexts(p: Partial<ProfileData>): string[] {
     }
   }
   for (const e of p.education ?? []) {
-    add(e.degree);
-    add(e.school); // a generic name ("Schule") is translated, a proper name ("Universidad Nacional de Colombia") stays
+    // the title of the degree and the school are NOT translated: they are written as the school gives them (an empty text keeps its place in the
+    // list, and an empty text is never sent nor changed)
+    add("");
+    add("");
     add(e.honors);
     add(e.coursework);
   }
@@ -53,8 +55,9 @@ export function applyTexts(p: Partial<ProfileData>, t: string[]): Partial<Profil
   const internships = jobs(p.internships ?? []);
   const education = (p.education ?? []).map((e) => ({
     ...e,
-    degree: take(e.degree),
-    school: take(e.school),
+    // the degree and the school keep their place in the list but are never replaced (see translatableTexts)
+    degree: (i++, e.degree),
+    school: (i++, e.school),
     honors: e.honors === undefined ? undefined : take(e.honors),
     coursework: e.coursework === undefined ? undefined : take(e.coursework),
   }));
