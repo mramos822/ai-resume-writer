@@ -1,6 +1,7 @@
 // Before a resume is made for a job: Kaizo asks what the person has that the resume does not show, and judges the draft.
 // Server side. The AI only works with the resume and the posting, and with what the person confirmed; it invents nothing.
 import { namesEmployer, withoutEmployer } from "@/lib/employerMention";
+import { POSTING_READING } from "@/lib/postingReading";
 import { getOpenAIChatCompletionWithFallback } from "@/lib/openaiClient";
 import { AI_MODEL, AI_MODEL_STRONG } from "@/lib/aiConfig";
 import { cleanFix, profileForReview, type ReviewFix } from "@/lib/resumeReview";
@@ -237,6 +238,7 @@ Your opinion must come from THIS posting's job title, level and field, and from 
 - Never ask to cut content just to reach one page when "page.maxPages" is 2: the person chose a longer resume. Cut only when "page.crowded" is true. If page.layout.pagesNow is 2 and page.layout.lastPageFill is under 0.3, say that the second page is nearly empty and should be tightened or strengthened with what THIS job values.
 - Judge length against the level of the job: entry-level and junior postings fit a tight one page; senior and research postings can justify two.
 Use ONLY facts in the data. Never invent numbers, tools or experience.
+${POSTING_READING}
 If "page" says the resume is crowded (more pages than "maxPages", or the text would have to shrink below 85%, which a recruiter skips as small print), one of the improvements must say what to cut for this job: less relevant skills or older jobs, never the 3 most recent jobs.
 "today" is the current date: a date on or before it is in the past or the present, never "in the future". Do not point at dates as mistakes unless they are after "today" or end before they start.
 The number (score) is measured by code, so you do not give one.
@@ -334,6 +336,7 @@ export async function evaluateDraft(profile: ProfileData, job: JobListing, confi
 const FIX_ALL = `You are an expert resume writer improving the resume of a person for ONE job, for a US applicant tracking system (ATS) and recruiters.
 You receive the resume as JSON, the job posting, a list of "improvements" a reviewer asked for, the facts and skills the person confirmed ("confirmed"), sometimes "keywords" (posting terms the resume should say) and sometimes "page" (whether the resume is crowded, and its look and length in "page.layout"). Write for the job title and its field, and never cut content to reach one page when "page.maxPages" is 2.
 "keywords": work each one into the objective (and into a bullet of a job only where it is already true for that job), written exactly as given. The objective is the safest place: it speaks of the person as a whole.
+${POSTING_READING}
 Reply with ONE JSON object and nothing else: { "fixes": [ <fix>, ... ] } where each fix is exactly one of:
   { "type": "objective", "text": "<3 to 5 sentences, 250 to 700 characters, no 'I', written for this job>" }
   { "type": "jobTitle", "text": "<the title the resume should show>" }

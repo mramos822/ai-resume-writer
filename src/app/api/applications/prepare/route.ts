@@ -20,6 +20,7 @@ import { profileForReview } from "@/lib/resumeReview";
 import { cleanAnswers, withDraft } from "@/lib/applicationCoach";
 import { evaluateAuto, newestFirst } from "@/lib/reviewRubric";
 import { mentionedSkills, simplifyForPosting } from "@/lib/jobSkills";
+import { POSTING_READING } from "@/lib/postingReading";
 import { faithfulBullets } from "@/lib/bulletFidelity";
 import type { ProfileData } from "@/context/profileContext";
 
@@ -35,6 +36,7 @@ You receive the person's resume as JSON and the job posting. Reply with ONE JSON
   "bullets": { "<jobId>": ["<3 to 5 bullets>"] },
   "coverLetter": "<a cover letter of 130 to 190 words: greeting, why this role and company, 2 concrete real strengths, a closing, and the person's name on its own last line after a sign-off (\"Sincerely,\" or the same in the language of the letter). Plain text, no placeholders>"
 }
+${POSTING_READING}
 Rules:
 - Use ONLY facts in the resume. Never invent employers, dates, tools, degrees, numbers or skills the person does not have.
 - "skills": only skills that are already in the resume, copied exactly. {{SKILL_RULE}}

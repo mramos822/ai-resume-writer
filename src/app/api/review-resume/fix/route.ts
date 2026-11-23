@@ -8,6 +8,7 @@ import { AI_MODEL_STRONG } from "@/lib/aiConfig";
 import { applyFixes, autoFixFor, cleanFix, profileForReview, type ReviewFix } from "@/lib/resumeReview";
 import { autoPoints, criterionById, evaluateAuto, newestFirst } from "@/lib/reviewRubric";
 import { isRelevantJob, targetRoleOf } from "@/lib/roleProfile";
+import { ROLE_READING } from "@/lib/postingReading";
 import { loadRoleProfile, measure } from "@/lib/reviewServer";
 import type { ProfileData } from "@/context/profileContext";
 
@@ -25,7 +26,8 @@ Rules:
 - Bullets: 25 to 170 characters, start with a strong past-tense verb (present tense for the current job), no first person. Provide the FULL replacement list for each job you touch.
 - Jobs that have little to do with the target role only need 1 or 2 bullets; do not pad them. Recent jobs related to the role get 3 to 5.
 - Skills are a PRIORITY. More skills and languages is better: never remove an important or in-demand skill because the resume does not mention it or to save space. Remove one ONLY if it is a repeat of another skill (like "JS" and "JavaScript"), very redundant, or clearly useless, and only when the list is very long (over 40). Adding skills is allowed only when the jobs, projects or studies show them.
-- Plain language, no emojis, no markdown.`;
+- Plain language, no emojis, no markdown.
+${ROLE_READING}`;
 
 /** The text written for the resume goes in the language of the resume itself (the person's own words), whatever language the site is in. */
 function languageRule(data: ProfileData, siteLang?: string): string {
