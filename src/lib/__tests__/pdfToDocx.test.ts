@@ -54,6 +54,20 @@ describe("PDF to DOCX", () => {
     expect(xml.match(/<w:pageBreakBefore\/>/g)).toHaveLength(1);
   });
 
+  it("keeps colors and letter spacing, and a dash drawn apart from its text is still a bullet", async () => {
+    const grey = { x: 40, str: "–", size: 10, bold: false, color: "#8a8f98" };
+    const pieces: Line[] = [
+      { page: 1, y: 700, pageW: 595.28, pageH: 841.89, parts: [{ x: 40, str: "SKILLS", size: 8, bold: true, color: "#8a8f98", spacing: 2 }] },
+      { page: 1, y: 680, pageW: 595.28, pageH: 841.89, parts: [grey, { x: 52, str: "Built things", size: 10, bold: false }] },
+    ];
+    const xml = await (await JSZip.loadAsync(await docxFromLines(pieces))).file("word/document.xml")!.async("string");
+    expect(xml).toContain('<w:color w:val="8A8F98"/>');
+    expect(xml).toContain('<w:spacing w:val="40"/>');
+    expect(xml).toContain('<w:pgSz w:w="11906"');
+    expect(xml.match(/<w:ind w:left="360"/g)).toHaveLength(1);
+    expect(xml).not.toContain("–");
+  });
+
   it("escapes characters XML cannot hold", async () => {
     const xml = await (await JSZip.loadAsync(await docxFromLines(lines))).file("word/document.xml")!.async("string");
     expect(xml).toContain("Handled debugging &amp; testing &lt;fast&gt;.");

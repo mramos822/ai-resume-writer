@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   // the PDF routes read the Carlito fonts from disk, so they travel with the serverless functions. pdfkit also loads the metrics of its standard fonts
   // (Helvetica...) with a dynamic require through its own "#standard-fonts/..." map, which the file tracer cannot see: without these lines the host
   // answers 'Cannot find module .../pdfkit/js/standard-fonts/Helvetica.cjs' and no PDF (nor the page-fit measure of the review) works there
-  outputFileTracingIncludes: { "/api/**": ["./public/fonts/**", "./node_modules/pdfkit/package.json", "./node_modules/pdfkit/js/standard-fonts/**", "./node_modules/pdfkit/js/data/**"] },
+  outputFileTracingIncludes: { "/api/**": ["./node_modules/pdfjs-dist/legacy/build/pdf.mjs", "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs", "./public/fonts/**", "./node_modules/pdfkit/package.json", "./node_modules/pdfkit/js/standard-fonts/**", "./node_modules/pdfkit/js/data/**"] },
   // the landing page is the root of the site; the old address keeps working
   // browser-side protections for every page and API response
   async headers() {

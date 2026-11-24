@@ -1053,7 +1053,7 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
   const BURGUNDY_SOFT = tint(base, 0.8);
   const STEEL = base;
   const STEEL_SOFT = tint(base, 0.86);
-  const ML = v === "banner" ? 30 : 46;
+  const ML = v === "banner" ? 30 : v === "minimal" ? 41.7 : 46;
   const MR = ML;
   const cw = W - ML - MR;
   const CX = v === "corporate" ? ML + 104 * k : v === "banner" ? ML + 138 : ML; // where the text of a section starts
@@ -1233,15 +1233,15 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
     if (contact.length) pen.text(contact.join("   \u00b7   "), ML + side, ny + 6 * k, cw * 0.52, { font: sans, size: 8.2, color: BODY, gap: 2 });
     y = bandH + 14 * k;
   } else if (v === "minimal") {
-    // airy: a big plain name at the left, the details in grey, a photo (if any) at the right, no rules at all
-    const pr = pen.photo ? 28 * k : 0;
-    const nw = cw - (pen.photo ? 2 * pr + 16 : 0);
-    y = 46 * k;
+    // the sizes of the live preview: a big plain name at the left, the details in grey, a photo (if any) at the right, no rules at all
+    const pr = pen.photo ? 32.7 * k : 0;
+    const nw = cw - (pen.photo ? 2 * pr + 18 : 0);
+    y = 41.7 * k;
     if (pen.photo) pen.drawPhoto(W - MR - pr, y + pr, pr);
     let ny = pen.text(name, ML, y, nw, pen.fit(name, { font: bold, size: 26, color: INK }, nw, 14));
-    if (title) ny = pen.text(title, ML, ny + 3 * k, nw, { font: sans, size: 11, color: MUTED });
-    if (contact.length) ny = pen.text(contact.join("   ·   "), ML, ny + 7 * k, nw, { font: sans, size: 8.4, color: MUTED, gap: 2 });
-    y = Math.max(ny, y + 2 * pr) + 14 * k;
+    if (title) ny = pen.text(title, ML, ny + 4.8 * k, nw, { font: sans, size: 11.9, color: "#666666" });
+    if (contact.length) ny = pen.text(contact.join("   ·   "), ML, ny + 8.3 * k, nw, { font: sans, size: 8.9, color: "#777777", gap: 2 });
+    y = Math.max(ny, y + 2 * pr);
   } else if (v === "elegant") {
     // a serif name centered over a double rule (a photo, if any, sits at the left)
     const pr = pen.photo ? 26 * k : 0;
@@ -1273,8 +1273,10 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
 
   /* ---- pieces ---- */
   let bannerFirst = true; // the banner look draws a rule between sections, none above the first
+  const y0 = { fresh: true };
   const section = (t: string, stacked = false) => {
     t = L(t);
+    y0.fresh = true;
     y += 4 * k;
     if (v === "banner") {
       if (bannerFirst) bannerFirst = false;
@@ -1336,8 +1338,8 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
       pen.rule(ML, bottom + 3 * k, W - MR, tint(base, 0.78), 0.8);
       y = bottom + 3 * k + 8 * k;
     } else if (v === "minimal") {
-      y += 6 * k;
-      y = pen.text(t.toUpperCase(), ML, y, cw, { font: bold, size: 8.2, color: QUIET, spacing: 2.2 }) + 7 * k;
+      y += 21 * k;
+      y = pen.text(t.toUpperCase(), ML, y, cw, { font: bold, size: 8.9, color: QUIET, spacing: 1.78 * 1.4 }) + 10.7 * k;
     } else if (v === "elegant") {
       const bottom = pen.text(t.toUpperCase(), ML, y, cw, { font: bold, size: 11, color: BURGUNDY, spacing: 1.6 });
       pen.rule(ML, bottom + 2 * k, W - MR, BURGUNDY_SOFT, 0.8);
@@ -1355,13 +1357,15 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
   // the timeline puts its entries to the right of a vertical line
   const EX = v === "timeline" ? ML + 15 * k : v === "academic" ? ML + 80 * k : CX;
   const EW = W - MR - EX;
-  const size = serif ? 9.7 : 9;
-  const headStyle: Style = { font: bold, size: v === "tech" ? 10 : serif ? 10.6 : 10.2, color: INK, gap: 1 };
+  const mn = v === "minimal"; // minimal has the sizes of the live preview
+  const size = mn ? 10.7 : serif ? 9.7 : 9;
+  const headStyle: Style = { font: bold, size: mn ? 11.9 : v === "tech" ? 10 : serif ? 10.6 : 10.2, color: INK, gap: 1 };
   const dateStyle: Style =
     v === "tech" ? { font: mono, size: 8, color: MUTED } : { font: v === "executive" || serif ? ital : sans, size: serif ? 8.8 : 8.2, color: MUTED };
-  const bodyStyle: Style = { font: sans, size, color: BODY, gap: 1.9 };
-  const bullet = v === "tech" ? ">" : v === "minimal" ? "–" : "•";
-  const bulletColor = v === "minimal" ? QUIET : v === "press" ? INK : base;
+  const bodyStyle: Style = { font: sans, size, color: mn ? "#444444" : BODY, gap: mn ? 3.4 : 1.9 };
+  const mnGap = (n: number) => (mn ? 0 : n * k); // minimal spaces its blocks with the margins of its sections and entries
+  const bullet = v === "tech" ? ">" : "•";
+  const bulletColor = v === "minimal" ? "#444444" : v === "press" ? INK : base;
 
   /** On the timeline: the vertical line, with a dot at the top of every entry. */
   const mark = (top: number, bottom: number) => {
@@ -1388,7 +1392,19 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
     }
     y = bottom + 2.5 * k;
   };
-  const entry = (heading: string, dates: string, place = "") => {
+  let entryNo = 0; // minimal leaves 14.3pt between entries of a section (the first one of a section has none)
+  const entry = (heading: string, dates: string, place = "", datesRight = false) => {
+    if (mn) {
+      // the live preview: the title with the place at the right (the dates at the right for projects), the dates in grey under the title
+      if (entryNo++ > 0 && !y0.fresh) y += 14.3 * k;
+      y0.fresh = false;
+      const right = datesRight ? dates : place;
+      const rs: Style = { font: sans, size: 9.5, color: "#777777" };
+      y = pen.leftRight(heading, right, EX, y, EW, headStyle, rs);
+      if (dates && !datesRight) y = pen.text(dates, EX, y + 1.8 * k, EW, { font: sans, size: 10.1, color: "#777777" });
+      y += 2.5 * k;
+      return;
+    }
     if (v === "academic") {
       // the years in a column at the left, the rest beside them
       pen.text(dates, ML, y + 1 * k, EX - ML - 10 * k, dateStyle);
@@ -1405,15 +1421,15 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
     for (const j of list) {
       const top = y;
       if (v === "banner") bannerEntry(clean(j.title), clean(j.company), tight ? "" : clean(j.location), jobDates(j));
-      else entry(jobHeading(j), jobDates(j), tight ? "" : clean(j.location));
+      else entry(jobHeading(j), jobDates(j), tight ? "" : clean(j.location), tight);
       if (clean(j.description)) y = pen.text(clean(j.description), EX, y, EW, bodyStyle) + 3 * k;
       const bullets = (j.accomplishments || []).filter((b) => clean(b));
       for (const raw of bullets) {
-        pen.text(bullet, EX + 2 * k, y, 10, { ...bodyStyle, color: bulletColor });
-        y = pen.text(clean(raw), EX + 12 * k, y, EW - 12 * k, bodyStyle) + 2.4 * k;
+        pen.text(bullet, EX + (mn ? 4 : 2) * k, y, 10, { ...bodyStyle, color: bulletColor });
+        y = pen.text(clean(raw), EX + (mn ? 13 : 12) * k, y, EW - (mn ? 13 : 12) * k, bodyStyle) + (mn ? 3.6 : 2.4) * k;
       }
       mark(top, y);
-      y += 6 * k;
+      y += mnGap(6);
     }
   };
 
@@ -1438,7 +1454,7 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
     about: () => {
       if (!clean(p.careerObjective)) return;
       section("Profile");
-      y = pen.text(clean(p.careerObjective), CX, y, CW, { ...bodyStyle, size: size + 0.2, color: INK, gap: 2.1, align: v === "legal" ? "justify" : "left" }) + 7 * k;
+      y = pen.text(clean(p.careerObjective), CX, y, CW, { ...bodyStyle, size: size + 0.2, color: INK, gap: 2.1, align: v === "legal" ? "justify" : "left" }) + mnGap(7);
     },
     job: () => {
       if (!p.jobHistory?.length) return;
@@ -1456,7 +1472,7 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
         if (extra.honors) y = pen.text(extra.honors, EX, y, EW, bodyStyle) + 1.5 * k;
         if (extra.coursework) y = pen.text(extra.coursework, EX, y, EW, { ...bodyStyle, size: size - 0.4 }) + 1.5 * k;
         mark(top, y);
-        y += 6 * k;
+        y += mnGap(6);
       }
     },
     skills: () => {
@@ -1490,14 +1506,14 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
           }
           y += 3 * k;
         } else {
-          y = pen.text(skills.map((s) => s.name).join(v === "minimal" ? "   ·   " : "  •  "), CX, y, CW, { ...bodyStyle, color: INK, gap: 2.4 }) + 7 * k;
+          y = pen.text(skills.map((s) => s.name).join(v === "minimal" ? "   ·   " : "  •  "), CX, y, CW, { ...bodyStyle, color: INK, gap: mn ? 4.7 : 2.4 }) + mnGap(7);
         }
       }
       const langs = languagesOf(p);
       if (langs.length) {
         section("Languages");
         const line = langs.map((l) => (l.level ? `${l.name} (${L(l.level)})` : l.name)).join(v === "tech" ? "   |   " : "  ·  ");
-        y = pen.text(line, CX, y, CW, { ...bodyStyle, color: INK, font: v === "tech" ? mono : sans, size: v === "tech" ? 8.6 : size }) + 7 * k;
+        y = pen.text(line, CX, y, CW, { ...bodyStyle, color: INK, font: v === "tech" ? mono : sans, size: v === "tech" ? 8.6 : size }) + mnGap(7);
       }
     },
     extras: () => {
@@ -1516,7 +1532,7 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
           const top = y;
           if (v === "banner") bannerEntry(c2.name, c2.issuer, "", c2.year);
           else {
-            entry(c2.name, c2.year);
+            entry(c2.name, c2.year, "", true);
             if (c2.issuer) y = pen.text(c2.issuer, EX, y - 1 * k, EW, { ...bodyStyle, size: size - 0.4 }) + 4 * k;
           }
           mark(top, y);
@@ -1525,7 +1541,7 @@ function drawSingle(pen: Pen, p: ProfileData, v: Single) {
       const ints = interestsOf(p);
       if (ints.length) {
         section("Interests");
-        y = pen.text(ints.join("  ·  "), EX, y, EW, bodyStyle) + 4 * k;
+        y = pen.text(ints.join("  ·  "), EX, y, EW, bodyStyle) + mnGap(4);
       }
     },
   };
